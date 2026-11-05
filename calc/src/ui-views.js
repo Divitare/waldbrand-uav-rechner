@@ -133,6 +133,12 @@ function renderDay(R) {
     series: [{ name: 'Akku', c: 'batt', pts: pts.map(p => [p[0], p[3]]), fmt: v => nf(v, 1) + ' %' }],
     hlines: P.reserve > 0 ? [{ y: P.reserve, label: `Reserve ${nf(P.reserve, 0)} %` }] : []
   });
+  // Energie in der Höhe: Höhe über der Einsatzhöhe
+  if (P.hStore > 0) lineChart($('#ch-day-h'), {
+    h: 150, title: `Höhe über der Einsatzhöhe (${nf(P.hAGL, 0)} m über Grund)`, x: { min: x0, max: x1, ticks: xt, fmt: fmtT }, y: { min: 0, max: niceRange([P.hStore], 0.05, true)[1], fmt: v => nf(v, 0) + ' m' },
+    series: [{ name: 'Höhenspeicher', c: 4, pts: pts.map(p => [p[0], p[4] ?? NaN]), fmt: v => nf(v, 0) + ' m' }]
+  });
+  else $('#ch-day-h').innerHTML = '';
 }
 $('#day-tabs').addEventListener('click', e => { const t = e.target.closest('[data-t]'); if (!t) return; UI.dayTab = t.dataset.t; saveUI(); renderDay(R); });
 

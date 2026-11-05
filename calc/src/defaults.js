@@ -30,7 +30,7 @@ const DEFAULT_PARAMS = {
   deflMax: 10, wWeb: 0.45, ribSpacing: 0.15, wRib: 0.5, wLE: 0.2, wSkin: 0.05, wTE: 0.035, mJoint: 0.06,
   wTail: 0.35, boomLin: 0.09, wFus: 0.8, mFusFix: 0.15, rugged: 15, battInWing: false,
   // Akku
-  mBatt: 3.0, battSpec: 230, reserve: 20, etaCharge: 95, etaDischarge: 97, battHealth: 100, battTempCoef: 0.6, battHeat: 8, chargeC: 0.5, noColdCharge: true,
+  mBatt: 3.0, battSpec: 230, reserve: 20, etaCharge: 95, etaDischarge: 97, battHealth: 100, battTempCoef: 0.6, battHeat: 8, chargeC: 0.5, noColdCharge: true, battRAh: 0.15, hStore: 0,
   // Solar
   solarArea: 1.0, cellEff: 23, solarAreal: 0.7, solarGeom: 'profil', cellX0: 8, cellX1: 85, stringLayout: 'span', camberEta: 95,
   mpptEff: 97, laminateLoss: 3, wiringLoss: 2, soiling: 1, tempCoef: 0.32, cellHeat: 0.02, albedo: 0.15,

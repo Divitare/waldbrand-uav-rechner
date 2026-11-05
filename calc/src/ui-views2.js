@@ -93,6 +93,7 @@ RENDER.energie = (R) => {
     kpi('Wirkungsgradkette Solar', nf(C.solK / Math.max(1e-9, P.solarArea) * 100, 1), '%', 'Zelle × MPPT × Laminat × Leitung × Schmutz')
   ].join('');
   $('#eb-sub').textContent = `${fmtDoy(R.n, R.y)} bei ${nf(P.lat, 1)}° N, ${nf(P.lon, 1)}° O, klarer Himmel × ${nf(P.sky, 0)} %, Luft ${nf(P.tMin, 0)}–${nf(P.tMax, 0)} °C am Boden.`;
+  renderBattV(R);
   // Jahresverlauf
   const sw = cached('season', () => seasonSweep(C, 5)), win = seasonWindow(sw, P.tExcReq);
   const tx = sw.map(([n, r]) => [n, fin(r.tExc) ? r.tExc : r.tExc === Infinity ? 24 : NaN]), en = sw.map(([n, , m]) => [n, m ? (m.endur ?? 48) : NaN]);
@@ -489,4 +490,37 @@ function init() {
   if (S.preset) $('#preset-sel').value = S.preset;
   recompute();
   ro.observe(document.querySelector('.wrap'));
+}
+
+/* ---------- Akkuspannung über dem Ladezustand ---------- */
+function renderBattV(R) {
+  const { C, P, mis, per } = R, b = cached('battv', () => battReport(C)), pk = b.pk, cut = pk.uCut, nS = pk.nS;
+  $('#bv-sub').textContent = `${nS} Zellen in Reihe, ${nf(pk.Q, 1)} Ah (${pk.crv.name}, Ruhespannung nach ${pk.crv.src}; Innenwiderstand über dem Ladezustand nach Chen & Rincón-Mora 2006). Pack ${nf(pk.R50 * 1000, 0)} mΩ bei 50 % Ladung.`;
+  const cr = b.climbRes, cf = b.climbFull;
+  $('#kpis-bv').innerHTML = [
+    kpi('Packspannung', nf(b.U100, 1), 'V', `voll · bei Reserve ${nf(b.Ures, 1)} V · leer ${nf(b.U0, 1)} V (Ruhespannung)`),
+    kpi('Reiseflug', nf(b.cruise.I, 1), 'A', `${nf(b.cruise.Ucell, 2)} V je Zelle bei 50 % · Verlust im Akku ${nf(b.cruise.loss, 2)} W`),
+    kpi('Vollgas bei Reserve', nf(cr.Ucell, 2), 'V/Zelle', `${nf(cr.I, 1)} A · Abschaltung ${nf(cut, 1)} V · voll ${nf(cf.Ucell, 2)} V`, cr.Ucell < cut ? 'bad' : ''),
+    kpi('Steigen bei Reserve', nf(cr.roc, 1), 'm/s', `voll ${nf(cf.roc, 1)} m/s · Schub ${nf(cr.T, 1)} statt ${nf(cf.T, 1)} N bei ${nf(b.Vc, 1)} m/s`, cr.roc < 1 ? 'bad' : '')
+  ].join('');
+  const msg = [];
+  if (cr.Ucell < cut) msg.push(pill('crit', `Bei ${nf(b.zRes * 100, 0)} % Ladung bricht die Zellspannung unter Vollgas auf ${nf(cr.Ucell, 2)} V ein (Abschaltung ${nf(cut, 1)} V): Reserve erhöhen oder mehr Zellen parallel`));
+  else msg.push(pill('good', `Zellspannung bleibt auch bei Reserveladung und Vollgas über ${nf(cut, 1)} V`));
+  if (cr.roc < 0.5 * cf.roc) msg.push(pill('warn', `Steigleistung bei Reserveladung nur ${nf(cr.roc / Math.max(1e-6, cf.roc) * 100, 0)} % des vollen Akkus`));
+  if (P.hStore > 0) {
+    const hm0 = mis ? mis.hMax : 0, eH = hEnergy(C, P.hStore);
+    msg.push(pill('info', `Höhenspeicher bis ${nf(P.hStore, 0)} m: ${nf(eH, 1)} Wh Akku-Gegenwert, im Einsatz erreicht ${nf(hm0, 0)} m${mis && mis.tTop > 0 ? `, ${fmtDur(mis.tTop)} ganz oben` : ''}`));
+    if (P.hAGL + P.hStore > 150) msg.push(pill('warn', `Größte Flughöhe ${nf(P.hAGL + P.hStore, 0)} m über Grund: Betriebsgenehmigung und Luftraum prüfen; Bodenauflösung der Kameras wird gröber`));
+  }
+  $('#bv-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
+  lineChart($('#ch-bv-soc'), { h: 210, title: 'Zellspannung über dem Ladezustand', x: { min: 0, max: 1, ticks: [0, 0.25, 0.5, 0.75, 1], fmt: v => nf(v * 100, 0) + ' %', title: 'Ladezustand' }, y: { min: Math.min(cut - 0.2, 2.8), max: 4.3, fmt: v => nf(v, 1) + ' V' },
+    series: [{ name: 'Ruhespannung', c: 1, pts: b.curve.map(p => [p.z, p.U0]), fmt: v => nf(v, 3) + ' V' }, { name: `Reiseflug ${nf(b.cruise.I, 1)} A`, c: 2, pts: b.curve.map(p => [p.z, p.Uc]), fmt: v => nf(v, 3) + ' V' }, { name: `Vollgas ${nf(cr.I, 0)} A`, c: 3, pts: b.curve.map(p => [p.z, p.Ufull]), fmt: v => nf(v, 3) + ' V' }],
+    hlines: [{ y: cut, label: `Abschaltung ${nf(cut, 1)} V` }], vlines: P.reserve > 0 ? [{ x: b.zRes, label: 'Reserve' }] : [] });
+  const pts = (UI.dayTab === 'periodic' && per.pts ? per.pts : mis ? mis.pts : []).filter(p => fin(p[1]));
+  if (pts.length) {
+    const vv = pts.map(p => { const z = p[3] / 100, Pw = (p[2] - p[1]) / (Math.max(0, p[2] - p[1]) > 0 ? P.etaDischarge / 100 : 1 / (P.etaCharge / 100)); const a = battAt(C, z, Pw, pk); return [p[0], a.Ucell, a.Ucell0]; });
+    const x0 = pts[0][0], x1 = pts[pts.length - 1][0], step = x1 - x0 > 30 ? 6 : x1 - x0 > 14 ? 3 : 2, xt = []; for (let t = Math.ceil(x0 / step) * step; t <= x1 + 1e-9; t += step) xt.push(t);
+    lineChart($('#ch-bv-day'), { h: 210, title: UI.dayTab === 'periodic' ? 'Zellspannung im Dauerflug' : 'Zellspannung im Einsatz', x: { min: x0, max: x1, ticks: xt, fmt: fmtT }, y: { min: Math.min(cut - 0.2, 2.8), max: 4.3, fmt: v => nf(v, 1) + ' V' },
+      series: [{ name: 'an den Klemmen', c: 2, pts: vv.map(p => [p[0], p[1]]), fmt: v => nf(v, 3) + ' V' }, { name: 'Ruhespannung', c: 1, pts: vv.map(p => [p[0], p[2]]), dash: true, fmt: v => nf(v, 3) + ' V' }], hlines: [{ y: cut, label: `Abschaltung ${nf(cut, 1)} V` }] });
+  } else $('#ch-bv-day').innerHTML = '';
 }

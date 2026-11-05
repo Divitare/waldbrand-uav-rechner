@@ -70,6 +70,7 @@
           <div class="panel-head"><div><h2>Einsatztag</h2><p id="day-sub"></p></div><div class="tabs" role="tablist" id="day-tabs"><button class="tab" role="tab" data-t="mission">Einsatz ab Start</button><button class="tab" role="tab" data-t="periodic">Dauerflug (2 Tage)</button></div></div>
           <div class="chart" id="ch-day-p"></div>
           <div class="chart" id="ch-day-s"></div>
+          <div class="chart" id="ch-day-h"></div>
         </div>
         <div class="two">
           <div class="panel"><div class="panel-head"><div><h2>Masse</h2><p id="mass-sub"></p></div></div><div class="bars" id="bars-mass"></div></div>
@@ -286,6 +287,9 @@
       </div>
       <div class="main">
         <div class="panel"><div class="panel-head"><div><h2>Energiebilanz des Tages</h2><p id="eb-sub"></p></div></div><div class="kpis" id="kpis-energy"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Akkuspannung über dem Ladezustand</h2><p id="bv-sub"></p></div></div>
+          <div class="kpis" id="kpis-bv"></div><div id="bv-msg" style="margin-top:10px"></div>
+          <div class="two" style="margin-top:12px"><div class="chart" id="ch-bv-soc"></div><div class="chart" id="ch-bv-day"></div></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Jahresverlauf bei klarem Himmel</h2><p id="season-sub"></p></div></div><div class="chart" id="ch-season"></div><div class="chart" id="ch-season2"></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Parameterstudien</h2><p id="study-sub"></p></div><div class="tabs" role="tablist" id="study-tabs"></div></div><div class="chart" id="ch-study"></div><div class="chart" id="ch-study2"></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Einstrahlung auf den gewölbten Flügel</h2><p id="sol-sub"></p></div></div><div class="chart" id="ch-solgeo"></div></div>

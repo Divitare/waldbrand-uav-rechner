@@ -263,7 +263,7 @@ function dayTurb(t, rise, set, turbDay) {
 }
 function inWindow(t, t0, t1) { return t1 >= t0 ? (t >= t0 && t < t1) : (t >= t0 || t < t1); }
 function daySeries(C, e) {
-  const P = C.P, ps = new Float64Array(NSTEP), pc = new Float64Array(NSTEP), cold = new Uint8Array(NSTEP);
+  const P = C.P, ps = new Float64Array(NSTEP), pc = new Float64Array(NSTEP), pp = new Float64Array(NSTEP), cold = new Uint8Array(NSTEP);
   const t0 = hm(P.tStart), t1 = hm(P.tEnd), Tk = C.tFly + 273.15, sol = C.sol, Fb = sol.Fb, Fd = sol.Fd, Fg = sol.Fg * P.albedo;
   const solK = C.solK, cH = P.cellHeat, tc = P.tempCoef / 100, pP = C.pProp, cA = C.comp.always, cD = C.comp.day, cN = C.comp.night, cM = C.comp.mission;
   const turb = P.turbDay > 0, cold0 = P.noColdCharge ? -P.battHeat : -1e9;
@@ -274,10 +274,11 @@ function daySeries(C, e) {
     const g = e.dni[i] * fb + e.dhi[i] * Fd + e.ghi[i] * Fg;
     ps[i] = g > 0 ? g * solK * Math.max(0, 1 - tc * (e.T[i] + cH * g - 25)) : 0;
     const dens = Math.sqrt((e.T[i] + 273.15) / Tk); // gleiche Fluggeschwindigkeit: grob P ~ 1/sqrt(rho)
-    pc[i] = pP * dens * (turb ? 1 + dayTurb(t, e.rise, e.set, P.turbDay) : 1) + cA + (se > 0 ? cD : cN) + (inWindow(t, t0, t1) ? cM : 0);
+    pp[i] = pP * dens * (turb ? 1 + dayTurb(t, e.rise, e.set, P.turbDay) : 1);
+    pc[i] = pp[i] + cA + (se > 0 ? cD : cN) + (inWindow(t, t0, t1) ? cM : 0);
     cold[i] = e.T[i] < cold0 ? 1 : 0;
   }
-  return { ps, pc, cold, e };
+  return { ps, pc, pp, cold, e };
 }
 // Ladebegrenzung wie ETH (ChargeLimiter.m): bis 90 % max. chargeC·C, darüber exponentiell auf 4,6 %
 const LIM_C = -Math.log(0.046);
@@ -292,6 +293,27 @@ function stepE(C, E, ps, pc, cold) {
   if (net > 0) return cold ? E : Math.min(C.cap, E + chargeLimit(C.cap > 0 ? E / C.cap : 1, net * P.etaCharge / 100, C.cap, P.chargeC) * DT);
   return E + net / (P.etaDischarge / 100) * DT;
 }
+/* ---------- Energie in der Höhe ----------
+   Strategie nach Gao et al. (2013, Energy Conversion and Management 70, 20–30) und Klesh & Kabamba
+   (2009, J. Guidance Control Dynamics 32(4)): Solarüberschuss lädt zuerst den Akku; was der Akku nicht
+   aufnimmt (voll oder Ladebegrenzung), hebt das Flugzeug bis zur Höchsthöhe h_max über der Einsatzhöhe:
+   dh/dt = P_rest·η_Antrieb/(m·g). Bei Fehlbetrag zuerst gleiten (Höhe abbauen), dann den Akku entladen.
+   Antriebsleistung in der Höhe ∝ ρ^(−1/2) bei gleichem Auftriebsbeiwert, ρ ∝ e^(−h/H), H = R_L·T/g. */
+function stepEH(C, st, ps, pc, pp, cold) {
+  const P = C.P, hMax = Math.max(0, P.hStore), eta = clamp(C.lvl.eta || 0.6, 0.2, 0.95), mg = C.m * G, H = 29.27 * (C.tFly + 273.15);
+  const net = ps - (pc + pp * (Math.exp(st.h / (2 * H)) - 1));
+  if (net > 0) {
+    const acc = cold ? 0 : chargeLimit(C.cap > 0 ? st.E / C.cap : 1, net * P.etaCharge / 100, C.cap, P.chargeC), E1 = Math.min(C.cap, st.E + acc * DT);
+    const used = (E1 - st.E) / DT / (P.etaCharge / 100); st.E = E1;
+    const rest = net - used; if (rest > 0 && st.h < hMax) st.h = Math.min(hMax, st.h + rest * eta * DT * 3600 / mg);
+  } else {
+    const need = -net, dh = need * eta * DT * 3600 / mg;
+    if (st.h >= dh) st.h -= dh;
+    else { const f = st.h / dh; st.h = 0; st.E -= need * (1 - f) / (P.etaDischarge / 100) * DT; }
+  }
+}
+// Gespeicherte Höhenenergie als gleichwertige Akkuenergie (Wh): m·g·h/(η·3600)
+const hEnergy = (C, h) => C.m * G * h / (clamp(C.lvl.eta || 0.6, 0.2, 0.95) * 3600);
 
 /* ---------- Einsatz: Start am Morgen mit vollem Akku ---------- */
 function climbEnergy(C) { return C.m * G * C.P.hAGL / Math.max(0.2, C.lvl.eta || 0.6) / 3600; }
@@ -300,15 +322,17 @@ function mission(C, ser, ser2, record) {
   if (!fin(t0) || !fin(t1) || !(C.cap > 0)) return null;
   const i0 = Math.floor(t0 / DT), dur = ((t1 - t0 + 24) % 24) || 24, nM = Math.round(dur / DT), eRes = C.cap * P.reserve / 100;
   let E = C.cap - climbEnergy(C), minE = E, tRes = null, tEmpty = null, eSol = 0, eCons = 0, peak = 0, endur = null, tFull = null;
-  const pts = record ? [] : null;
+  const pts = record ? [] : null, alt = P.hStore > 0, st = { E, h: 0 };
+  let hMaxR = 0, tTop = 0;
   for (let s = 0; s < 2 * NSTEP; s++) {
     const i = i0 + s, srs = i < NSTEP ? ser : (ser2 || ser), k = i % NSTEP;
     const ps = srs.ps[k], pc = srs.pc[k];
     if (s < nM) {
       eSol += ps * DT; eCons += pc * DT; if (ps > peak) peak = ps;
-      if (record) pts.push([t0 + s * DT, ps, pc, E / C.cap * 100]);
+      if (record) pts.push([t0 + s * DT, ps, pc, E / C.cap * 100, st.h]);
     }
-    E = stepE(C, E, ps, pc, srs.cold[k]);
+    if (alt) { st.E = E; stepEH(C, st, ps, pc, srs.pp ? srs.pp[k] : 0, srs.cold[k]); E = st.E; if (s < nM) { if (st.h > hMaxR) hMaxR = st.h; if (st.h >= P.hStore - 1e-6) tTop += DT; } }
+    else E = stepE(C, E, ps, pc, srs.cold[k]);
     if (s < nM) {
       if (E < minE) minE = E;
       if (tRes === null && E < eRes) tRes = t0 + (s + 1) * DT;
@@ -318,12 +342,12 @@ function mission(C, ser, ser2, record) {
     if (endur === null && E < eRes) endur = (s + 1) * DT;
     if (s >= nM && endur !== null) break;
   }
-  if (record) pts.push([t0 + nM * DT, NaN, NaN, NaN]);
-  return { cap: C.cap, eRes, minE, E, tRes, tEmpty, tFull, eSol, eCons, peak, pts, t0, t1, dur, endur, eClimb: climbEnergy(C), ok: minE >= eRes - 1e-9 };
+  if (record) pts.push([t0 + nM * DT, NaN, NaN, NaN, NaN]);
+  return { cap: C.cap, eRes, minE, E, tRes, tEmpty, tFull, eSol, eCons, peak, pts, t0, t1, dur, endur, eClimb: climbEnergy(C), ok: minE >= eRes - 1e-9, hMax: hMaxR, tTop };
 }
 // Leistungsreserve: wie viel zusätzliche Dauerlast (W) der Einsatz verkraftet
 function missionMargin(C, ser) {
-  const test = x => { const s2 = { ps: ser.ps, pc: ser.pc.map(v => v + x), cold: ser.cold }; const r = mission(C, s2, s2, false); return r && r.minE >= r.eRes - 1e-9; };
+  const test = x => { const s2 = { ps: ser.ps, pc: ser.pc.map(v => v + x), pp: ser.pp, cold: ser.cold }; const r = mission(C, s2, s2, false); return r && r.minE >= r.eRes - 1e-9; };
   const pCons = C.pProp + C.comp.always;
   let lo, hi;
   if (test(0)) { lo = 0; hi = 400; if (test(hi)) return { w: hi, capped: true }; }
@@ -349,13 +373,14 @@ function periodic(C, ser, record) {
   if (iEq < 0) return { ...base, reason: 'nosolar' };
   let iEq2 = iMax;
   while (iEq2 < NSTEP - 1 && ps[iEq2 + 1] >= pc[iEq2 + 1]) iEq2++;
-  let E = 0, fail = -1, fcS = -1, fcE = -1, emin = Infinity;
-  const pts = record ? [] : null;
+  let E = 0, fail = -1, fcS = -1, fcE = -1, emin = Infinity, hMaxR = 0;
+  const pts = record ? [] : null, alt = C.P.hStore > 0, st = { E: 0, h: 0 };
   for (let s = 0; s < 2 * NSTEP; s++) {
     const i = (iEq + s) % NSTEP;
-    if (record) pts.push([iEq * DT + s * DT, ps[i], pc[i], E / C.cap * 100]);
-    E = stepE(C, E, ps[i], pc[i], ser.cold[i]);
-    if (E < 0) { fail = s + 1; if (record) pts.push([iEq * DT + (s + 1) * DT, NaN, NaN, 0]); break; }
+    if (record) pts.push([iEq * DT + s * DT, ps[i], pc[i], E / C.cap * 100, st.h]);
+    if (alt) { st.E = E; stepEH(C, st, ps[i], pc[i], ser.pp ? ser.pp[i] : 0, ser.cold[i]); E = st.E; if (st.h > hMaxR) hMaxR = st.h; }
+    else E = stepE(C, E, ps[i], pc[i], ser.cold[i]);
+    if (E < 0) { fail = s + 1; if (record) pts.push([iEq * DT + (s + 1) * DT, NaN, NaN, 0, 0]); break; }
     if (s >= NSTEP) { if (E >= C.cap - 1e-9) { if (fcS < 0) fcS = s; fcE = s; } if (E < emin) emin = E; }
   }
   const tEq = iEq * DT, tEq2 = iEq2 * DT, pNom = pc[iEq];
@@ -363,7 +388,8 @@ function periodic(C, ser, record) {
     const tm = ((iEq + fail) % NSTEP) * DT;
     return { ...base, tExc: tm < tEq ? tm - tEq : tm - 24 - tEq, minSoc: 0, tEq, tEq2, reason: 'empty', tEmpty: tm, pts };
   }
-  return { ...base, tExc: E * C.P.etaDischarge / 100 / pNom, minSoc: E / C.cap, tEq, tEq2, tCm: fcS >= 0 ? (fcE - fcS + 1) * DT : 0, tFc: fcS >= 0 ? ((iEq + fcS) % NSTEP) * DT : NaN, reason: 'ok', pNom, pts };
+  // Excess Time: Restenergie im Akku plus die beim zweiten Gleichgewicht noch gespeicherte Höhe
+  return { ...base, tExc: (E * C.P.etaDischarge / 100 + (alt ? hEnergy(C, st.h) : 0)) / pNom, minSoc: E / C.cap, tEq, tEq2, tCm: fcS >= 0 ? (fcE - fcS + 1) * DT : 0, tFc: fcS >= 0 ? ((iEq + fcS) % NSTEP) * DT : NaN, reason: 'ok', pNom, pts, hMax: hMaxR };
 }
 
 /* ---------- Bequeme Hüllen ---------- */

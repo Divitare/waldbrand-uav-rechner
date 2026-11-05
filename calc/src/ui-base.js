@@ -132,6 +132,8 @@ const PM = {};
   ['mBatt', 'Akkumasse', 'kg', 0.05, 0, 20], ['battSpec', 'Energiedichte (Pack)', 'Wh/kg', 5, 50, 450, null, 'Ganzer Pack inkl. Verbinder und BMS. Li-Ion 18650/21700: 200–260 Wh/kg.'],
   ['reserve', 'Reserve bei Landung', '%', 1, 0, 60], ['etaCharge', 'Ladewirkungsgrad', '%', 0.5, 70, 100], ['etaDischarge', 'Entladewirkungsgrad', '%', 0.5, 70, 100],
   ['battHealth', 'Alterung (Restkapazität)', '%', 1, 50, 100], ['battTempCoef', 'Kapazitätsverlust unter 20 °C', '%/K', 0.1, 0, 3], ['battHeat', 'Akku wärmer als Umgebung', 'K', 1, 0, 40, null, 'Isolierung, Eigenwärme und Heizung. Bestimmt Kapazität in der kältesten Nachtstunde.'],
+  ['battRAh', 'Spezifischer Innenwiderstand', 'Ω·Ah', 0.01, 0.005, 2, null, 'Gleichstrom-Innenwiderstand einer Zelle mal ihrer Kapazität, bei 50 % Ladung und Akkutemperatur. Hochenergie-Rundzellen 0,1–0,2 Ω·Ah, Hochstrom-LiPo 0,02–0,05 Ω·Ah. Steigt bei Kälte stark an.'],
+  ['hStore', 'Energie in der Höhe speichern bis', 'm über Einsatzhöhe', 10, 0, 2000, null, 'Solarüberschuss, den der Akku nicht mehr aufnimmt, hebt das Flugzeug; abends gleitet es zurück, bevor der Akku entladen wird. 0 heißt aus. Höhengrenze der Betriebsgenehmigung beachten.'],
   ['chargeC', 'Max. Laderate', 'C', 0.05, 0.1, 3], ['noColdCharge', 'Nicht unter 0 °C laden', '', 0, 0, 0, 'bool'],
   // Solar
   ['solarArea', 'Zellfläche Flügel', 'm²', 0.01, 0, 6], ['cellEff', 'Zellwirkungsgrad', '%', 0.1, 5, 35], ['solarAreal', 'Flächengewicht Modul', 'kg/m²', 0.01, 0.1, 3, null, 'Zellen mit Einbettung. AtlantikSolar: 0,62 kg/m².'],
@@ -179,7 +181,7 @@ const FORMS = {
   split: ['splits', 'splitEta', 'mJoint'],
   vib: ['wCtrl', 'ctrlXcg', 'ctrlBal', 'kServo', 'gvtAil', 'gvtElev', 'gvtRud', 'gvtB1', 'gvtT1', 'gvtFin', 'gvtHT'],
   env: ['date', 'tz', 'lat', 'lon', 'alt', 'hAGL', 'tMax', 'tMin', 'sky'],
-  batt: ['mBatt', 'battSpec', 'reserve', 'battHealth', 'etaCharge', 'etaDischarge', 'battTempCoef', 'battHeat', 'chargeC', 'noColdCharge'],
+  batt: ['mBatt', 'battSpec', 'reserve', 'battHealth', 'etaCharge', 'etaDischarge', 'battTempCoef', 'battHeat', 'chargeC', 'noColdCharge', 'nCells', 'cellV', 'battRAh', 'hStore'],
   solar: ['solarArea', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'cellX0', 'cellX1', 'stringLayout'],
   solar2: ['mpptEff', 'laminateLoss', 'wiringLoss', 'soiling', 'tempCoef', 'cellHeat', 'albedo'],
   wx: ['weather', 'genYears', 'genSeed'],

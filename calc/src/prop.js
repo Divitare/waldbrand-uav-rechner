@@ -138,8 +138,8 @@ function propOperate(C, T, V, rho) {
   return { ok, n, rpm: n * 60, J, etaP: Tp * V / Psh, etaM: mo.eta, I: mo.I, U: mo.U, throttle: mo.U / Umax, Pbat, etaTot: T * V / Pbat, Psh: Psh * nP };
 }
 // Größter Schub bei V (Vollgas, Strombegrenzung)
-function propMaxThrust(C, V, rho) {
-  const P = C.P, t = propTable(C), D = t.D, nP = C.motor ? C.motor.nProp : 1, gr = P.gearRatio, eg = P.etaGear / 100, Kv = P.motKv * 2 * Math.PI / 60, Umax = battU(P) * 0.97;
+function propMaxThrust(C, V, rho, Ubatt) {
+  const P = C.P, t = propTable(C), D = t.D, nP = C.motor ? C.motor.nProp : 1, gr = P.gearRatio, eg = P.etaGear / 100, Kv = P.motKv * 2 * Math.PI / 60, Umax = (Ubatt || battU(P)) * 0.97;
   const Qprop = n => Math.max(0, tabJ(t, V / (n * D)).CP) * rho * n * n * D ** 5 / (2 * Math.PI);
   const Qmot = n => { const Om = 2 * Math.PI * n * gr, I = Math.min(P.motImax, (Umax - Om / Kv) / P.motR); return Math.max(0, (I - P.motI0) / Kv) * gr * eg; };
   let lo = 0.1, hi = Umax * Kv / (2 * Math.PI * gr);
