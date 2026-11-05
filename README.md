@@ -4,8 +4,12 @@ Auslegungsrechner für ein solarbetriebenes Starrflügel-UAV zur Waldbrandüberw
 (5–6 m Spannweite, 10–15 kg, BVLOS, SORA 2.5). Läuft komplett im Browser; der
 Cloudflare-Worker liefert die Seite aus, speichert Team-Varianten und holt PVGIS-Wetterdaten.
 
-Ansichten: Übersicht, Flugzeug, Schwerpunkt, Struktur, Antrieb, Flugdynamik, Profile,
-Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Validierung, Team.
+Ansichten: Übersicht, Flugzeug, Konfiguration, Schwerpunkt, Struktur, Antrieb, Flugdynamik, Ruder,
+Profile, Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Validierung, Formeln, Team.
+
+**Alle Formeln mit Quellen:** [`docs/BERECHNUNGEN.md`](docs/BERECHNUNGEN.md) (im Rechner: Ansicht *Formeln*).
+Warnungen und Hinweise lassen sich aufklappen: Formel, Stellgrößen mit Sprung zum Eingabefeld und auf
+Knopfdruck der Einfluss jeder Stellgröße.
 
 ## Arbeitsablauf
 
@@ -15,8 +19,9 @@ Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Validierung, Team.
 
 Cloudflare Workers Builds führt bei jedem Push auf `main` aus:
 
-1. `npm run build` – erzeugt `public/index.html` aus `calc/` und prüft die Rechenkerne
-   (AtlantikSolar, Goland-Flügel, Navion, APC-Propeller, Standardentwurf).
+1. `npm run build` – erzeugt `public/index.html` aus `calc/`, prüft, ob `docs/BERECHNUNGEN.md` zum
+   Formelkatalog passt, und prüft die Rechenkerne (AtlantikSolar, Goland-Flügel, typischer Profilschnitt
+   mit Ruder, Navion, APC-Propeller, Standardentwurf, freies Flugzeug gegen Flugdynamik).
    **Schlägt eine Prüfung fehl, wird nichts veröffentlicht** – die alte Version bleibt online.
 2. `npx wrangler deploy` – lädt Worker und Seite hoch.
 
@@ -27,7 +32,9 @@ Andere Zweige als `main` werden nur gebaut und geprüft (GitHub Actions), nicht 
 
 | Pfad | Inhalt |
 |---|---|
-| `calc/src/` | Rechenkern (`core.js`, `vlm.js`, `layout.js`, `prop.js`, `aeroel.js`, `dyn.js`, `sim.js`, `ext.js`, `defaults.js`) und Oberfläche (`ui-*.js`, `ui.html`, `ui.css`, `team.*`) |
+| `calc/src/` | Rechenkern und Oberfläche, Reihenfolge in `calc/tools/modules.json` (siehe unten) |
+| `calc/src/formulas.js` | Formelkatalog mit Quellen; daraus entstehen Ansicht *Formeln* und `docs/BERECHNUNGEN.md` |
+| `docs/BERECHNUNGEN.md` | erzeugt mit `npm run docs`, nicht von Hand ändern |
 | `calc/data/` | Profilpolaren, Wetterdaten, Komponententexte (eingebettet in die Seite) |
 | `calc/tools/build.mjs` | baut `dist/uav-budget.html` (Einzelseite) und `public/index.html` (Worker-Seite) |
 | `calc/tools/*.py` | erzeugen `calc/data/` neu (nur bei Bedarf, brauchen externe Quellen unter `ext/`) |
@@ -37,6 +44,21 @@ Andere Zweige als `main` werden nur gebaut und geprüft (GitHub Actions), nicht 
 | `wrangler.jsonc` | Worker-Konfiguration, D1-Datenbank `uav-budget` |
 
 `public/index.html` und `dist/` sind Build-Ergebnisse und stehen nicht im Repository.
+
+Rechenkern in `calc/src/`:
+
+| Datei | Inhalt |
+|---|---|
+| `core.js` | Atmosphäre, Profilpolaren, Widerstand, Antrieb (Impuls), Flügelstruktur, Rechenfall |
+| `vlm.js` | Wirbelgitter (Weissinger) mit Pfeilung |
+| `layout.js` | Rumpfformen, Leitwerk, drei Motoranordnungen, Massen in x/y/z, Schwerpunkt, Trägheit, Neutralpunkt, Trimmung |
+| `harness.js` | Verkabelung je Konfiguration (Spannungsfall, Erwärmung, Masse) |
+| `ground.js`, `tail.js` | Landung ohne Fahrwerk, Hand-/Katapultstart; Leitwerk, Träger, Rumpfröhre als tragende Bauteile |
+| `prop.js`, `power.js` | Propeller (Blattelement) und Motor; Propellerstrahl, Drall, Normalkraft, Schubmoment |
+| `aeroel.js`, `vib.js` | Balkenmodell, Divergenz, Flattern; freies Flugzeug, Leitwerks- und Ruderflattern, Massenausgleich, Standschwingversuch |
+| `dyn.js`, `controls.js` | Flugdynamik (MIL-F-8785C); Quer-, Höhen- und Seitenruder |
+| `batt.js`, `turb.js` | Akkuspannung über dem Ladezustand; Dryden-Turbulenz und Bildruhe an der Kamera |
+| `sim.js`, `ext.js` | Sonne, Wetter, Tages- und Dauerflug, Energie in der Höhe; Einsatzleistung, SORA, Unsicherheit |
 
 ## Einmalige Einrichtung
 
@@ -85,6 +107,7 @@ Voraussetzung: Node.js 20 oder neuer.
 
 ```bash
 npm run build          # Seiten bauen und prüfen; dist/uav-budget.html direkt im Browser öffnen
+npm run docs           # docs/BERECHNUNGEN.md nach Änderungen am Formelkatalog neu erzeugen
 npm install            # Wrangler für den lokalen Worker
 npm run db:local
 echo 'TEAM_KEY="test"' > .dev.vars
@@ -94,7 +117,7 @@ npm run dev            # http://localhost:8787 mit Team-Speicher
 Wer lokal `npm install` ausführt, sollte die entstehende `package-lock.json` mit einchecken,
 damit Cloudflare immer dieselbe Wrangler-Version verwendet.
 
-Browsertests (`calc/tests/shot6.cjs`, `interact.cjs`, `presets.cjs`, `elshot.cjs`) brauchen Playwright
+Browsertests (`calc/tests/shot6.cjs`, `interact.cjs`, `presets.cjs`, `hint.cjs`, `elshot.cjs`) brauchen Playwright
 und öffnen `dist/uav-budget.html`; Bilder landen in `calc/tests/out/`.
 
 ## Zugriff
