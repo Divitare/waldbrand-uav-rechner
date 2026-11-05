@@ -5,7 +5,7 @@ const RENDER = {};
 const UI = { dayTab: 'mission', studyTab: 'v', afCat: 'alle', afSort: ['pCruise', 1], afSel: null, cache: {} };
 try { const u = JSON.parse(localStorage.getItem('waldbrand-uav-v5-ui') || '{}'); if (u.dayTab) UI.dayTab = u.dayTab; if (u.studyTab && SWEEPS[u.studyTab]) UI.studyTab = u.studyTab; if (Array.isArray(u.afSel)) UI.afSel = u.afSel; } catch (e) { /* ignorieren */ }
 function saveUI() { try { localStorage.setItem('waldbrand-uav-v5-ui', JSON.stringify({ dayTab: UI.dayTab, studyTab: UI.studyTab, afSel: UI.afSel })); } catch (e) { /* ignorieren */ } }
-const keyOf = (...a) => JSON.stringify([S.params, S.comps.map(c => [c.on, c.m, c.p, c.d, c.sched, c.cda, c.x]), ...a]);
+const keyOf = (...a) => JSON.stringify([S.params, S.comps.map(c => [c.on, c.m, c.p, c.d, c.sched, c.cda, c.x, c.y, c.z]), ...a]);
 function cached(name, fn, ...extra) { const k = keyOf(...extra); const c = UI.cache[name]; if (c && c.k === k) return c.v; const v = fn(); UI.cache[name] = { k, v }; return v; }
 const kpi = (k, v, u, s, cls = '') => `<div class="kpi ${cls}"><div class="k">${esc(k)}</div><div class="v">${v}${u ? `<span class="u">${esc(u)}</span>` : ''}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
 const pCons = C => C.pProp + C.comp.always + C.comp.mission + C.comp.day;
@@ -72,7 +72,7 @@ RENDER.uebersicht = (R) => {
   v.innerHTML = `<div class="vtext">${esc(txt)}<div class="vsub">${esc(sub)}</div></div><div class="flags">${flagsOf(R)}</div>`;
   const used = C.cap * (1 - P.reserve / 100);
   $('#kpis').innerHTML = [
-    kpi('Abflugmasse', nf(C.m, 2), 'kg', `Struktur ${nf(C.mass.struct, 2)} kg (${nf(C.mass.struct / C.m * 100, 0)} %)`, C.m > P.mtomLimit ? 'bad' : ''),
+    kpi('Abflugmasse', nf(C.m, 2), 'kg', `Struktur ${nf(C.mass.struct, 2)} kg (${nf(C.mass.struct / C.m * 100, 0)} %) · Kabel ${nf(C.mass.wire * 1000, 0)} g`, C.m > P.mtomLimit ? 'bad' : ''),
     kpi('Leistung Reiseflug', nf(pCons(C), 1), 'W', `Antrieb ${nf(C.pProp, 1)} W · Bord ${nf(pCons(C) - C.pProp, 1)} W`),
     kpi('Gleitzahl', nf(C.lvl.LD, 1), '', `c_A ${nf(C.lvl.CL, 2)} · α ${nf(C.lvl.alpha, 1)}° bei ${nf(P.v, 1)} m/s`),
     kpi('Akku', nf(C.cap, 0), 'Wh', `bis Reserve ${nf(used, 0)} Wh · ${nf(C.tBattMin, 0)} °C kälteste Stunde`),
@@ -89,7 +89,7 @@ RENDER.uebersicht = (R) => {
   const G = Object.fromEntries(GROUPS), rows = [
     { l: 'Struktur', v: C.mass.struct, t: nf(C.mass.struct, 2) + ' kg' }, { l: 'Akku', v: C.mass.batt, t: nf(C.mass.batt, 2) + ' kg' },
     { l: 'Solarmodule Flügel', v: C.mass.solar, t: nf(C.mass.solar, 2) + ' kg' }, ...(C.mass.solarHT > 0 ? [{ l: 'Solarmodule Höhenleitwerk', v: C.mass.solarHT, t: nf(C.mass.solarHT, 3) + ' kg' }] : []),
-    { l: 'Antrieb', v: C.mass.prop, t: nf(C.mass.prop, 2) + ' kg' }, ...(C.mass.cable > 0.001 ? [{ l: 'Motorkabel', v: C.mass.cable, t: nf(C.mass.cable, 3) + ' kg' }] : []), ...(C.mass.ballast > 0.001 ? [{ l: 'Trimmballast', v: C.mass.ballast, t: nf(C.mass.ballast, 3) + ' kg' }] : []),
+    { l: 'Antrieb', v: C.mass.prop, t: nf(C.mass.prop, 2) + ' kg' }, { l: 'Verkabelung und Stecker', v: C.mass.wire, t: nf(C.mass.wire, 3) + ' kg' }, ...(C.mass.ballast > 0.001 ? [{ l: 'Trimmballast', v: C.mass.ballast, t: nf(C.mass.ballast, 3) + ' kg' }] : []),
     ...Object.entries(C.mass.byGroup).map(([g, m]) => ({ l: G[g] || g, v: m, t: nf(m, 2) + ' kg' })),
     { l: 'Gesamt', v: C.m, t: nf(C.m, 2) + ' kg', total: true }
   ];
@@ -169,8 +169,8 @@ RENDER.flugzeug = (R) => {
     kpi('Reiseflug', nf(P.v, 1), 'm/s', `${nf(C.lvl.pel, 1)} W · ${nf(P.v / C.vs, 2)} × Mindestfahrt`, P.v / C.vs < 1.25 ? 'bad' : '')
   ].join('');
   // Widerstand
-  const D = C.lvl.D, Dt = C.lvl.Dtot, names = { profile: 'Profilwiderstand Flügel', induced: 'Induzierter Widerstand', tail: 'Leitwerk', fus: 'Rumpfgondel', boom: 'Leitwerksträger', comps: 'Anbauten (Gimbal, Antennen …)', reserve: 'Reserve' };
-  $('#bars-drag').innerHTML = barsHTML([...Object.entries(D).map(([k, v]) => ({ l: names[k], v, t: `${nf(v, 2)} N · ${nf(v / Dt * 100, 0)} %` })), { l: 'Gesamt', v: Dt, t: nf(Dt, 2) + ' N', total: true }]);
+  const D = C.lvl.D, Dt = C.lvl.Dtot, names = { profile: 'Profilwiderstand Flügel', induced: 'Induzierter Widerstand', tail: 'Leitwerk', fus: C.cfg.fus === 'glider' ? 'Rumpf (Schale)' : 'Rumpfgondel', boom: C.cfg.nBoom > 1 ? 'Leitwerksträger (2)' : 'Leitwerksträger', comps: 'Anbauten, Motorgondel, Pylon', gear: 'Landekufe', reserve: 'Reserve' };
+  $('#bars-drag').innerHTML = barsHTML([...Object.entries(D).filter(([, v]) => v > 1e-6).map(([k, v]) => ({ l: names[k] || k, v, t: `${nf(v, 2)} N · ${nf(v / Dt * 100, 0)} %` })), { l: 'Gesamt', v: Dt, t: nf(Dt, 2) + ' N', total: true }]);
   $('#drag-sub').textContent = `Geradeausflug ${nf(P.v, 1)} m/s, Staudruck ${nf(C.lvl.q, 0)} Pa. Profil ${C.foil.name}${C.mode === 'trip' ? ' mit Umschlag an der Zellkante' : ''}.`;
   const tr = (k, v) => `<tr><th>${k}</th><td class="n">${v}</td></tr>`;
   $('#tbl-aero').innerHTML = '<tbody>' + [
@@ -179,9 +179,9 @@ RENDER.flugzeug = (R) => {
     tr('Nullmoment Profil c_m', nf(C.lvl.cm, 3)), tr('Höhenleitwerk c_A (Trimmung)', nf(C.lvl.CLh, 3))
   ].join('') + '</tbody>';
   // Struktur
-  const st = C.struct || structureMass(C, C.m, true), stN = { spar: 'Holmgurte', web: 'Holmsteg', le: 'Nasenbeplankung', ribs: 'Rippen', skin: 'Bespannung', te: 'Endleiste und Ruder', joints: 'Steckungen', tail: 'Leitwerk', boom: 'Leitwerksträger', fus: 'Rumpfgondel', gear: 'Landekufe, Schutz', wire: 'Verkabelung' };
-  $('#bars-struct').innerHTML = barsHTML([...Object.entries(st.parts).map(([k, v]) => ({ l: stN[k], v, t: nf(v * 1000, 0) + ' g' })), { l: 'Zuschlag Robustheit', v: st.rugged, t: nf(st.rugged * 1000, 0) + ' g' }, { l: P.structMode === 'fix' ? 'Modell (nicht verwendet)' : 'Gesamt', v: st.total, t: nf(st.total, 2) + ' kg', total: true }]);
-  $('#struct-sub').textContent = P.structMode === 'fix' ? `Feste Strukturmasse ${nf(P.mZelle, 2)} kg eingestellt. Das Bauweisen-Modell käme auf ${nf(st.total, 2)} kg.` : `Holm-Rippen-Bauweise, kalibriert an AtlantikSolar (1,54 kg). Werkstoffe, Steifigkeiten, Schwingungen und Transportteilung in der Ansicht Struktur.`;
+  const st = C.struct || structureMass(C, C.m, true), stN = { spar: 'Holmgurte', web: 'Holmsteg', le: 'Nasenbeplankung', ribs: 'Rippen', skin: 'Bespannung', te: 'Endleiste und Ruder', joints: 'Steckungen', ht: 'Höhenleitwerk', fin: C.tail.nFin > 1 ? 'Seitenleitwerke' : 'Seitenleitwerk', boom: C.cfg.nBoom > 1 ? 'Leitwerksträger (2)' : 'Leitwerksträger', fus: C.cfg.fus === 'glider' ? 'Rumpf vorn mit Einbauten' : 'Rumpfgondel mit Einbauten', cone: 'Rumpfröhre', land: P.landGear === 'skid' ? 'Landekufe, Katapulthaken' : 'Rumpfboden, Katapulthaken', pylon: 'Motorpylon' };
+  $('#bars-struct').innerHTML = barsHTML([...Object.entries(st.parts).filter(([, v]) => v > 1e-6).map(([k, v]) => ({ l: stN[k] || k, v, t: nf(v * 1000, 0) + ' g' })), { l: 'Zuschlag Robustheit', v: st.rugged, t: nf(st.rugged * 1000, 0) + ' g' }, { l: P.structMode === 'fix' ? 'Modell (nicht verwendet)' : 'Gesamt', v: st.total, t: nf(st.total, 2) + ' kg', total: true }]);
+  $('#struct-sub').textContent = P.structMode === 'fix' ? `Feste Strukturmasse ${nf(P.mZelle, 2)} kg eingestellt. Das Bauweisen-Modell käme auf ${nf(st.total, 2)} kg.` : `Holm-Rippen-Bauweise, geprüft an AtlantikSolar (gemessen 1,52 kg ohne Kabel). Verkabelung als eigene Gruppe (${nf(C.mass.wire * 1000, 0)} g). Werkstoffe, Steifigkeiten, Schwingungen und Transportteilung in der Ansicht Struktur.`;
   $('#tbl-struct').innerHTML = '<tbody>' + [
     tr('Grenzlastvielfaches', nf(st.nLim, 2) + ' g'), tr('Bruchlastvielfaches', nf(st.nUlt, 2) + ' g'), tr(`Böe ${nf(P.gustU, 1)} m/s bei ${nf(P.vGust, 0)} m/s`, '+' + nf(st.gust.dn, 2) + ' g'),
     tr(`Abrissgrenze bei ${nf(P.vGust, 0)} m/s`, nf(st.gust.nStall, 2) + ' g'), tr('Biegemoment Wurzel (Bruchlast)', nf(st.Mroot, 0) + ' N·m'), tr('Holmhöhe Wurzel', nf(st.hRoot * 1000, 0) + ' mm'),

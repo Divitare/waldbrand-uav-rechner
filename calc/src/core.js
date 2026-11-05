@@ -150,12 +150,6 @@ function cfFlat(Re, flow) {
   return Re < 5e5 ? 1.328 / Math.sqrt(Re) : turb - 1742 / Re; // Prandtl–Schlichting, Umschlag bei Re 5·10⁵
 }
 
-/* ---------- Leitwerk und Rumpf aus Parametern ---------- */
-function tailGeom(P, pf) {
-  const lt = Math.max(0.3, P.tailArm), Sh = P.vH * pf.S * pf.mac / lt, Sv = P.vV * pf.S * pf.b / lt;
-  const ch = Math.sqrt(Sh / P.arH), cv = Math.sqrt(Sv / P.arV);
-  return { lt, Sh, Sv, ch, cv, bh: Sh / ch, bv: Sv / cv, lBoom: Math.max(0, lt - 0.35 * P.fusL) };
-}
 
 /* ---------- Aerodynamik eines Flugzustands ----------
    n: Lastvielfaches (Kurvenflug 1/cos φ), Trimmung mit Schwerpunkt im Flügel-Neutralpunkt:
@@ -181,25 +175,27 @@ function aero(C, V, n, rho, nu) {
     const s0 = C.ll.st.reduce((a, s) => (Math.abs(s.y - ys) < Math.abs(a.y - ys) ? s : a), C.ll.st[0]), cl = (lr.am * s0.fa + s0.fb) / c2;
     slipW += (C.slip.qr - 1) * q * profileCd(C.foil, C.mode, V * s0.c / nu, cl) * s0.c * C.slip.width;
   }
-  // Höhenleitwerk
-  const tg = C.tail, CLh = Lt / (q * tg.Sh), Reh = V * tg.ch / nu;
-  const cdh = profileCd(C.tfoil, 'free', Reh, Math.abs(CLh), o), cdiH = CLh * CLh / (Math.PI * P.arH * 0.85);
-  const cdv = profileCd(C.tfoil, 'free', V * tg.cv / nu, 0, o);
-  // Rumpfgondel und Leitwerksträger
-  const Ref = V * P.fusL / nu, fr = P.fusL / Math.max(0.02, P.fusD);
-  const fusCdA = cfFlat(Ref, P.fusFlow) * (1 + 60 / fr ** 3 + fr / 400) * 0.8 * Math.PI * P.fusD * P.fusL;
-  const lB = C.bal ? C.bal.g.lBoom : tg.lBoom, boomCdA = lB > 0 ? cfFlat(V * lB / nu, P.fusFlow) * 1.05 * Math.PI * P.boomD * lB : 0;
-  const compCdA = C.compCdA;
+  // Höhen- und Seitenleitwerk; Teile im Propellerstrahl mit höherem Staudruck
+  const tg = C.tail, g = C.bal ? C.bal.g : C.g0, CLh = Lt / (q * tg.Sh), Reh = V * tg.ch / nu, sl = C.slip || {};
+  const cdh = profileCd(C.tfoil, 'free', Reh, Math.abs(CLh), o), cdiH = CLh * CLh / (Math.PI * tg.arH * 0.85);
+  const cdv = profileCd(C.tfoil, 'free', V * tg.cv / nu, 0, o), qH = 1 + (sl.fH || 0) * ((sl.qr || 1) - 1), qV = 1 + (sl.fV || 0) * ((sl.qr || 1) - 1);
+  // Rumpf als Rotationskörper (Raymer: Formfaktor 1 + 60/f³ + f/400 über benetzte Fläche), Träger als Rohre
+  const fu = g.fus, Ref = V * fu.L / nu, fr = fu.L / Math.max(0.02, fu.D);
+  const fusCdA = cfFlat(Ref, P.fusFlow) * (1 + 60 / fr ** 3 + fr / 400) * fu.Swet;
+  const lB = g.lBoom, boomCdA = lB > 0 ? cfFlat(V * lB / nu, P.fusFlow) * 1.05 * Math.PI * P.boomD * lB * C.cfg.nBoom : 0;
   const kI = 1 + P.kInt / 100, kP = C.k.par;
-  const nac = P.motorPos === 'wing' ? 2 * cfFlat(V * 0.22 / nu, 'turb') * (1 + 0.35 / 3.7) * 0.85 * Math.PI * 0.06 * 0.22 : 0;
-  const fusQ = C.slip && C.slip.fus ? C.slip.qr : 1;
+  // Motorgondel oben am Seitenleitwerk, Pylon des Druckmotors, Landekufe
+  const nac = C.cfg.mot === 'fin' ? cfFlat(V * 0.22 / nu, 'turb') * (1 + 0.35 / 3.7) * 0.85 * Math.PI * 0.07 * 0.22 : 0;
+  const pyl = g.pylon > 0 ? cfFlat(V * 0.12 / nu, 'turb') * 1.3 * 2 * 0.12 * g.pylon + cfFlat(V * 0.2 / nu, 'turb') * 1.1 * Math.PI * 0.06 * 0.2 : 0;
+  const fusQ = sl.fF ? 1 + sl.fF * ((sl.qr || 1) - 1) : 1;
   const D = {
     profile: q * S * cdp + slipW,
     induced: q * S * lr.CDi * C.k.ind,
-    tail: q * (tg.Sh * (cdh + cdiH) + tg.Sv * cdv) * kI * kP,
+    tail: q * (tg.Sh * (cdh + cdiH) * qH + tg.Sv * cdv * qV) * kI * kP,
     fus: q * fusCdA * kI * kP * fusQ,
-    boom: q * boomCdA * kI * kP * Math.max(1, P.nBooms),
-    comps: q * (compCdA + nac) * kI * kP
+    boom: q * boomCdA * kI * kP,
+    comps: q * (C.compCdA + nac * (sl.fN ? sl.qr : 1) + pyl) * kI * kP,
+    gear: q * (C.land ? C.land.cda : 0) * kI * kP
   };
   let sum = 0; for (const k in D) sum += D[k];
   D.reserve = sum * P.kDrag / 100;
@@ -226,14 +222,17 @@ function propulsion(C, T, V, rho) {
 // Elektrische Leistung im stationären (Kurven-)Flug
 function flightPower(C, V, n, rho, nu) {
   const a = aero(C, V, n, rho, nu), p = propulsion(C, a.Dtot, V, rho);
-  return { ...a, pel: p.pel, eta: p.eta, etaI: p.etaI, op: p.op };
+  // Verlust in der Antriebsleitung (I²R) kommt aus dem Akku hinzu
+  const U = Math.max(1, C.P.nCells * C.P.cellV), I = p.pel / U, wl = C.harness ? wireLoss(C.harness, I) : 0;
+  return { ...a, pel: p.pel + wl, eta: p.eta, etaI: p.etaI, op: p.op, wireLoss: wl };
 }
 // Propellerstrahl (Impulstheorie, Fernfeld): Staudruckverhältnis und betroffene Bereiche
 function slipstream(C, T, V, rho) {
-  const P = C.P, mp = P.motorPos, nP = C.motor ? C.motor.nProp : 1;
-  if (mp !== 'nose' && mp !== 'wing') return null;
-  const A = Math.PI * P.propD ** 2 / 4, Ti = T / nP, vi = (-V + Math.sqrt(V * V + 2 * Ti / (rho * A))) / 2, qr = ((V + 2 * vi) / V) ** 2;
-  return { qr, vi, fus: mp === 'nose', strips: mp === 'wing' ? [C.bal.g.yM, C.bal.g.yM] : [0], width: mp === 'wing' ? P.propD : P.propD / 2 };
+  const P = C.P, mp = C.cfg.mot, R = propRadius(P);
+  const A = Math.PI * R * R, vi = (-V + Math.sqrt(V * V + 2 * T / (rho * A))) / 2, qr = ((V + 2 * vi) / V) ** 2;
+  if (mp === 'nose') return { qr, vi, fF: 1, strips: [0], width: R };
+  if (mp === 'fin') return { qr, vi, fN: 1, fV: 0.5, strips: null };
+  return { qr, vi, strips: null };
 }
 
 /* ---------- Strukturmasse (Bauweisen-Modell, kalibriert an AtlantikSolar) ----------
@@ -247,26 +246,26 @@ function gustLoad(P, pf, m, foil, rho) {
   return { dn, nStall, n: 1 + Math.min(dn, Math.max(0, nStall - 1)), Kg, a };
 }
 function structureMass(C, m, detail) {
-  const P = C.P, pf = C.pf, b = pf.b, h2 = b / 2, t = C.foil.t, tg = C.tail, rho0 = 1.225;
+  const P = C.P, pf = C.pf, b = pf.b, h2 = b / 2, t = C.foil.t, tg = C.tail, rho0 = 1.225, g = C.bal ? C.bal.g : C.g0;
+  const wl = C.bal && C.bal.mi && C.bal.mi.harness ? C.bal.mi.harness.wingLin : null;
   const gust = gustLoad(P, pf, m, { clmax: C.clmaxRef }, rho0);
   const nLim = Math.max(P.nLimit, gust.n), nUlt = P.safety * nLim;
   const cap = MAT[P.matCap] || MAT.cfk_ud, web = MAT[P.matWeb] || MAT.balsa_gfk;
   const sig = cap.sc * P.matKnock / 100 * 1e6, E = cap.E * 1e9, rhoC = cap.rho;
   const cosL = Math.cos((pf.sweep || 0) * DEG), K = 40, dy = h2 / K, ds = dy / cosL;
-  // Massen im Flügel, die die Biegung entlasten (Solarmodule, ggf. Akku, Motoren am Flügel)
+  // Massen im Flügel, die die Biegung entlasten (Solarmodule, ggf. Akku, Leitungen im Flügel)
   const mSolarWing = C.mass.solar, mBattWing = P.battInWing ? C.mass.batt : 0;
-  const mMot = P.motorPos === 'wing' ? C.mass.prop / 2 : 0, kMot = Math.min(K - 1, Math.floor(clamp(P.motorY, 0.05, 0.95) * K));
   const y = [], c = [], h = [], w = [];
   for (let k = 0; k < K; k++) {
     const eta = (k + 0.5) / K, ck = pf.chordAt(eta);
     const L = nUlt * m * G / b * (ck / pf.cmean + 4 / Math.PI * Math.sqrt(1 - eta * eta)) / 2;
-    const rel = nUlt * G * (mSolarWing * ck / pf.S + (eta < 0.6 ? mBattWing / (0.6 * b) : 0));
+    const rel = nUlt * G * (mSolarWing * ck / pf.S + (eta < 0.6 ? mBattWing / (0.6 * b) : 0) + (wl ? wl(eta * h2) : 0));
     y.push(eta * h2); c.push(ck); h.push(P.sparH / 100 * t * ck); w.push(L - rel);
   }
   // Querkraft und Biegemoment von der Spitze her, Hebel entlang der gepfeilten Holmachse
   const Q = new Array(K).fill(0), M = new Array(K).fill(0);
   let q = 0, mm = 0;
-  for (let k = K - 1; k >= 0; k--) { q += w[k] * dy; if (k === kMot) q -= nUlt * G * mMot; mm += q * ds; Q[k] = q; M[k] = Math.max(0, mm); }
+  for (let k = K - 1; k >= 0; k--) { q += w[k] * dy; mm += q * ds; Q[k] = q; M[k] = Math.max(0, mm); }
   const tube = P.sparType === 'tube';
   let A = M.map((Mk, k) => Math.max(tube ? 4 * Mk / (sig * h[k]) : 2 * Mk / (sig * h[k]), (tube ? Math.PI * h[k] * 0.0005 : 2 * P.capMin * 1e-6)));
   // Steifigkeit: Durchbiegung bei 1 g
@@ -283,7 +282,7 @@ function structureMass(C, m, detail) {
   if (dTip > dMax) { stiffF = dTip / dMax; A = A.map(a => a * stiffF); }
   // Massen je Meter Spannweite (eine Flügelhälfte)
   const wetWing = 2.04 * pf.S, cover = Math.max(0, wetWing - (P.solarArea || 0)), ts = (web.ts || 30) * 1000;
-  const sd = { y, c, h, A, M, Q, mCap: [], mWeb: [], mLE: [], mRib: [], mSkin: [], mTE: [], mWire: [] };
+  const sd = { y, c, h, A, M, Q, mCap: [], mWeb: [], mLE: [], mRib: [], mSkin: [], mTE: [] };
   for (let k = 0; k < K; k++) {
     sd.mCap.push(A[k] * rhoC / cosL * 1.12);                       // + Holmstummel, Verklebung
     sd.mWeb.push(tube ? 0 : Math.max(P.wWeb, Q[k] / (h[k] * ts)) * h[k] / cosL);
@@ -291,7 +290,6 @@ function structureMass(C, m, detail) {
     sd.mRib.push(P.wRib * 0.68 * t * c[k] * c[k] * 0.55 / P.ribSpacing);
     sd.mSkin.push(P.wSkin * 2.04 * c[k] * cover / wetWing);
     sd.mTE.push(P.wTE / cosL);
-    sd.mWire.push(P.wireLin);
   }
   const sum2 = a => 2 * a.reduce((s, v) => s + v * dy, 0);
   // Steckungen: Verbinder auf das Biegemoment an der Trennstelle ausgelegt, dazu Beschläge und Stecker
@@ -300,20 +298,23 @@ function structureMass(C, m, detail) {
     const k = Math.min(K - 1, Math.floor(yj / h2 * K)), Aj = 2 * M[k] / (sig * h[k]), mj = Aj * 24 * h[k] * rhoC * 1.3 + P.mJoint;
     return { y: yj, m: (yj > 0 ? 2 : 1) * mj, M: M[k], len: 24 * h[k] };
   });
-  const lB = C.bal ? C.bal.g.lBoom : tg.lBoom;
+  // Leitwerk, Träger bzw. Rumpfröhre, Seitenleitwerk mit Zusatzholm, Pylon (Lastfälle siehe tail.js)
+  const tst = tailStructure(C, m, g), land = C.land || landingGear(C, m);
   const parts = {
     spar: sum2(sd.mCap), web: sum2(sd.mWeb), le: sum2(sd.mLE), ribs: sum2(sd.mRib), skin: sum2(sd.mSkin), te: sum2(sd.mTE),
     joints: joints.reduce((s, j) => s + j.m, 0),
-    tail: P.wTail * (tg.Sh + tg.Sv),
-    boom: P.boomLin * lB * Math.max(1, P.nBooms),
-    fus: P.wFus * 0.8 * Math.PI * P.fusD * P.fusL + P.mFusFix,
-    gear: P.mGear,
-    wire: P.wireLin * b + 0.05
+    ht: P.wTail * tg.Sh,
+    fin: tst.fin.base + tst.fin.extra,
+    boom: tst.boom ? tst.boom.mass : 0,
+    fus: P.wFus * g.fus.pod.S + P.mFusFix,
+    cone: tst.cone ? tst.cone.mass : 0,
+    land: land.mass,
+    pylon: tst.pylon
   };
   let sum = 0; for (const k in parts) sum += parts[k];
   const total = sum * (1 + P.rugged / 100) * C.k.struct;
   if (!detail) return total;
-  return { total, parts, rugged: sum * P.rugged / 100, nLim, nUlt, gust, dTip: dTip / stiffF, dMax, stiffF, Mroot: M[0], Qroot: Q[0], hRoot: h[0], stations: sd, joints, sig, E, cap };
+  return { total, parts, rugged: sum * P.rugged / 100, nLim, nUlt, gust, dTip: dTip / stiffF, dMax, stiffF, Mroot: M[0], Qroot: Q[0], hRoot: h[0], stations: sd, joints, sig, E, cap, tail: tst, land };
 }
 
 /* ---------- Fallbeschreibung: alles, was nicht von der Tageszeit abhängt ---------- */
@@ -329,7 +330,8 @@ function buildCase(P, comps, k) {
   C.pf = planform(P);
   C.foil = foilByKey(P.airfoil); C.mode = P.transition === 'trip' ? 'trip' : 'free';
   C.tfoil = foilByKey(P.tailAirfoil);
-  C.tail = tailGeom(P, C.pf);
+  C.cfg = configOf(P);
+  C.tail = tailGeom(P, C.pf, C.cfg);
   // Flugzustand Reiseflug: Dichte bei mittlerer Tagestemperatur in Flughöhe
   const hFly = P.alt + P.hAGL, tFly = (P.tMax + P.tMin) / 2 - 0.0065 * P.hAGL;
   C.hFly = hFly; C.tFly = tFly; C.rho = rhoAt(hFly, tFly); C.nu = nuAt(hFly, tFly);
@@ -340,28 +342,30 @@ function buildCase(P, comps, k) {
   C.ll = llCache.get(lk); if (!C.ll) { C.ll = vlmWing(C.pf, a0); if (llCache.size > 300) llCache.clear(); llCache.set(lk, C.ll); }
   const cs = compSummary(comps);
   C.compCdA = cs.cda;
-  C.motor = MOTOR_POS[P.motorPos] || MOTOR_POS.nose;
+  C.motor = MOTOR_POS[C.cfg.mot];
+  C.g0 = geomPositions(C, 0);
   // Spannweitenanteil der Zellen (von der Wurzel aus)
   { let aNeed = Math.max(0, P.solarArea) / 2, eta = 0; const dE = 0.002, x0 = P.cellX0 / 100, x1 = P.cellX1 / 100;
     while (aNeed > 0 && eta < 1) { aNeed -= C.pf.chordAt(eta) * (x1 - x0) * 1.02 * dE * C.pf.b / 2; eta += dE; }
     C.solarEta = Math.min(1, eta); C.solarSpan = Math.max(0.05, C.solarEta * C.pf.b); C.solarFits = aNeed <= 1e-6; }
   C.htSolarArea = clamp(P.htSolar / 100, 0, 0.95) * C.tail.Sh;
-  C.mass = { batt: Math.max(0, P.mBatt), solar: Math.max(0, P.solarArea) * P.solarAreal, solarHT: C.htSolarArea * P.solarAreal, prop: P.mAntrieb, comps: cs.m, byGroup: cs.byGroup, ballast: 0, cable: 0 };
+  C.mass = { batt: Math.max(0, P.mBatt), solar: Math.max(0, P.solarArea) * P.solarAreal, solarHT: C.htSolarArea * P.solarAreal, prop: P.mAntrieb, comps: cs.m, byGroup: cs.byGroup, ballast: 0, wire: 0 };
   const mFix = C.mass.batt + C.mass.solar + C.mass.solarHT + C.mass.prop + C.mass.comps;
   let m = mFix + (P.structMode === 'fix' ? P.mZelle : 2), ms = P.mZelle;
   for (let it = 0; it < 60; it++) {
     C.m = m;
+    C.land = landingGear(C, m);
     if (P.structMode === 'fix') { ms = P.mZelle * C.k.struct; C.struct = null; }
     else { C.struct = structureMass(C, m, true); ms = C.struct.total; }
     C.mass.struct = ms;
     C.bal = balance(C);
-    const mn = mFix + ms + C.bal.ballast + C.bal.mCable;
+    const mn = mFix + ms + C.bal.ballast + C.bal.mWire;
     if (Math.abs(mn - m) < 1e-6) { m = mn; break; }
     m = mn;
   }
-  C.mass.ballast = C.bal.ballast; C.mass.cable = C.bal.mCable; C.m = m;
+  C.mass.ballast = C.bal.ballast; C.mass.wire = C.bal.mWire; C.m = m; C.harness = C.bal.mi.harness;
   C.np = C.bal.np;
-  C.layout = { g: C.bal.g, wingPoints: P.motorPos === 'wing' ? [{ y: C.bal.g.yM, m: C.mass.prop / 2, dx: (C.bal.g.xMot - (C.bal.g.xLE0 + C.pf.xLE(C.bal.g.yM / (C.pf.b / 2)) + (P.xSpar / 100 - 0.04) * C.pf.chordAt(C.bal.g.yM / (C.pf.b / 2)))), J: 0 }] : [] };
+  C.layout = { g: C.bal.g, wingPoints: [] };
   // Reiseflug gerade und im Kurvenflug; Propellerstrahl aus dem ersten Durchgang
   const nT = 1 / Math.cos(clamp(P.bank, 0, 60) * DEG);
   C.slip = null;
@@ -397,7 +401,7 @@ function buildCase(P, comps, k) {
   if (C.htSolarArea > 0) {
     const kH = C.htSolarArea * P.cellEff / 100 * C.k.solar * P.mpptEff / 100 * (1 - P.laminateLoss / 100) * (1 - P.wiringLoss / 100) * (1 - P.soiling / 100);
     const kW = C.solK, kT = kW + kH, s0 = C.sol, Fb = new Float64Array(91), FbH = new Float64Array(91);
-    for (let j = 0; j <= 90; j++) { FbH[j] = Math.sin(j * DEG) * (1 - finShade(C.tail, j)); Fb[j] = (kW * s0.Fb[j] + kH * FbH[j]) / kT; }
+    for (let j = 0; j <= 90; j++) { FbH[j] = Math.sin(j * DEG) * (1 - finShade(C.tail, j, C.cfg)); Fb[j] = (kW * s0.Fb[j] + kH * FbH[j]) / kT; }
     C.sol = { ...s0, Fb, Fd: (kW * s0.Fd + kH * 0.97) / kT, Fg: kW * s0.Fg / kT, FbW: s0.Fb, FbH };
     C.solKH = kH; C.solK = kT;
   }

@@ -11,8 +11,8 @@ const SRC = join(ROOT, 'calc', 'src'), DATA = join(ROOT, 'calc', 'data');
 const read = (...p) => readFileSync(join(...p), 'utf8');
 const jsJson = o => JSON.stringify(o).replace(/<\//g, '<\\/');
 
-const MODEL = ['linalg.js', 'core.js', 'vlm.js', 'layout.js', 'prop.js', 'aeroel.js', 'dyn.js', 'sim.js', 'ext.js', 'defaults.js'];
-const UI = ['ui-base.js', 'ui-charts.js', 'ui-views.js', 'ui-views2.js', 'ui-views3.js'];
+// Reihenfolge der Quelldateien (gemeinsam mit calc/tests/load.cjs)
+const { model: MODEL, ui: UI } = JSON.parse(read(ROOT, 'calc', 'tools', 'modules.json'));
 
 function build(team) {
   let css = read(SRC, 'ui.css'), html = read(SRC, 'ui.html');

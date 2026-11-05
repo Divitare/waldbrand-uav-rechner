@@ -24,10 +24,10 @@ const MAT = {
   balsa_gfk: { name: 'Balsa 1,5 mm + GFK ±45°', gs: 2.6, es: 3.4, ts: 20 },
   foam_cfk: { name: 'Hartschaum + CFK ±45° (Sandwich)', gs: 12.6, es: 8.0, ts: 50 },
   // Rohre
-  cfk_roll: { name: 'CFK-Rohr gewickelt (0/±45)', E: 70, G: 15, rho: 1550 },
-  cfk_pult: { name: 'CFK-Rohr pultrudiert (UD)', E: 120, G: 5, rho: 1580 },
-  gfk_tube: { name: 'GFK-Rohr', E: 25, G: 5, rho: 1900 },
-  alu_tube: { name: 'Aluminiumrohr', E: 70, G: 26.5, rho: 2780 }
+  cfk_roll: { name: 'CFK-Rohr gewickelt (0/±45)', E: 70, Eh: 25, G: 15, rho: 1550, sc: 500, ss: 120 },
+  cfk_pult: { name: 'CFK-Rohr pultrudiert (UD)', E: 120, Eh: 8, G: 5, rho: 1580, sc: 900, ss: 45 },
+  gfk_tube: { name: 'GFK-Rohr', E: 25, Eh: 12, G: 5, rho: 1900, sc: 350, ss: 60 },
+  alu_tube: { name: 'Aluminiumrohr (6061-T6)', E: 69, Eh: 69, G: 26, rho: 2700, sc: 290, ss: 170 }
 };
 const MAT_SEL = {
   matCap: ['cfk_ud', 'cfk_rod', 'gfk_ud', 'spruce', 'alu'],
@@ -55,7 +55,7 @@ function wingSections(C) {
   const P = C.P, st = C.struct || structureMass(C, C.m, true), sd = st.stations, cap = MAT[P.matCap] || MAT.cfk_ud;
   const xs = P.xSpar / 100, xea = xs - 0.04, gsSkin = (MAT[P.matSkin] || MAT.balsa_gfk).gs * 1e6, gsWeb = (MAT[P.matWeb] || MAT.balsa_gfk).gs * 1e6;
   const db = dboxGeom(C.foil, xs), x0 = P.cellX0 / 100, x1 = P.cellX1 / 100;
-  const mSolTot = C.mass.solar, mBat = P.battInWing ? C.mass.batt : 0;
+  const mSolTot = C.mass.solar, mBat = P.battInWing ? C.mass.batt : 0, wl = C.harness ? C.harness.wingLin : (C.bal && C.bal.mi.harness ? C.bal.mi.harness.wingLin : null);
   return sd.y.map((y, k) => {
     const c = sd.c[k], eta = y / (C.pf.b / 2);
     const EI = cap.E * 1e9 * sd.A[k] * sd.h[k] ** 2 / (P.sparType === 'tube' ? 8 : 4);
@@ -65,7 +65,7 @@ function wingSections(C) {
     // Massenanteile je Meter Spannweite mit Lage (Anteil der Tiefe) und Streuung
     const parts = [
       [sd.mCap[k], xs, 0.02], [sd.mWeb[k], xs, 0.01], [sd.mLE[k], 0.12, 0.25], [sd.mRib[k], 0.42, 0.9], [sd.mSkin[k], 0.45, 0.9], [sd.mTE[k], 0.93, 0.12],
-      [sd.mWire[k], xs, 0.05], [eta <= C.solarEta ? mSolTot / C.solarSpan : 0, (x0 + x1) / 2, x1 - x0], [eta < 0.6 ? mBat / (0.6 * C.pf.b) : 0, xs, 0.15]
+      [wl ? wl(y) : 0, xs, 0.05], [eta <= C.solarEta ? mSolTot / C.solarSpan : 0, (x0 + x1) / 2, x1 - x0], [eta < 0.6 ? mBat / (0.6 * C.pf.b) : 0, xs, 0.15]
     ];
     let m = 0, mx = 0; for (const [mm, x] of parts) { m += mm; mx += mm * x; }
     const xcg = mx / Math.max(1e-9, m);
@@ -226,11 +226,14 @@ function aeroelastic(C, opt = {}) {
 }
 // Leitwerksträger, Leitwerk und ggf. Heckmotor als Kragarm an der Flügelwurzel
 function tailBoomDyn(C) {
-  const P = C.P, tg = C.tail, g = C.bal ? C.bal.g : { lBoom: tg.lBoom }, kR = 1 + P.rugged / 100;
-  const mHT = P.wTail * tg.Sh * kR + (C.mass.solarHT || 0), mVT = P.wTail * tg.Sv * kR, mMot = P.motorPos === 'tail' ? C.mass.prop : 0;
-  const mTip = mHT + mVT + mMot, Jtip = mHT * tg.bh ** 2 / 12 + mVT * (0.45 * tg.bv) ** 2;
-  const nb = Math.max(1, P.nBooms), r = boomModes(C, g.lBoom, P.boomD, P.boomLin, P.matBoom, mTip / nb, Jtip / nb);
-  return { ...r, L: g.lBoom, mTip, Jtip, nb };
+  const P = C.P, tg = C.tail, cf = C.cfg, g = C.bal ? C.bal.g : C.g0, kR = 1 + P.rugged / 100, ts = C.struct ? C.struct.tail : null;
+  const mHT = P.wTail * tg.Sh * kR + (C.mass.solarHT || 0), mVT = (C.struct ? C.struct.parts.fin : P.wTail * tg.Sv) * kR, mMot = cf.mot === 'fin' ? C.mass.prop : 0;
+  const hV = 0.42 * tg.bv, hM = g.zP - g.zRoot, hH = g.zH - g.zRoot;
+  const mTip = mHT + mVT + mMot, Jtip = mHT * (tg.bh ** 2 / 12 + hH * hH) + mVT * hV * hV + mMot * hM * hM;
+  const nb = Math.max(1, cf.nBoom), lin = ts && ts.boom ? ts.boom.lin : P.boomLin;
+  if (!cf.nBoom) return { fb: NaN, ft: NaN, t: NaN, EI: NaN, GJ: NaN, defl: NaN, L: 0, mTip, Jtip, nb: 0, cone: true };
+  const r = boomModes(C, g.lBoom, P.boomD, lin, P.matBoom, mTip / nb, Jtip / nb);
+  return { ...r, L: g.lBoom, mTip, Jtip, nb, lin };
 }
 // Anregung durch den Propeller: Drehzahl (Unwucht) und Blattfolge gegen Eigenfrequenzen
 function resonance(C, freqs) {

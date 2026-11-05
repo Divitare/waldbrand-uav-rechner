@@ -19,9 +19,15 @@ const PAGE = 'file://' + path.resolve(__dirname, '../../dist/uav-budget.html'), 
   // 2) Pfeiltaste auf dem Flügel (Trimmung über Akku: Flügel ziehbar)
   await p.focus('.lolli[data-drag="wing"]'); await p.keyboard.press('Shift+ArrowRight'); await p.waitForTimeout(1500);
   console.log('Flügel +5 cm', await p.evaluate(() => document.querySelector('input[data-k="xWingLE"]').value), '|', await kpi());
-  // 3) Heckmotor über die Vergleichstabelle
-  await p.click('tr[data-mot="tail"]'); await p.waitForTimeout(2500);
-  console.log('Heckmotor', await p.evaluate(() => document.querySelector('select[data-k="motorPos"]').value), '|', await kpi(), '|', await p.evaluate(() => document.querySelector('#cg-msg').textContent.slice(0, 120)));
+  // 3) Motor oben am Seitenleitwerk über die Vergleichstabelle
+  await p.click('tr[data-mot="fin"]'); await p.waitForTimeout(2500);
+  console.log('Leitwerksmotor', await p.evaluate(() => document.querySelector('select[data-k="motorPos"]').value), '|', await kpi(), '|', await p.evaluate(() => document.querySelector('#cg-msg').textContent.slice(0, 160)));
+  // 3b) Konfigurationsmatrix: Seglerrumpf mit Druckpropeller übernehmen
+  await p.evaluate(() => { location.hash = 'konfiguration'; }); await p.waitForTimeout(3000);
+  await p.click('#cf-matrix .cell[data-fus="glider"][data-mot="pusher"]'); await p.waitForTimeout(3000);
+  console.log('Matrix', await p.evaluate(() => ['fusType', 'motorPos'].map(k => k + '=' + document.querySelector(`select[data-k="${k}"]`).value).join(' ')), '|', await p.evaluate(() => [...document.querySelectorAll('#kpis-cf .kpi')].map(k => k.querySelector('.v').textContent.trim()).join(' | ')));
+  await p.click('#cf-matrix .cell[data-fus="pod"][data-mot="fin"]'); await p.waitForTimeout(2500);
+  await p.evaluate(() => { location.hash = 'schwerpunkt'; }); await p.waitForTimeout(2500);
   // 4) Trimmung über Flügel
   await p.selectOption('select[data-k="trimMode"]', 'wing'); await p.waitForTimeout(2500);
   console.log('Trimmung Flügel', await kpi());
@@ -44,7 +50,7 @@ const PAGE = 'file://' + path.resolve(__dirname, '../../dist/uav-budget.html'), 
   console.log('starr', await p.evaluate(() => document.querySelector('#tbl-dmodes tbody').textContent.replace(/\s+/g, ' ').slice(0, 200)));
   // 9) Neu laden: Zustand bleibt
   await p.reload(); await p.waitForTimeout(2500);
-  console.log('nach Neuladen', await p.evaluate(() => ['sweep', 'motorPos', 'trimMode', 'matSkin', 'propModel'].map(k => k + '=' + document.querySelector(`[data-k="${k}"]`).value).join(' ')));
+  console.log('nach Neuladen', await p.evaluate(() => ['sweep', 'motorPos', 'fusType', 'trimMode', 'matSkin', 'propModel'].map(k => k + '=' + document.querySelector(`[data-k="${k}"]`).value).join(' ')));
   await p.evaluate(() => { location.hash = 'komponenten'; }); await p.waitForTimeout(1500);
   console.log('Komponenten x', await p.evaluate(() => [...document.querySelectorAll('#tbl-comps input[data-cf="x"]')].slice(0, 4).map(e => e.value).join(', ')));
   console.log(errs.length ? 'FEHLER\n' + errs.join('\n') : 'keine Fehler');

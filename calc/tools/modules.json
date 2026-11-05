@@ -1,0 +1,26 @@
+{
+  "model": [
+    "linalg.js",
+    "core.js",
+    "vlm.js",
+    "layout.js",
+    "harness.js",
+    "ground.js",
+    "tail.js",
+    "prop.js",
+    "aeroel.js",
+    "dyn.js",
+    "sim.js",
+    "ext.js",
+    "defaults.js"
+  ],
+  "ui": [
+    "ui-base.js",
+    "ui-charts.js",
+    "ui-views.js",
+    "ui-views2.js",
+    "ui-views3.js",
+    "ui-views4.js",
+    "ui-main.js"
+  ]
+}

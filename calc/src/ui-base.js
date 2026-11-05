@@ -31,10 +31,14 @@ const SEL = {
   powerModel: [['physik', 'Physik (Polaren, Traglinie)'], ['mess', 'Messpunkt (ETH-Skalierung)'], ['fit', 'Ausgleichskurve eigener Flugdaten']],
   propModel: [['model', 'Impulstheorie + Wirkungsgradkette'], ['bemt', 'Propeller-Kennfeld (Blattelemente) + Motormodell'], ['eta', 'fester Gesamtwirkungsgrad']],
   propGeom: [['design', 'eigener Propeller (APC-Blattform skaliert)'], ['apc10x7', 'APC 10x7E (Messvergleich)']],
-  motorPos: [['nose', 'Zugmotor in der Nase'], ['pod', 'Druckmotor am Gondelende'], ['tail', 'Druckmotor hinter dem Leitwerk'], ['wing', 'Zwei Zugmotoren am Flügel']],
+  motorPos: [['nose', 'Zugpropeller in der Nase'], ['pusher', 'Druckpropeller am Rumpfende'], ['fin', 'Zugpropeller oben am Seitenleitwerk']],
+  fusType: [['pod', 'Gondel mit Rohrträger'], ['glider', 'Segelflugzeugrumpf (Schale bis zum Leitwerk)'], ['twin', 'Gondel mit zwei Leitwerksträgern']],
+  tailType: [['cross', 'Normalleitwerk (Höhenleitwerk am Fuß)'], ['T', 'T-Leitwerk (Höhenleitwerk oben)']],
+  landGear: [['skid', 'Kufe unter dem Rumpf (GFK-Blattfeder)'], ['belly', 'Bauchlandung auf verstärktem Rumpfboden']],
+  launch: [['catapult', 'Katapult (Gummi oder Druckluft)'], ['hand', 'Handstart']],
+  wireModel: [['model', 'aus Leitungswegen berechnen'], ['fix', 'feste (gemessene) Masse']],
   trimMode: [['battery', 'Akku verschieben'], ['wing', 'Flügel samt Leitwerk verschieben'], ['ballast', 'Ballast'], ['none', 'keine (Lagen wie eingegeben)']],
   splits: [['center', 'in der Mitte (am Rumpf)'], ['outer', 'außen (Mittelstück + 2 Außenflügel)'], ['both', 'Mitte und außen (4 Teile)'], ['none', 'ungeteilt']],
-  nBooms: [[1, 'ein Träger'], [2, 'zwei Träger (für Druckpropeller)']],
   structMode: [['model', 'Bauweisen-Modell'], ['fix', 'feste Masse']],
   sparType: [['caps', 'Gurte mit Steg'], ['tube', 'Rohrholm']],
   solarGeom: [['profil', 'aus Profilkontur (Wölbung, Einfallswinkel)'], ['flach', 'waagerecht mit Pauschalfaktor (ETH)']],
@@ -57,7 +61,7 @@ const PM = {};
   ['vH', 'Höhenleitwerksvolumen', '', 0.01, 0.2, 1, null, 'Segler und Solarflugzeuge: 0,35–0,5.'], ['vV', 'Seitenleitwerksvolumen', '', 0.002, 0.01, 0.06, null, 'Segler: 0,015–0,03.'],
   ['arH', 'Streckung Höhenleitwerk', '', 0.5, 2, 10], ['arV', 'Streckung Seitenleitwerk', '', 0.1, 0.8, 4],
   ['fusL', 'Rumpfgondel Länge', 'm', 0.05, 0.2, 3], ['fusD', 'Rumpfgondel Durchmesser', 'm', 0.01, 0.04, 0.5], ['boomD', 'Leitwerksträger Durchmesser', 'm', 0.002, 0.008, 0.08],
-  ['nBooms', 'Leitwerksträger', '', 0, 0, 0, 'nBooms'], ['zTail', 'Höhenleitwerk über Flügelebene', 'm', 0.01, -0.5, 1, null, 'Bestimmt den Abwind am Leitwerk (DATCOM). Höher liegendes Leitwerk sieht weniger Abwind.'],
+  ['zTail', 'Leitwerksfuß über Flügelebene', 'm', 0.01, -0.5, 1, null, 'Höhe von Trägerende bzw. Rumpfröhre am Leitwerk. Beim Normalleitwerk sitzt dort das Höhenleitwerk, beim T-Leitwerk eine Seitenleitwerkshöhe darüber. Bestimmt den Abwind am Höhenleitwerk (DATCOM).'],
   ['etaTail', 'Staudruckverhältnis am Leitwerk', '%', 1, 60, 110, null, 'Rumpf- und Flügelnachlauf senken den Staudruck. Freies Leitwerk 90–95 %, im Propellerstrahl über 100 %.'],
   ['fusFlow', 'Grenzschicht Rumpf', '', 0, 0, 0, 'fusFlow'], ['kInt', 'Interferenz und Spalte', '%', 1, 0, 50, null, 'Zuschlag auf Rumpf, Leitwerk und Anbauten für Übergänge, Spalte, Antennen.'],
   ['kDrag', 'Widerstandsreserve gesamt', '%', 1, 0, 50],
@@ -68,10 +72,23 @@ const PM = {};
   ['turbDay', 'Mehrverbrauch Böen/Thermik tagsüber', '%', 1, 0, 40, null, 'ETH-Ansatz aus dem 81-h-Flug: Dreieck über den Tag mit diesem Mittelwert.'], ['zuschlag', 'Zuschlag Antriebsleistung', '%', 1, 0, 100],
   ['powerModel', 'Leistungsmodell', '', 0, 0, 0, 'powerModel'], ['pMeas', 'Gemessene Antriebsleistung', 'W', 0.5, 1, 2000], ['mMeas', 'Masse bei der Messung', 'kg', 0.1, 0.5, 50], ['rhoMeas', 'Luftdichte bei der Messung', 'kg/m³', 0.01, 0.5, 1.4],
   // Längsaufteilung und Trimmung
-  ['motorPos', 'Motoranordnung', '', 0, 0, 0, 'motorPos'], ['motorY', 'Lage der Flügelmotoren', '× b/2', 0.05, 0.1, 0.9, null, 'Anteil der Halbspannweite. Weiter außen entlastet mehr Biegemoment, erhöht aber das Rollträgheitsmoment und das Giermoment bei Motorausfall.'],
+  ['motorPos', 'Motoranordnung', '', 0, 0, 0, 'motorPos'], ['fusType', 'Rumpfform', '', 0, 0, 0, 'fusType'], ['tailType', 'Leitwerksform', '', 0, 0, 0, 'tailType'],
+  ['coneD', 'Rumpfröhre am Leitwerk Durchmesser', 'm', 0.005, 0.015, 0.3], ['wCone', 'Rumpfröhre Mindest-Flächengewicht', 'kg/m²', 0.01, 0.1, 3, null, 'Schale aus CFK-Gewebe mit Harz. Wird auf Festigkeit und Beulen nachgerechnet und bei Bedarf verstärkt.'],
+  ['zBatt', 'Akku Höhe über Rumpfachse', 'm', 0.01, -0.3, 0.3],
   ['trimMode', 'Schwerpunkt einstellen über', '', 0, 0, 0, 'trimMode'], ['smTarget', 'Ziel-Stabilitätsmaß', '% MAC', 1, 2, 30, null, 'Abstand Schwerpunkt vor Neutralpunkt. Segler und Solarflugzeuge: 8–15 %. Weniger spart Trimmwiderstand, mehr macht ruhiger.'],
   ['xWingLE', 'Flügelvorderkante an der Wurzel', 'm ab Bug', 0.01, 0, 3], ['xBatt', 'Akku-Schwerpunkt', 'm ab Bug', 0.01, 0, 3],
-  ['cableLin', 'Motorkabel (Hin- und Rückleiter)', 'kg/m', 0.005, 0, 0.5, null, '2 × 2,5 mm² Kupfer mit Isolierung: rund 0,05 kg/m; für 30 A über 1,5 m eher 4 mm² (0,08 kg/m).'],
+  ['wireModel', 'Verkabelung', '', 0, 0, 0, 'wireModel'], ['mWireFix', 'Kabel und Stecker gesamt', 'kg', 0.01, 0, 3],
+  ['wireExtra', 'Zuschlag Kabelbaum', '%', 1, 0, 100, null, 'Kabelbinder, Schutzschlauch, Halter, Lötstellen. Leitungen und Stecker selbst sind einzeln gerechnet.'],
+  ['wireDropSol', 'Spannungsfall Solarleitungen', '%', 0.1, 0.3, 5, null, 'Bei Spitzenleistung. Kleiner heißt dickere, schwerere Leitungen und weniger Verlust.'],
+  ['nAilSeg', 'Querruder-Segmente je Seite', '', 1, 1, 4, null, 'Je Segment ein Servo. Lange Flügel teilen die Querruder, damit sie sich nicht verwinden.'],
+  ['ailEta0', 'Querruder von', '× b/2', 0.01, 0.1, 0.9], ['ailEta1', 'Querruder bis', '× b/2', 0.01, 0.2, 1],
+  ['landGear', 'Landung', '', 0, 0, 0, 'landGear'], ['vSink', 'Sinkgeschwindigkeit beim Aufsetzen', 'm/s', 0.1, 0.3, 4, null, 'Auslegungswert für den Landestoß. Ruhige Wiesenlandung 0,8–1,2 m/s, harte Landung 1,5–2 m/s.'],
+  ['skidStroke', 'Federweg der Kufe', 'm', 0.005, 0.005, 0.2], ['bellyStroke', 'Eindrückweg Rumpfboden', 'm', 0.002, 0.003, 0.1, null, 'Schaumstoff-Bauchpolster: wenige Zentimeter. Wenig Weg heißt hohe Stoßlast auf Akku und Einbauten.'],
+  ['skidCdA', 'Kufe Widerstandsfläche', 'cm²', 0.5, 0, 50], ['wBelly', 'Verstärkung Rumpfboden', 'kg/m²', 0.05, 0, 3],
+  ['landPitch', 'Lage beim Aufsetzen (Nase hoch)', '°', 1, -5, 20],
+  ['launch', 'Start', '', 0, 0, 0, 'launch'], ['launchRail', 'Schienenlänge Katapult', 'm', 0.1, 0.5, 10], ['launchAngle', 'Neigung der Startschiene', '°', 1, 0, 30],
+  ['vHand', 'Abwurfgeschwindigkeit Handstart', 'm/s', 0.5, 2, 15, null, 'Laufender Werfer mit Wurf: 6–9 m/s. Schwere Flugzeuge lassen sich kaum schneller werfen.'],
+  ['vLaunchK', 'Startgeschwindigkeit / Mindestfahrt', '', 0.05, 1, 1.6], ['nLaunchMax', 'Zulässige Startbeschleunigung', 'g', 0.5, 2, 30, null, 'Grenze der Einbauten (Kameras, Akkuhalter). Kleinere Werte brauchen eine längere Schiene.'],
   ['htSolar', 'Zellen auf dem Höhenleitwerk', '% HLW', 5, 0, 95, null, 'Anteil der Höhenleitwerksfläche mit Zellen. Waagerecht, mit Schatten des Seitenleitwerks über alle Kurse gemittelt.'],
   // Antrieb
   ['propModel', 'Antriebsmodell', '', 0, 0, 0, 'propModel'], ['etaTotal', 'Gesamtwirkungsgrad', '%', 1, 10, 95],
@@ -95,7 +112,6 @@ const PM = {};
   ['capMin', 'Mindest-Gurtquerschnitt', 'mm²', 0.5, 0, 50], ['wWeb', 'Holmsteg Flächengewicht', 'kg/m²', 0.05, 0, 3], ['ribSpacing', 'Rippenabstand', 'm', 0.01, 0.05, 0.6], ['wRib', 'Rippen Flächengewicht', 'kg/m²', 0.05, 0, 3],
   ['wLE', 'Nasenbeplankung', 'kg/m²', 0.01, 0, 2], ['wSkin', 'Bespannung', 'kg/m²', 0.005, 0, 1], ['wTE', 'Endleiste und Ruder', 'kg/m', 0.005, 0, 0.5], ['mJoint', 'Beschläge je Steckung', 'kg', 0.01, 0, 1, null, 'Zusätzlich zur rechnerischen Steckungszunge: Hülsen, Stifte, Stecker, Verriegelung.'],
   ['wTail', 'Leitwerk Flächengewicht', 'kg/m²', 0.01, 0, 3], ['boomLin', 'Leitwerksträger', 'kg/m', 0.01, 0, 1], ['wFus', 'Gondel Flächengewicht', 'kg/m²', 0.05, 0, 5], ['mFusFix', 'Gondel Einbauten', 'kg', 0.01, 0, 5],
-  ['mGear', 'Landekufe, Bauchschutz, Katapulthaken', 'kg', 0.01, 0, 3], ['wireLin', 'Verkabelung je Meter Spannweite', 'kg/m', 0.005, 0, 0.3],
   // Akku
   ['mBatt', 'Akkumasse', 'kg', 0.05, 0, 20], ['battSpec', 'Energiedichte (Pack)', 'Wh/kg', 5, 50, 450, null, 'Ganzer Pack inkl. Verbinder und BMS. Li-Ion 18650/21700: 200–260 Wh/kg.'],
   ['reserve', 'Reserve bei Landung', '%', 1, 0, 60], ['etaCharge', 'Ladewirkungsgrad', '%', 0.5, 70, 100], ['etaDischarge', 'Entladewirkungsgrad', '%', 0.5, 70, 100],
@@ -129,16 +145,19 @@ const PM = {};
 const FORMS = {
   quick: ['span', 'area', 'airfoil', 'v', 'mBatt', 'solarArea', 'date', 'lat', 'tStart', 'tEnd', 'tMax', 'tMin'],
   wing: ['span', 'area', 'planform', 'taper', 'centerFrac', 'washout', 'dihedral', 'sweep', 'airfoil', 'transition'],
-  tail: ['tailAirfoil', 'tailArm', 'vH', 'vV', 'arH', 'arV', 'zTail', 'etaTail', 'fusL', 'fusD', 'boomD', 'nBooms', 'fusFlow', 'kInt', 'kDrag'],
-  layout: ['motorPos', 'motorY', 'trimMode', 'smTarget', 'xWingLE', 'xBatt', 'battInWing', 'cableLin', 'mAntrieb'],
-  layout2: ['htSolar', 'zTail', 'etaTail', 'tailArm', 'vH', 'fusL', 'nBooms'],
+  tail: ['tailAirfoil', 'tailArm', 'vH', 'vV', 'arH', 'arV', 'zTail', 'etaTail', 'fusL', 'fusD', 'boomD', 'fusFlow', 'kInt', 'kDrag'],
+  config: ['fusType', 'motorPos', 'tailType', 'zTail', 'fusL', 'fusD', 'coneD', 'boomD', 'tailArm'],
+  layout: ['trimMode', 'smTarget', 'xWingLE', 'xBatt', 'zBatt', 'battInWing', 'mAntrieb'],
+  layout2: ['htSolar', 'zTail', 'etaTail', 'tailArm', 'vH', 'fusL'],
+  wire: ['wireModel', 'mWireFix', 'wireExtra', 'wireDropSol', 'nAilSeg', 'ailEta0', 'ailEta1'],
+  ground: ['landGear', 'vSink', 'skidStroke', 'bellyStroke', 'skidCdA', 'wBelly', 'landPitch', 'launch', 'launchRail', 'launchAngle', 'vHand', 'vLaunchK', 'nLaunchMax'],
   dyn: ['dihedral', 'sweep', 'vV', 'arV', 'vH', 'tailArm', 'smTarget', 'v'],
   flight: ['v', 'vmax', 'mtomLimit', 'turnFrac', 'bank', 'hAGL', 'alt', 'turbDay', 'powerModel', 'pMeas', 'mMeas', 'rhoMeas', 'zuschlag'],
   prop: ['propModel', 'etaTotal', 'propD', 'nProp', 'etaProfile', 'etaMotor', 'etaEsc', 'etaGear', 'mAntrieb'],
   propb: ['propModel', 'propGeom', 'propD', 'propPitch', 'propChord', 'propBlades', 'propFoil'],
   motor: ['motKv', 'motR', 'motI0', 'motImax', 'nCells', 'cellV', 'gearRatio', 'etaEsc', 'etaGear', 'mAntrieb'],
   struct: ['structMode', 'mZelle', 'rugged', 'nLimit', 'safety', 'vGust', 'gustU', 'deflMax', 'battInWing'],
-  struct2: ['sparType', 'sparH', 'xSpar', 'capMin', 'wWeb', 'ribSpacing', 'wRib', 'wLE', 'wSkin', 'wTE', 'mJoint', 'wTail', 'boomLin', 'wFus', 'mFusFix', 'mGear', 'wireLin'],
+  struct2: ['sparType', 'sparH', 'xSpar', 'capMin', 'wWeb', 'ribSpacing', 'wRib', 'wLE', 'wSkin', 'wTE', 'mJoint', 'wTail', 'boomLin', 'wFus', 'wCone', 'mFusFix'],
   mat: ['matCap', 'matWeb', 'matSkin', 'matBoom', 'matKnock', 'sparType', 'xSpar', 'vmax'],
   split: ['splits', 'splitEta', 'mJoint'],
   env: ['date', 'tz', 'lat', 'lon', 'alt', 'hAGL', 'tMax', 'tMin', 'sky'],
@@ -161,7 +180,11 @@ const SHOW_IF = {
   mZelle: P => P.structMode === 'fix', rugged: P => P.structMode !== 'fix', nLimit: P => P.structMode !== 'fix', safety: P => P.structMode !== 'fix', vGust: P => P.structMode !== 'fix', gustU: P => P.structMode !== 'fix', deflMax: P => P.structMode !== 'fix', battInWing: P => P.structMode !== 'fix',
   camberEta: P => P.solarGeom === 'flach', cellX0: P => P.solarGeom !== 'flach', cellX1: P => P.solarGeom !== 'flach', stringLayout: P => P.solarGeom !== 'flach',
   genYears: P => P.weather === 'gen', genSeed: P => P.weather === 'gen',
-  motorY: P => P.motorPos === 'wing', xWingLE: P => P.trimMode !== 'wing', xBatt: P => !(P.trimMode === 'battery' || P.battInWing), smTarget: P => P.trimMode !== 'none',
+  coneD: P => P.fusType === 'glider', wCone: P => P.fusType === 'glider', boomD: P => P.fusType !== 'glider', boomLin: P => P.fusType !== 'glider',
+  mWireFix: P => P.wireModel === 'fix', wireExtra: P => P.wireModel !== 'fix', wireDropSol: P => P.wireModel !== 'fix',
+  skidStroke: P => P.landGear === 'skid', skidCdA: P => P.landGear === 'skid', bellyStroke: P => P.landGear === 'belly', wBelly: P => P.landGear === 'belly',
+  launchRail: P => P.launch === 'catapult', launchAngle: P => P.launch === 'catapult', nLaunchMax: P => P.launch === 'catapult', vHand: P => P.launch === 'hand',
+  xWingLE: P => P.trimMode !== 'wing', xBatt: P => !(P.trimMode === 'battery' || P.battInWing), smTarget: P => P.trimMode !== 'none',
   splitEta: P => P.splits === 'outer' || P.splits === 'both',
   propPitch: P => P.propGeom !== 'apc10x7', propChord: P => P.propGeom !== 'apc10x7', propBlades: P => P.propGeom !== 'apc10x7'
 };
@@ -182,7 +205,7 @@ function fieldHTML(k, form) {
   const m = PM[k]; if (!m) return '';
   const id = `f-${form}-${k}`, help = m.help ? `<span class="help">${esc(m.help)}</span>` : '';
   const lab = `${esc(m.l)}${m.u ? ` <span class="u">${esc(m.u)}</span>` : ''}`;
-  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'sparType', 'fusFlow', 'tz', 'motorPos', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil', 'nBooms'].includes(k) || m.help ? ' wide' : '';
+  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
   if (m.sel === 'bool') return `<div class="field chk wide" data-fk="${k}"><input type="checkbox" id="${id}" data-k="${k}"><label for="${id}">${lab}</label>${help}</div>`;
   if (m.sel === 'date') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label><input type="date" id="${id}" data-k="${k}"></div>`;
   if (m.sel === 'time') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label><input type="time" id="${id}" data-k="${k}"></div>`;
@@ -216,7 +239,7 @@ document.addEventListener('input', e => {
   S.params[el.dataset.k] = v;
   // gleiche Größe in anderen Formularen nachziehen
   $$(`[data-k="${el.dataset.k}"]`).forEach(o => { if (o !== el) { if (o.type === 'checkbox') o.checked = !!v; else o.value = String(v); } });
-  if (['planform', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'weather', 'motorPos', 'trimMode', 'battInWing', 'splits', 'propGeom'].includes(el.dataset.k)) fillForms();
+  if (['planform', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'weather', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'battInWing', 'splits', 'propGeom'].includes(el.dataset.k)) fillForms();
   if (el.dataset.k === 'weather') onWeatherChange();
   markPreset(); schedule();
 });
@@ -225,11 +248,21 @@ document.addEventListener('change', e => { const el = e.target; if (el.dataset &
 /* ---------- Zustand ---------- */
 const STORE_KEY = 'waldbrand-uav-v5', OLD_KEY = 'waldbrand-uav-budget-v1', VIEW_KEY = 'waldbrand-uav-v5-view';
 let S = null;
-function defaultState() { return { v: 6, params: { ...DEFAULT_PARAMS }, comps: DEFAULT_COMPS.map(c => ({ ...c })), gen: null, preset: 'design' }; }
+function defaultState() { return { v: 7, params: { ...DEFAULT_PARAMS }, comps: DEFAULT_COMPS.map(c => ({ ...c })), gen: null, preset: 'design' }; }
+// Ältere Stände (bis Version 6): vier Motoranordnungen und Trägerzahl auf die neuen Varianten abbilden
+function migrateParams(p) {
+  const o = { ...p };
+  if (o.fusType === undefined && Number(o.nBooms) >= 2) o.fusType = 'twin';
+  if (o.motorPos === 'pod') o.motorPos = 'pusher';
+  else if (o.motorPos === 'tail') o.motorPos = 'fin';
+  else if (o.motorPos === 'wing') o.motorPos = 'nose';
+  if (o.mGear !== undefined && o.landGear === undefined) o.landGear = Number(o.mGear) > 0 ? 'skid' : 'belly';
+  return o;
+}
 function sanitize(raw) {
   const s = defaultState();
   if (!raw || typeof raw !== 'object') return s;
-  const p = raw.params || {};
+  const p = migrateParams(raw.params || {});
   for (const k of Object.keys(DEFAULT_PARAMS)) {
     const d = DEFAULT_PARAMS[k], v = p[k];
     if (v === undefined || v === null) continue;
@@ -242,7 +275,7 @@ function sanitize(raw) {
       id: String(c.id || 'own-' + Math.random().toString(36).slice(2, 8)), name: String(c.name || 'Komponente').slice(0, 120), group: GROUPS.some(g => g[0] === c.group) ? c.group : 'own',
       m: fin(Number(c.m)) ? Number(c.m) : 0, p: fin(Number(c.p)) ? Number(c.p) : 0, d: fin(Number(c.d)) ? clamp(Number(c.d), 0, 100) : 100, on: c.on !== false,
       sched: SCHED.some(x => x[0] === c.sched) ? c.sched : 'always', cda: fin(Number(c.cda)) ? Number(c.cda) : 0, note: typeof c.note === 'string' ? c.note.slice(0, 1000) : undefined,
-      x: fin(Number(c.x)) ? clamp(Number(c.x), -0.5, 6) : compX(c.id), y: fin(Number(c.y)) ? Number(c.y) : 0
+      x: fin(Number(c.x)) ? clamp(Number(c.x), -0.5, 6) : compX(c.id), y: fin(Number(c.y)) ? Number(c.y) : 0, z: fin(Number(c.z)) ? clamp(Number(c.z), -0.5, 1) : compZ(c.id)
     }));
   }
   if (raw.gen && Array.isArray(raw.gen.months) && raw.gen.months.length === 12) s.gen = { src: String(raw.gen.src || ''), months: raw.gen.months.map(m => ({ kt: clamp(Number(m.kt) || 0.4, 0.05, 0.8), T: Number(m.T) || 10, amp: Number(m.amp) || 8, ws: Number(m.ws) || 2 })) };
@@ -253,6 +286,7 @@ function sanitize(raw) {
 }
 // Längslage einer Komponente ohne gespeicherte Lage (ältere Stände): Vorgabe aus der Standardliste
 function compX(id) { const d = DEFAULT_COMPS.find(c => c.id === id); return d && fin(d.x) ? d.x : 0.5; }
+function compZ(id) { const d = DEFAULT_COMPS.find(c => c.id === id); return d && fin(d.z) ? d.z : 0; }
 // Übernahme aus der Vorgängerversion des Rechners (gleiche Grundgrößen)
 function migrateOld(o) {
   const s = defaultState(), p = o.params || {};
@@ -284,7 +318,7 @@ function applyPreset(key) {
 function markPreset() { S.preset = ''; const el = $('#preset-sel'); if (el) el.value = ''; }
 
 /* ---------- Ansichten ---------- */
-const VIEWS = ['uebersicht', 'flugzeug', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'validierung', 'team'];
+const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'validierung', 'team'];
 let VIEW = 'uebersicht';
 function showView(v) {
   if (!VIEWS.includes(v) || !document.getElementById('v-' + v)) v = 'uebersicht';

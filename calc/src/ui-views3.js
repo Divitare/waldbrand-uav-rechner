@@ -1,8 +1,8 @@
 /* ===================================================================
    Oberfläche Teil 4: Schwerpunkt, Struktur, Antrieb, Flugdynamik
    =================================================================== */
-const CATS = { comp: ['Bordsysteme', 'var(--c1)'], solar: ['Solarmodule', 'var(--c2)'], batt: ['Akku', 'var(--c3)'], prop: ['Antrieb', 'var(--c4)'], struct: ['Struktur', 'var(--bar)'], ballast: ['Ballast', 'var(--ink-2)'] };
-const catOf = it => it.key === 'batt' ? 'batt' : (it.key === 'solar' || it.key === 'solarht') ? 'solar' : (it.key === 'motor' || it.key === 'cable') ? 'prop' : it.key === 'ballast' ? 'ballast' : it.key.startsWith('comp:') ? 'comp' : 'struct';
+const CATS = { comp: ['Bordsysteme', 'var(--c1)'], solar: ['Solarmodule', 'var(--c2)'], batt: ['Akku', 'var(--c3)'], prop: ['Antrieb', 'var(--c4)'], wire: ['Verkabelung', 'var(--c5)'], struct: ['Struktur', 'var(--bar)'], ballast: ['Ballast', 'var(--ink-2)'] };
+const catOf = it => it.cat && CATS[it.cat] ? it.cat : it.key === 'batt' ? 'batt' : (it.key === 'solar' || it.key === 'solarht') ? 'solar' : it.key === 'motor' ? 'prop' : it.key === 'ballast' ? 'ballast' : it.key.startsWith('comp:') ? 'comp' : 'struct';
 const pctMac = (C, x) => (x - C.bal.g.xmac) / C.pf.mac * 100;
 const fmtV = (v, d = 1) => (v === Infinity || v == null ? 'keine' : nf(v, d));
 const LVL_TXT = { 1: 'Level 1', 2: 'Level 2', 3: 'Level 3', 4: 'unzureichend' };
@@ -20,54 +20,24 @@ function trimInfo(C) {
 /* ---------- Seitenansicht mit Wägediagramm (Massen verschiebbar) ---------- */
 function sideViewSVG(el, C) {
   el._fn = e => sideViewSVG(e, R.C); el._cfg = C;
-  const P = C.P, pf = C.pf, tg = C.tail, bal = C.bal, g = bal.g, mi = bal.mi, W = cw(el), r = P.fusD / 2;
-  const zw = r, zt = zw + P.zTail, mp = P.motorPos, Dp = P.propGeom === 'apc10x7' ? 0.254 : P.propD;
-  const zProp = mp === 'tail' ? zt : mp === 'wing' ? zw - 0.01 : 0;
-  const xs0 = Math.min(-0.08, g.xProp - 0.06), xs1 = Math.max(g.boom1, g.xhTE, g.xProp, P.fusL) + 0.08;
-  const zTop = Math.max(zt + tg.bv + 0.03, zProp + Dp / 2 + 0.03, zw + 0.1), zBot = Math.min(-r - 0.06, zProp - Dp / 2 - 0.03);
+  const P = C.P, pf = C.pf, tg = C.tail, bal = C.bal, g = bal.g, mi = bal.mi, W = cw(el), cf = C.cfg;
+  const zw = g.zw, Rp = g.R, zTip = zWingAt(g, pf.b / 2);
+  const xs0 = Math.min(-0.08, g.xProp - 0.06), xs1 = Math.max(g.xTail, g.xhTE, g.xvTE, g.xProp, P.fusL) + 0.08;
+  const zTop = Math.max(g.zV1 + 0.04, g.zH + 0.05, g.zP + Rp + 0.03, zTip + 0.06, zw + 0.1), zBot = Math.min(g.zLow - 0.03, g.zP - Rp - 0.03);
   const sc = (W - 20) / (xs1 - xs0), H1 = Math.round((zTop - zBot) * sc) + 12, H2 = Math.max(130, Math.min(190, W * 0.2)), base = H1 + H2, H = base + 30;
   const X = x => 10 + (x - xs0) * sc, Z = z => 6 + (zTop - z) * sc, f1 = v => v.toFixed(1);
-  const foilPath = (foil, x0, z0, c) => {
-    const sh = foil.shape, up = sh.x.map((x, i) => `${f1(X(x0 + x * c))} ${f1(Z(z0 + sh.yu[i] * c))}`), lo = sh.x.map((x, i) => `${f1(X(x0 + x * c))} ${f1(Z(z0 + sh.yl[i] * c))}`).reverse();
-    return 'M' + up.join('L') + 'L' + lo.join('L') + 'Z';
-  };
-  const L = P.fusL, n1 = Math.min(0.3 * L, 2.2 * P.fusD), t0 = 0.72 * L, tc = t0 + (L - t0) * 0.6;
-  const pod = `M${X(0)} ${Z(0)}C${X(0)} ${Z(r * 0.75)} ${X(n1 * 0.35)} ${Z(r)} ${X(n1)} ${Z(r)}L${X(t0)} ${Z(r)}C${X(tc)} ${Z(r)} ${X(L)} ${Z(r * 0.45)} ${X(L)} ${Z(r * 0.25)}L${X(L)} ${Z(-r * 0.25)}C${X(L)} ${Z(-r * 0.45)} ${X(tc)} ${Z(-r)} ${X(t0)} ${Z(-r)}L${X(n1)} ${Z(-r)}C${X(n1 * 0.35)} ${Z(-r)} ${X(0)} ${Z(-r * 0.75)} ${X(0)} ${Z(0)}Z`;
-  const stroke = 'stroke="var(--ink-2)" stroke-width="1.3"';
-  const prop = (x, z) => `<ellipse cx="${X(x)}" cy="${Z(z)}" rx="3" ry="${Dp / 2 * sc}" fill="var(--c4)" fill-opacity="0.16" stroke="var(--c4)" stroke-dasharray="4 3"/>`;
-  let s = `<svg class="viz sv" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="group" aria-label="Seitenansicht mit Massenlagen, Schwerpunkt und Neutralpunkt">`;
-  // Leitwerksträger (hinter der Gondel gezeichnet, wandert mit dem Flügel)
-  const xb0 = g.boom0, xb1 = g.xhLE + 0.1 * tg.ch;
-  s += `<g class="sv-wing"><line x1="${X(xb0)}" y1="${Z(r * 0.35)}" x2="${X(xb1)}" y2="${Z(zt)}" stroke="var(--ink-2)" stroke-width="${Math.max(2, P.boomD * sc)}" stroke-linecap="round"/></g>`;
-  // Gondel, Kufe, Motor vorn/hinten
-  s += `<path d="${pod}" fill="var(--sunken)" ${stroke}/>`;
-  if (P.mGear > 0) s += `<path d="M${X(g.xLE0 - 0.05)} ${Z(-r) + 1}Q${X(g.xLE0 + 0.15 * pf.cr)} ${Z(-r - 0.035)} ${X(g.xLE0 + 0.55 * pf.cr)} ${Z(-r) + 1}" fill="none" stroke="var(--ink-2)" stroke-width="2"/>`;
-  if (mp === 'nose') s += `<path d="M${X(0)} ${Z(0.035)}L${X(-0.035)} ${Z(0)}L${X(0)} ${Z(-0.035)}Z" fill="var(--ink-2)"/>` + prop(g.xProp, 0);
-  if (mp === 'pod') s += `<path d="M${X(L)} ${Z(0.03)}L${X(L + 0.05)} ${Z(0)}L${X(L)} ${Z(-0.03)}Z" fill="var(--ink-2)"/>` + prop(g.xProp, 0);
-  // Flügel, Leitwerk, Träger (verschiebbar als Einheit)
-  let wing = '';
-  const xTip = g.xLE0 + pf.xLE(1);
-  wing += `<path d="${foilPath(C.foil, xTip, zw + 0.004, pf.ct)}" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>`;
-  wing += `<path d="${foilPath(C.foil, g.xLE0, zw, pf.cr)}" fill="var(--panel)" ${stroke}/>`;
-  const xv0 = g.xhTE - tg.cv * 0.98, sv = 0.32;
-  wing += `<path d="M${X(xv0)} ${Z(zt)}L${X(xv0 + sv * tg.bv)} ${Z(zt + tg.bv)}L${X(xv0 + sv * tg.bv + 0.62 * tg.cv)} ${Z(zt + tg.bv)}L${X(g.xhTE)} ${Z(zt)}Z" fill="var(--sunken)" ${stroke}/>`;
-  wing += `<path d="${foilPath(C.tfoil, g.xhLE, zt, tg.ch)}" fill="var(--panel)" ${stroke}/>`;
-  if (C.mass.solarHT > 0) wing += `<line x1="${X(g.xhLE + 0.08 * tg.ch)}" x2="${X(g.xhLE + 0.85 * tg.ch)}" y1="${Z(zt) - 3}" y2="${Z(zt) - 3}" stroke="var(--c2)" stroke-width="3"/>`;
-  const sx0 = g.xLE0 + P.cellX0 / 100 * pf.cr, sx1 = g.xLE0 + P.cellX1 / 100 * pf.cr;
-  if (P.solarArea > 0) wing += `<line x1="${X(sx0)}" x2="${X(sx1)}" y1="${Z(zw + C.foil.t * pf.cr * 0.75) - 3}" y2="${Z(zw + C.foil.t * pf.cr * 0.75) - 3}" stroke="var(--c2)" stroke-width="3"/>`;
-  // MAC und Neutralpunkt
-  const yMac = Z(zw + C.foil.t * pf.cr + 0.03);
-  wing += `<line x1="${X(g.xmac)}" x2="${X(g.xmac + pf.mac)}" y1="${yMac}" y2="${yMac}" stroke="var(--muted)" stroke-width="1"/><line x1="${X(g.xmac)}" x2="${X(g.xmac)}" y1="${yMac - 4}" y2="${yMac + 4}" stroke="var(--muted)"/><line x1="${X(g.xmac + pf.mac)}" x2="${X(g.xmac + pf.mac)}" y1="${yMac - 4}" y2="${yMac + 4}" stroke="var(--muted)"/>`;
-  wing += `<text class="tick" x="${X(g.xmac + pf.mac) + 4}" y="${yMac + 4}">MAC ${nf(pf.mac * 100, 0)} cm</text>`;
-  // Motoren am Flügel und hinter dem Leitwerk wandern mit
-  if (mp === 'wing') wing += `<ellipse cx="${X(g.xMot + 0.04)}" cy="${Z(zw - 0.01)}" rx="${0.11 * sc}" ry="${Math.max(3, 0.035 * sc)}" fill="var(--sunken)" ${stroke}/>` + prop(g.xProp, zProp);
-  if (mp === 'tail') wing += `<ellipse cx="${X(g.xMot)}" cy="${Z(zt)}" rx="${0.06 * sc}" ry="${Math.max(3, 0.03 * sc)}" fill="var(--sunken)" ${stroke}/>` + prop(g.xProp, zProp);
-  s += `<g class="sv-wing">${wing}</g>`;
-  // Komponenten als kleine Kästchen in der Gondel
-  for (const it of mi.items) if (it.key.startsWith('comp:') || (it.key === 'batt' && !P.battInWing)) {
-    const w = Math.max(4, Math.min(0.14, 0.02 + it.m * 0.04) * sc), col = CATS[catOf(it)][1];
-    s += `<rect class="sv-box" data-for="${esc(it.key)}" x="${X(it.x) - w / 2}" y="${Z(0) - Math.min(r * sc * 0.7, w * 0.6)}" width="${w}" height="${Math.min(r * sc * 1.4, w * 1.2)}" rx="2" fill="${col}" fill-opacity="0.55"/>`;
+  const parts = aircraftSide(C, X, Z, sc);
+  let s = `<svg class="viz sv" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="group" aria-label="Seitenansicht mit Massenlagen, Schwerpunkt, Schublinie und Neutralpunkt">`;
+  s += `<g class="sv-wing">${parts.back}</g>` + parts.body + `<g class="sv-wing">${parts.wing}</g>`;
+  // Komponenten als kleine Kästchen an ihrer Lage (x, z)
+  for (const it of mi.items) if ((it.key.startsWith('comp:') && it.key !== 'comp:servo' && it.y < 0.3) || (it.key === 'batt' && !P.battInWing)) {
+    const w = Math.max(4, Math.min(0.14, 0.02 + it.m * 0.04) * sc), col = CATS[catOf(it)][1], hh = Math.min(P.fusD * sc * 0.6, w * 1.1);
+    s += `<rect class="sv-box" data-for="${esc(it.key)}" x="${f1(X(it.x) - w / 2)}" y="${f1(Z(it.z) - hh / 2)}" width="${f1(w)}" height="${f1(hh)}" rx="2" fill="${col}" fill-opacity="0.55"/>`;
   }
+  // Schublinie
+  const xa = Math.min(g.xProp, bal.xcg) - 0.05, xb = Math.max(g.xProp, bal.xcg) + 0.15;
+  s += `<line x1="${f1(X(xa))}" x2="${f1(X(xb))}" y1="${f1(Z(g.zP))}" y2="${f1(Z(g.zP))}" stroke="var(--c4)" stroke-width="1.2" stroke-dasharray="6 4"/>`;
+  s += `<text class="tick" x="${f1(X(xb) + 4)}" y="${f1(Z(g.zP) + 4)}">Schublinie ${nfs((g.zP - bal.zcg) * 100, 0)} cm</text>`;
   // Wägediagramm
   const items = mi.items.map(it => ({ ...it, cat: catOf(it) })), mmax = Math.max(...items.map(i => i.m)), hh = H2 - 40;
   const yTop = m => base - 6 - Math.sqrt(m / mmax) * hh;
@@ -99,7 +69,7 @@ function sideViewSVG(el, C) {
   const cg = (cx, cy, rr) => `<circle cx="${cx}" cy="${cy}" r="${rr}" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/><path d="M${cx} ${cy}L${cx + rr} ${cy}A${rr} ${rr} 0 0 0 ${cx} ${cy - rr}ZM${cx} ${cy}L${cx - rr} ${cy}A${rr} ${rr} 0 0 0 ${cx} ${cy + rr}Z" fill="var(--ink)"/>`;
   s += `<line class="sv-np" x1="${X(xnp)}" x2="${X(xnp)}" y1="${Z(zw + C.foil.t * pf.cr) - 6}" y2="${base}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
   if (P.trimMode === 'none' || Math.abs(xT - xcg) > 0.003) s += `<line x1="${X(xT)}" x2="${X(xT)}" y1="${H1 + 4}" y2="${base}" stroke="var(--muted)" stroke-dasharray="2 3"/><text class="tick" x="${X(xT)}" y="${H1 + 14}" text-anchor="middle">Ziel</text>`;
-  s += `<g class="sv-cg"><line x1="${X(xcg)}" x2="${X(xcg)}" y1="${Z(r) - 2}" y2="${base}" stroke="var(--ink)" stroke-width="1.5"/>${cg(X(xcg), Z(0), 7)}</g>`;
+  s += `<g class="sv-cg"><line x1="${X(xcg)}" x2="${X(xcg)}" y1="${Z(bal.zcg) + 7}" y2="${base}" stroke="var(--ink)" stroke-width="1.5"/>${cg(X(xcg), Z(bal.zcg), 7)}</g>`;
   s += `<path class="sv-np" d="M${X(xnp) - 6} ${Z(zw + C.foil.t * pf.cr) - 14}L${X(xnp) + 6} ${Z(zw + C.foil.t * pf.cr) - 14}L${X(xnp)} ${Z(zw + C.foil.t * pf.cr) - 4}Z" fill="var(--accent)"/>`;
   s += `<text class="hline-label sv-npl" x="${X(xnp) + 8}" y="${Z(zw + C.foil.t * pf.cr) - 6}">N</text>`;
   s += '</svg>';
@@ -155,9 +125,9 @@ function sideViewSVG(el, C) {
 /* ---------- Ansicht Schwerpunkt ---------- */
 function motorStudy(P, comps) {
   return Object.keys(MOTOR_POS).map(k => {
-    const P2 = { ...P, motorPos: k, nBooms: k === P.motorPos ? P.nBooms : k === 'pod' ? 2 : 1 };
+    const P2 = { ...P, motorPos: k };
     const C = buildCase(P2, comps), n = dayOfYear(P2.date), y = yearOf(P2.date), ser = daySeries(C, envClear(P2, n, y)), mis = mission(C, ser, ser, false);
-    return { k, C, mis, nb: P2.nBooms };
+    return { k, C, mis, ok: C.cfg.mot === k && !(C.bal.g.boomClear < 0) };
   });
 }
 function sweepStudy(P, comps) {
@@ -189,8 +159,9 @@ RENDER.schwerpunkt = (R) => {
   if (bal.msg) msg.push(pill(bal.ballast > 0.05 ? 'crit' : 'warn', bal.msg + ` ${nf(bal.ballast * 1000, 0)} g Ballast.`));
   if (sm < 3) msg.push(pill('crit', `Stabilitätsmaß nur ${nf(sm, 1)} %: kaum noch längsstabil`)); else if (sm > 25) msg.push(pill('warn', `Stabilitätsmaß ${nf(sm, 1)} %: sehr kopflastig, hoher Trimmaufwand`));
   if (!msg.length) msg.push(pill('good', `Schwerpunkt ${nf(sm, 1)} % MAC vor dem Neutralpunkt${bal.ballast > 0 ? '' : ', ohne Ballast'}`));
-  if (P.motorPos === 'pod' && P.nBooms < 2) msg.push(pill('warn', 'Druckpropeller am Gondelende: einzelner Leitwerksträger läuft durch den Propellerkreis'));
-  if (P.motorPos === 'tail') msg.push(pill('info', `Heckmotor: Kabel ${nf(bal.mCable * 1000, 0)} g, Motor ${nf(C.bal.g.xMot - bal.xcg, 2)} m hinter dem Schwerpunkt`));
+  for (const n of C.cfg.notes) msg.push(pill('warn', n.t));
+  if (bal.g.boomClear < 0) msg.push(pill('crit', `Rohrträger läuft ${nf(-bal.g.boomClear * 100, 0)} cm tief durch den Propellerkreis: so nicht baubar. Zwei Träger oder Seglerrumpf mit Pylon wählen.`));
+  if (C.cfg.mot !== 'nose') msg.push(pill('info', `Motor ${nf(bal.g.xMot - bal.xcg, 2)} m hinter und ${nf((bal.g.zP - bal.zcg) * 100, 0)} cm über dem Schwerpunkt · Antriebsleitung ${nf((C.harness.byKey.wmot || 0) * 1000, 0)} g`));
   $('#cg-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   $('#kpis-cg').innerHTML = [
     kpi('Schwerpunkt', nf(bal.xcg, 3), 'm', `${nf(pctMac(C, bal.xcg), 1)} % MAC · Ziel ${nf(bal.target, 3)} m`),
@@ -200,40 +171,44 @@ RENDER.schwerpunkt = (R) => {
       P.trimMode === 'wing' ? `Flügelwurzel bei ${nf(bal.g.xLE0, 3)} m` : P.trimMode === 'battery' && !P.battInWing ? `Akku-Schwerpunkt ab Bug · Ballast ${nf(bal.ballast * 1000, 0)} g` : `Ballast ${bal.xBal < bal.g.xLE0 ? 'in der Nase' : 'im Heck'}`, bal.ballast > 0.05 ? 'bad' : ''),
     kpi('Einstellwinkeldifferenz', nf(ti.ewd * RAD, 2), '°', `Abwind ${nf(ti.eps * RAD, 2)}° · dε/dα ${nf(C.np.deda, 2)}`),
     kpi('Leitwerkslast Reiseflug', nfs(ti.Lt, 2), 'N', `c_A,H ${nf(ti.CLh, 3)} · Trimmwiderstand ${nf(ti.Dtrim * P.v * 1000, 0)} mW`),
-    kpi('Trägheitsmomente', nf(mi.Ixx, 2), 'kg·m²', `Rollen I_x · Nicken I_y ${nf(mi.Iyy, 2)} · Gieren I_z ${nf(mi.Izz, 2)}`),
-    kpi('Ballast und Kabel', nf((bal.ballast + bal.mCable) * 1000, 0), 'g', `Ballast ${nf(bal.ballast * 1000, 0)} g · Motorkabel ${nf(bal.mCable * 1000, 0)} g`)
+    kpi('Schwerpunkt Höhe', nfs(bal.zcg * 100, 1), 'cm', `über der Rumpfachse · Schublinie ${nfs((bal.g.zP - bal.zcg) * 100, 0)} cm darüber`),
+    kpi('Trägheitsmomente', nf(mi.Ixx, 2), 'kg·m²', `Rollen I_x · Nicken I_y ${nf(mi.Iyy, 2)} · Gieren I_z ${nf(mi.Izz, 2)} · I_xz ${nfs(mi.Ixz, 3)}`),
+    kpi('Ballast · Verkabelung', nf(bal.ballast * 1000, 0), 'g', `Verkabelung ${nf(C.mass.wire * 1000, 0)} g (eigene Massengruppe)`, bal.ballast > 0.05 ? 'bad' : '')
   ].join('');
   // Massenliste
   const items = mi.items.slice().sort((a, b) => a.x - b.x), M = mi.M;
-  $('#cgt-sub').textContent = `${items.length} Massen, zusammen ${nf(M, 3)} kg. Moment um die Bugspitze = Masse × Lage. Hebel: Abstand zum Schwerpunkt, positiv dahinter. Lagen der Bordsysteme direkt hier oder in der Komponentenliste ändern.`;
-  $('#tbl-cg').innerHTML = `<thead><tr><th>Masse</th><th>Art</th><th class="n">g</th><th class="n">x ab Bug (m)</th><th class="n">Moment (kg·m)</th><th class="n">Hebel (cm)</th><th class="n">Anteil</th></tr></thead><tbody>` +
+  $('#cgt-sub').textContent = `${items.length} Massen, zusammen ${nf(M, 3)} kg. Lage x ab Bugspitze, Höhe z über der Rumpfachse. Hebel: Abstand zum Schwerpunkt (x positiv dahinter, z positiv darüber). Lagen der Bordsysteme direkt hier oder in der Komponentenliste ändern; die Servos sitzen an den Rudern.`;
+  const byCat = {}; for (const it of items) { const c = catOf(it); byCat[c] = (byCat[c] || 0) + it.m; }
+  $('#tbl-cg').innerHTML = `<thead><tr><th>Masse</th><th>Gruppe</th><th class="n">g</th><th class="n">x ab Bug (m)</th><th class="n">z (m)</th><th class="n">Hebel x (cm)</th><th class="n">Hebel z (cm)</th><th class="n">Anteil</th></tr></thead><tbody>` +
     items.map(it => {
-      const cat = catOf(it), ci = it.key.startsWith('comp:') ? S.comps.findIndex(c => 'comp:' + c.id === it.key) : -1;
+      const cat = catOf(it), ci = it.key.startsWith('comp:') && it.key !== 'comp:servo' ? S.comps.findIndex(c => 'comp:' + c.id === it.key) : -1;
       const xc = ci >= 0 ? `<input type="number" class="xin" data-cx="${ci}" value="${S.comps[ci].x ?? 0.5}" step="0.01" min="-0.5" max="6" aria-label="Lage von ${esc(it.name)} in m">` : nf(it.x, 3);
-      return `<tr><td><span class="sw" style="background:${CATS[cat][1]}"></span>${esc(it.name)}</td><td class="muted">${esc(CATS[cat][0])}</td><td class="n">${nf(it.m * 1000, 0)}</td><td class="n">${xc}</td><td class="n">${nf(it.m * it.x, 3)}</td><td class="n">${nfs((it.x - bal.xcg) * 100, 1)}</td><td class="n">${nf(it.m / M * 100, 1)} %</td></tr>`;
-    }).join('') + `</tbody><tfoot><tr><td class="lbl">Summe</td><td></td><td class="n">${nf(M * 1000, 0)}</td><td class="n">${nf(bal.xcg, 3)}</td><td class="n">${nf(M * bal.xcg, 3)}</td><td></td><td></td></tr></tfoot>`;
+      const zc = ci >= 0 ? `<input type="number" class="xin" data-cz="${ci}" value="${S.comps[ci].z ?? 0}" step="0.01" min="-0.5" max="1" aria-label="Höhe von ${esc(it.name)} in m">` : nf(it.z, 3);
+      return `<tr><td><span class="sw" style="background:${CATS[cat][1]}"></span>${esc(it.name)}</td><td class="muted">${esc(CATS[cat][0])}</td><td class="n">${nf(it.m * 1000, 0)}</td><td class="n">${xc}</td><td class="n">${zc}</td><td class="n">${nfs((it.x - bal.xcg) * 100, 1)}</td><td class="n">${nfs((it.z - bal.zcg) * 100, 1)}</td><td class="n">${nf(it.m / M * 100, 1)} %</td></tr>`;
+    }).join('') + `</tbody><tfoot><tr><td class="lbl">Summe</td><td class="muted small">${Object.entries(byCat).map(([c, m]) => `${CATS[c][0]} ${nf(m, 2)}`).join(' · ')}</td><td class="n">${nf(M * 1000, 0)}</td><td class="n">${nf(bal.xcg, 3)}</td><td class="n">${nf(bal.zcg, 3)}</td><td></td><td></td><td></td></tr></tfoot>`;
   // Motoranordnungen, Pfeilung und Leitwerkszellen etwas später (rechenintensiv)
   later(() => renderMotorStudy(R));
   later(() => renderSweepStudy(R));
   later(() => renderHtStudy(R));
 };
 $('#tbl-cg').addEventListener('change', e => {
-  const el = e.target, i = Number(el.dataset.cx); if (!fin(i) || !S.comps[i]) return;
-  const x = Number(el.value); if (el.value === '' || !fin(x)) { el.value = S.comps[i].x; return; }
-  S.comps[i].x = clamp(x, -0.5, 6); renderCompTable(); markPreset(); schedule(true);
+  const el = e.target, isZ = el.dataset.cz !== undefined, i = Number(isZ ? el.dataset.cz : el.dataset.cx); if (!fin(i) || !S.comps[i]) return;
+  const x = Number(el.value); if (el.value === '' || !fin(x)) { el.value = isZ ? S.comps[i].z ?? 0 : S.comps[i].x; return; }
+  if (isZ) S.comps[i].z = clamp(x, -0.5, 1); else S.comps[i].x = clamp(x, -0.5, 6);
+  renderCompTable(); markPreset(); schedule(true);
 });
 function renderMotorStudy(R) {
   const P = S.params, list = cached('motors', () => motorStudy(P, S.comps));
   const cur = list.find(r => r.k === P.motorPos) || list[0];
-  $('#mot-sub').textContent = `Gleiche Auslegung, nur die Motoranordnung getauscht; Trimmung wie eingestellt (${(SEL.trimMode.find(t => t[0] === P.trimMode) || ['', ''])[1]}). Druckpropeller am Gondelende mit zwei Leitwerksträgern. Zeile anklicken zum Übernehmen.`;
-  $('#tbl-mot').innerHTML = `<thead><tr><th>Anordnung</th><th class="n">Abflugmasse</th><th class="n">Ballast</th><th class="n">Akku x</th><th class="n">Kabel</th><th class="n">Einbau</th><th class="n">Leistung Reise</th><th class="n">Einsatz min. SoC</th></tr></thead><tbody>` +
+  $('#mot-sub').textContent = `Gleiche Auslegung (${FUS_TYPES[R.C.cfg.fus].name}, ${TAIL_TYPES[R.C.cfg.tail].short}), nur die Motoranordnung getauscht; Trimmung wie eingestellt (${(SEL.trimMode.find(t => t[0] === P.trimMode) || ['', ''])[1]}). Alle Rumpfformen im Vergleich in der Ansicht Konfiguration. Zeile anklicken zum Übernehmen.`;
+  $('#tbl-mot').innerHTML = `<thead><tr><th>Anordnung</th><th class="n">Abflugmasse</th><th class="n">Ballast</th><th class="n">Akku x</th><th class="n">Verkabelung</th><th class="n">Schublinie</th><th class="n">Einbau</th><th class="n">Leistung Reise</th><th class="n">Einsatz min. SoC</th></tr></thead><tbody>` +
     list.map(r => {
       const C = r.C, d = C.pProp - cur.C.pProp, sel = r.k === P.motorPos, soc = r.mis ? r.mis.minE / r.mis.cap * 100 : NaN;
-      return `<tr class="${sel ? 'sel' : ''} pick" data-mot="${r.k}" tabindex="0"><td class="wide-cell"><b>${esc(MOTOR_POS[r.k].name)}</b>${r.k === 'pod' ? ` <span class="muted small">${r.nb} Träger</span>` : ''}<div class="small muted">${esc(MOTOR_POS[r.k].note)}</div></td><td class="n">${nf(C.m, 2)} kg</td><td class="n ${C.bal.ballast > 0.05 ? 'crit' : ''}">${fmtKg(C.bal.ballast)}</td><td class="n">${P.battInWing ? 'Flügel' : nf(C.bal.xBatt, 2) + ' m'}</td><td class="n">${nf(C.bal.mCable * 1000, 0)} g</td><td class="n">${nf(C.motor.eta * 100, 0)} %</td>` +
+      return `<tr class="${sel ? 'sel' : ''} pick" data-mot="${r.k}" tabindex="0"><td class="wide-cell"><b>${esc(MOTOR_POS[r.k].name)}</b>${r.ok ? '' : ` <span class="crit small">${C.cfg.mot !== r.k ? 'hier nicht möglich' : 'so nicht baubar'}</span>`}<div class="small muted">${esc(MOTOR_POS[r.k].note)}</div></td><td class="n">${nf(C.m, 2)} kg</td><td class="n ${C.bal.ballast > 0.05 ? 'crit' : ''}">${fmtKg(C.bal.ballast)}</td><td class="n">${P.battInWing ? 'Flügel' : nf(C.bal.xBatt, 2) + ' m'}</td><td class="n">${nf(C.mass.wire * 1000, 0)} g</td><td class="n">${nfs((C.bal.g.zP - C.bal.zcg) * 100, 0)} cm</td><td class="n">${nf(C.motor.eta * 100, 0)} %</td>` +
         `<td class="n">${nf(C.pProp, 1)} W${sel ? '' : ` <span class="${d < -0.05 ? 'good' : d > 0.05 ? 'crit' : 'muted'}">${nfs(d, 1)}</span>`}</td><td class="n ${r.mis && !r.mis.ok ? 'crit' : ''}">${fin(soc) ? nf(soc, 0) + ' %' : '–'}</td></tr>`;
-    }).join('') + '</tbody>';
+    }).join('') + '</tbody><caption>Schublinie: Höhe der Propellerachse über dem Schwerpunkt. Darüber drückt Gas die Nase nach unten, darunter hebt es sie.</caption>';
 }
-$('#tbl-mot').addEventListener('click', e => { const tr = e.target.closest('tr[data-mot]'); if (!tr || tr.dataset.mot === S.params.motorPos) return; S.params.motorPos = tr.dataset.mot; if (tr.dataset.mot === 'pod') S.params.nBooms = 2; markPreset(); fillForms(); schedule(true); });
+$('#tbl-mot').addEventListener('click', e => { const tr = e.target.closest('tr[data-mot]'); if (!tr || tr.dataset.mot === S.params.motorPos) return; S.params.motorPos = tr.dataset.mot; markPreset(); fillForms(); schedule(true); });
 $('#tbl-mot').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { const tr = e.target.closest('tr[data-mot]'); if (tr) { e.preventDefault(); tr.click(); } } });
 function renderSweepStudy(R) {
   const P = S.params, list = cached('sweep', () => sweepStudy(P, S.comps)), vReq = 1.2 * P.vmax;
@@ -280,10 +255,10 @@ function transportPieces(C) {
   const ys = P.splits === 'none' ? [] : P.splits === 'center' ? [0] : P.splits === 'outer' ? [P.splitEta * h] : [0, P.splitEta * h];
   const massOf = (a, b) => { // beide Grenzen in m ab Mitte, eine Flügelseite
     if (!sd) return NaN; let m = 0; const dy = h / sd.y.length;
-    sd.y.forEach((y, k) => { if (y >= a && y < b) { let mm = 0; for (const f of ['mCap', 'mWeb', 'mLE', 'mRib', 'mSkin', 'mTE', 'mWire']) mm += sd[f][k]; m += mm * dy * (1 + P.rugged / 100); } });
+    const wl = C.harness ? C.harness.wingLin : null;
+    sd.y.forEach((y, k) => { if (y >= a && y < b) { let mm = wl ? wl(y) : 0; for (const f of ['mCap', 'mWeb', 'mLE', 'mRib', 'mSkin', 'mTE']) mm += sd[f][k] * (1 + P.rugged / 100); m += mm * dy; } });
     const eta = C.solarEta || 0, sa = Math.max(0, Math.min(b, eta * h) - a) / Math.max(1e-9, eta * h); m += C.mass.solar / 2 * Math.max(0, sa);
     if (P.battInWing) { const bb = Math.max(0, Math.min(b, 0.6 * h) - a) / (0.6 * h); m += C.mass.batt / 2 * Math.max(0, bb); }
-    if (P.motorPos === 'wing') { const yM = C.bal.g.yM; if (yM >= a && yM < b) m += C.mass.prop / 2; }
     return m;
   };
   const cut = [...new Set(ys.filter(y => y > 1e-6))].sort((a, b) => a - b), bounds = [0, ...cut, h], center = !ys.includes(0);
@@ -293,11 +268,14 @@ function transportPieces(C) {
     else out.push({ name: i === 0 ? 'Halbflügel innen' : bounds.length > 3 || center ? 'Außenflügel' : 'Halbflügel', n: 2, len: b - a, c: Math.max(cA, cB), m });
     if (i === 0 && !center && bounds.length === 2) out[out.length - 1].name = 'Halbflügel';
   }
-  const tg = C.tail, kR = 1 + P.rugged / 100, lB = C.bal ? C.bal.g.lBoom : tg.lBoom;
-  out.push({ name: 'Rumpfgondel mit Einbauten', n: 1, len: P.fusL, c: P.fusD, m: ((st && st.parts ? st.parts.fus + st.parts.gear : 0) + 0.05) * kR });
-  out.push({ name: P.nBooms > 1 ? 'Leitwerksträger' : 'Leitwerksträger (steckbar)', n: Math.max(1, P.nBooms), len: lB, c: P.boomD, m: P.boomLin * lB * kR });
-  out.push({ name: 'Höhenleitwerk', n: 1, len: tg.bh, c: tg.ch, m: P.wTail * tg.Sh * kR + (C.mass.solarHT || 0) });
-  out.push({ name: 'Seitenleitwerk', n: 1, len: tg.bv, c: tg.cv, m: P.wTail * tg.Sv * kR });
+  const tg = C.tail, kR = 1 + P.rugged / 100, g = C.bal.g, cf = C.cfg, pp = st && st.parts ? st.parts : null;
+  if (cf.fus === 'glider') out.push({ name: 'Rumpf mit Röhre und Einbauten', n: 1, len: g.fus.L, c: P.fusD, m: pp ? (pp.fus + pp.cone + pp.land + pp.pylon) * kR : NaN });
+  else {
+    out.push({ name: 'Rumpfgondel mit Einbauten', n: 1, len: P.fusL, c: P.fusD, m: pp ? (pp.fus + pp.land) * kR : NaN });
+    out.push({ name: cf.nBoom > 1 ? 'Leitwerksträger' : 'Leitwerksträger (steckbar)', n: cf.nBoom, len: g.lBoom, c: P.boomD, m: pp ? pp.boom / cf.nBoom * kR : NaN });
+  }
+  out.push({ name: cf.tail === 'T' ? 'Höhenleitwerk (T)' : 'Höhenleitwerk', n: 1, len: tg.bh, c: tg.ch, m: P.wTail * tg.Sh * kR + (C.mass.solarHT || 0) });
+  out.push({ name: tg.nFin > 1 ? 'Seitenleitwerk' : 'Seitenleitwerk', n: tg.nFin, len: tg.bv, c: tg.cv, m: pp ? pp.fin / tg.nFin * kR : NaN });
   return out;
 }
 RENDER.struktur = (R) => {
@@ -629,5 +607,3 @@ function renderKern() {
     series: [{ name: 'Messung', c: 3, pts: APC_MEAS.CT, dots: true, dash: true, fmt: v => nf(v, 4) }, { name: 'Rechner (QPROP-Profil)', c: 1, pts: k.apc.map(r => [r.J, r.CT]), fmt: v => nf(v, 4) }, { name: 'Clark Y aus der Datenbank', c: 2, pts: k.apcC.map(r => [r.J, r.CT]), dash: true, fmt: v => nf(v, 4) }],
     tipExtra: x => `<div class="row"><span>Abweichung QPROP</span><b>${nfs((ip(k.apc.map(r => [r.J, r.CT]), x) / ip(APC_MEAS.CT, x) - 1) * 100, 0)} %</b></div>` });
 }
-
-init();

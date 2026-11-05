@@ -33,6 +33,7 @@
     <nav class="views" id="views" aria-label="Ansichten">
       <a href="#uebersicht" data-v="uebersicht">Übersicht</a>
       <a href="#flugzeug" data-v="flugzeug">Flugzeug</a>
+      <a href="#konfiguration" data-v="konfiguration">Konfiguration</a>
       <a href="#schwerpunkt" data-v="schwerpunkt">Schwerpunkt</a>
       <a href="#struktur" data-v="struktur">Struktur</a>
       <a href="#antrieb" data-v="antrieb">Antrieb</a>
@@ -102,6 +103,29 @@
     </div>
   </section>
 
+  <!-- Konfiguration -->
+  <section class="view" id="v-konfiguration" data-view="konfiguration" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Rumpf, Leitwerk, Motor</h3><div class="pgrid" data-form="config"></div></div>
+        <div class="panel"><h3 class="first">Verkabelung</h3><div class="pgrid" data-form="wire"></div></div>
+        <div class="panel"><h3 class="first">Start und Landung</h3><div class="pgrid" data-form="ground"></div></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Anordnung</h2><p id="cf-sub"></p></div></div>
+          <div class="chart" id="svg-cf-side"></div><div id="cf-msg" style="margin-top:10px"></div><div class="kpis" id="kpis-cf" style="margin-top:12px"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Rumpfformen und Motoranordnungen</h2><p id="cfm-sub"></p></div></div>
+          <div class="cfm" id="cf-matrix"></div></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Verkabelung</h2><p id="wire-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-wire"></table></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Leitwerk und Träger als tragende Bauteile</h2><p id="tl-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-tail"></table></div><div class="kpis k2" id="kpis-tail" style="margin-top:12px"></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h2>Landung ohne Fahrwerk und Start</h2><p id="gr-sub"></p></div></div>
+          <div class="kpis" id="kpis-ground"></div><div id="gr-msg" style="margin-top:10px"></div><div class="chart" id="ch-launch" style="margin-top:10px"></div></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Schwerpunkt -->
   <section class="view" id="v-schwerpunkt" data-view="schwerpunkt" hidden>
     <div class="cols">
@@ -114,7 +138,7 @@
           <div class="chart side-view" id="svg-side"></div><div id="cg-msg" style="margin-top:10px"></div><div class="kpis" id="kpis-cg" style="margin-top:12px"></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Massen und Hebelarme</h2><p id="cgt-sub"></p></div></div>
           <div class="table-wrap"><table class="data" id="tbl-cg"></table></div></div>
-        <div class="panel"><div class="panel-head"><div><h2>Vier Motoranordnungen im Vergleich</h2><p id="mot-sub"></p></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Drei Motoranordnungen im Vergleich</h2><p id="mot-sub"></p></div></div>
           <div class="table-wrap"><table class="data" id="tbl-mot"></table></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Pfeilung: Momente, Aerodynamik, Aeroelastik</h2><p id="sw-sub"></p></div></div>
           <div class="two"><div class="chart" id="ch-sw1"></div><div class="chart" id="ch-sw2"></div></div>

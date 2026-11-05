@@ -15,7 +15,7 @@ const t0 = Date.now();
 {
   const R = U.REFS.atlantik, P = { ...U.DEFAULT_PARAMS, ...R.params }, C = U.buildCase(P, R.comps);
   const ser = U.daySeries(C, U.envClear(P, U.dayOfYear(P.date), U.yearOf(P.date))), per = U.periodic(C, ser);
-  chk('AtlantikSolar Abflugmasse (kg)', C.m, 6.93, 0.03);
+  chk('AtlantikSolar Abflugmasse (kg)', C.m, 6.92, 0.03);
   chk('AtlantikSolar Leistung Reiseflug (W)', C.lvl.pel, 35.8, 0.05);
   chk('AtlantikSolar Excess Time (h)', per.tExc, 7.0, 0.08);
 }

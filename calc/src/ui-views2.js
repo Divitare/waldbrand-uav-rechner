@@ -366,7 +366,8 @@ function validationData() {
     const P = { ...DEFAULT_PARAMS, ...r.params }, C = buildCase(P, r.comps), n = dayOfYear(P.date), y = yearOf(P.date);
     const ser = daySeries(C, envClear(P, n, y)), per = periodic(C, ser), rows = [];
     const add = (l, ref, mod, d, u) => { if (ref != null) rows.push([l, nf(ref, d) + ' ' + u, nf(mod, d) + ' ' + u, mod / ref - 1]); };
-    add('Abflugmasse', r.ref.mTotal, C.m, 2, 'kg'); add('Strukturmasse', r.ref.mStruct, C.mass.struct, 2, 'kg');
+    add('Abflugmasse', r.ref.mTotal, C.m, 2, 'kg'); add('Strukturmasse (ohne Kabel)', r.ref.mStruct, C.mass.struct, 2, 'kg');
+    if (r.ref.mWire != null) rows.push(['Kabel und Beschläge', nf(r.ref.mWire, 3) + ' kg', nf(C.mass.wire, 3) + ' kg (gemessen eingesetzt)', NaN]);
     add('Antriebsleistung Reiseflug', r.ref.pProp, C.pProp, 1, 'W'); add('Leistung gesamt', r.ref.pTotal, C.pProp + C.comp.always, 1, 'W');
     if (r.ref.tExc != null) rows.push(['Excess Time 21. Juni', nf(r.ref.tExc, 1) + ' h', nf(per.tExc, 1) + ' h', per.tExc / r.ref.tExc - 1]);
     return { name: r.name, src: r.src, rows };
