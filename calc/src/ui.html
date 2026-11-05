@@ -156,6 +156,7 @@
       <div class="side">
         <div class="panel"><h3 class="first">Werkstoffe und Bauweise</h3><div class="pgrid" data-form="mat"></div></div>
         <div class="panel"><h3 class="first">Transportteilung</h3><div class="pgrid" data-form="split"></div></div>
+        <div class="panel"><h3 class="first">Ruder und Standschwingversuch</h3><div class="pgrid" data-form="vib"></div></div>
         <div class="panel"><h3 class="first">Lasten und Steifigkeit</h3><div class="pgrid" data-form="struct"></div>
           <details class="more"><summary>Flächengewichte</summary><div class="pgrid" data-form="struct2"></div></details></div>
       </div>
@@ -168,6 +169,11 @@
         </div>
         <div class="panel"><div class="panel-head"><div><h2>Flatterdiagramm</h2><p id="vg-sub"></p></div></div>
           <div class="two"><div class="chart" id="ch-vg"></div><div class="chart" id="ch-vf"></div></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Ganzes Flugzeug, Leitwerk und Ruder</h2><p id="vib-sub"></p></div></div>
+          <div class="kpis" id="kpis-vib"></div><div id="vib-msg" style="margin-top:10px"></div>
+          <div class="table-wrap" style="margin-top:12px"><table class="data" id="tbl-vib"></table></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Massenausgleich der Ruder</h2><p id="bal-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-bal"></table></div><div id="bal-note" class="note" style="margin-top:10px"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Eigenformen für den Standschwingversuch</h2><p id="gvt-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-gvt"></table></div><div id="gvt-note" class="note" style="margin-top:10px"></div></div>
         <div class="two">
           <div class="panel"><div class="panel-head"><div><h2>Resonanz mit dem Propeller</h2><p id="camp-sub"></p></div></div><div class="chart" id="ch-camp"></div><div id="camp-msg" style="margin-top:8px"></div></div>
           <div class="panel"><div class="panel-head"><div><h2>Transportteilung</h2><p id="tr-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-transport"></table></div><div id="tr-joints" class="note" style="margin-top:10px"></div></div>

@@ -245,9 +245,10 @@ function renderHtStudy(R) {
 /* ---------- Ansicht Struktur ---------- */
 function aeData(C) {
   return cached('ae', () => {
-    const A = aeroelastic(C, { nStep: 44 }), tb = tailBoomDyn(C);
-    const fr = [...A.modes.slice(0, 4).map(m => ({ f: m.f, name: 'Flügel ' + m.label })), { f: tb.fb, name: 'Träger Biegung' }, { f: tb.ft, name: 'Träger Torsion' }];
-    return { A, tb, fr, res: resonance(C, fr) };
+    const A = aeroelastic(C, { nStep: 44 }), tb = tailBoomDyn(C), el = ms => ms.filter(m => m.omega > 0).slice(0, 2);
+    const fm = el(finModel(C).modes), hm = el(htModel(C).modes);
+    const fr = [...A.modes.slice(0, 4).map(m => ({ f: m.f, name: 'Flügel ' + m.label })), ...fm.map(m => ({ f: m.f, name: 'Seitenleitwerk ' + m.label })), ...hm.map(m => ({ f: m.f, name: 'Höhenleitwerk ' + m.label }))];
+    return { A, tb, fm, hm, fr, res: resonance(C, fr) };
   });
 }
 function transportPieces(C) {
@@ -282,16 +283,17 @@ RENDER.struktur = (R) => {
   const { C, P } = R, st = C.struct;
   if (!st) {
     $('#kpis-ae').innerHTML = ''; $('#tbl-matcmp').innerHTML = ''; $('#tr-joints').innerHTML = ''; $('#ae-msg').innerHTML = pill('info', 'Feste Strukturmasse eingestellt: Steifigkeiten und Eigenschwingungen brauchen das Bauweisen-Modell (Ansicht Flugzeug, Strukturmasse).');
-    ['#ch-stiff', '#ch-axes', '#ch-modes', '#ch-vg', '#ch-vf', '#ch-camp'].forEach(s => { $(s).innerHTML = ''; }); $('#tbl-modes-s').innerHTML = ''; $('#camp-msg').innerHTML = ''; $('#tbl-transport').innerHTML = ''; $('#tbl-mat').innerHTML = ''; return;
+    ['#ch-stiff', '#ch-axes', '#ch-modes', '#ch-vg', '#ch-vf', '#ch-camp'].forEach(s => { $(s).innerHTML = ''; }); $('#tbl-modes-s').innerHTML = ''; $('#camp-msg').innerHTML = ''; $('#tbl-transport').innerHTML = ''; $('#tbl-mat').innerHTML = ''; renderVib(R); return;
   }
   $('#ae-sub').textContent = 'Halbflügel als Biege-Torsions-Balken an der Gondel eingespannt (symmetrische Formen), Luftkräfte nach Theodorsen mit instationärem Auftriebsaufbau. Wird nach jeder Änderung neu gerechnet …';
-  later(() => renderStrukturMain(R));
+  $('#vib-sub').textContent = 'Wird gerechnet …';
+  later(() => renderStrukturMain(R)); later(() => renderVib(R));
 };
 function renderStrukturMain(RR) {
   if (RR !== R) return; // inzwischen neu gerechnet
   const { C, P } = RR, st = C.struct, d = aeData(C), A = d.A, tb = d.tb, vReq = A.vReq, fl = A.flutter, m1 = A.modes[0], mt = A.modes.find(m => m.tors > 0.5) || A.modes[1];
   const s0 = A.sec[0], ea = s0.xea, cgS = s0.xcg;
-  $('#ae-sub').textContent = `Halbflügel als Biege-Torsions-Balken an der Gondel eingespannt (symmetrische Eigenformen), Luftkräfte nach Theodorsen mit instationärem Auftriebsaufbau (Wagner-Funktion), 2 % Strukturdämpfung. Nachweis sinngemäß CS-23.629: flatter- und divergenzfrei bis 1,2 × V_max = ${nf(vReq, 0)} m/s.`;
+  $('#ae-sub').textContent = `Halbflügel als Biege-Torsions-Balken an der Gondel eingespannt (symmetrische Eigenformen), Luftkräfte nach Theodorsen mit instationärem Auftriebsaufbau (Wagner-Funktion), Strukturdämpfung g = 0,03. Nachweis sinngemäß CS-23.629 und ASTM F3093: flatter- und divergenzfrei bis 1,2 × V_D = ${nf(vReq, 0)} m/s (V_D = V_max).`;
   $('#kpis-ae').innerHTML = [
     kpi('1. Biegung', nf(m1.f, 2), 'Hz', `${mt ? `Torsion ${nf(mt.f, 1)} Hz (${esc(mt.label)})` : ''}`),
     kpi('Flattern', fl.vf ? nf(fl.vf, 1) : '> ' + nf(Math.max(3 * P.vmax, 60), 0), 'm/s', fl.vf ? `bei ${nf(fl.wf / 2 / Math.PI, 1)} Hz · Nachweis ${nf(vReq, 0)} m/s` : `bis ${nf(Math.max(3 * P.vmax, 60), 0)} m/s nicht gefunden`, A.okF ? 'ok' : 'bad'),
@@ -300,7 +302,7 @@ function renderStrukturMain(RR) {
     kpi('Steifigkeit Wurzel', nf(s0.EI / 1000, 2), 'kN·m²', `Biegung EI · Torsion GJ ${nf(s0.GJ, 0)} N·m²`),
     kpi('Durchbiegung 1 g', nf(st.dTip * 100, 1), 'cm', `elastische V-Form ${nf(1.2 * st.dTip / (C.pf.b / 2) * RAD, 1)}° · zul. ${nf(st.dMax * 100, 0)} cm`),
     kpi('Profilschwerpunkt', nf(cgS * 100, 0), '% t', `elastische Achse ${nf(ea * 100, 0)} % · Abstand ${nf((cgS - ea) * 100, 0)} % der Tiefe`, cgS - ea > 0.2 ? 'bad' : ''),
-    kpi('Leitwerksträger', nf(tb.fb, 1), 'Hz', `Biegung · Torsion ${nf(tb.ft, 1)} Hz · Wand ${nf(tb.t * 1000, 2)} mm`)
+    kpi('Leitwerk schwingt', d.fm[0] ? nf(d.fm[0].f, 1) : '–', 'Hz', `Seitenleitwerk quer · Höhenleitwerk ${d.hm[0] ? nf(d.hm[0].f, 1) : '–'} Hz${fin(tb.t) ? ` · Trägerwand ${nf(tb.t * 1000, 2)} mm` : ''}`)
   ].join('');
   const msg = [];
   msg.push(A.okF ? pill('good', fl.vf ? `Flatterfrei bis ${nf(fl.vf, 0)} m/s (${nf(fl.vf / P.vmax, 2)} × V_max)` : 'Kein Flattern im Rechenbereich') : pill('crit', `Flattern bei ${nf(fl.vf, 1)} m/s – unter 1,2 × V_max. Torsionssteifere Nase, Holm weiter hinten, Zellen weiter vorn oder V_max senken.`));
@@ -331,7 +333,7 @@ function renderStrukturMain(RR) {
     series: [{ name: 'Holm (elastische Achse)', c: 1, pts: disp.map(p => [p.y, p.ea / mx]), fmt: v => nf(v, 2) }, { name: 'Nasenleiste', c: 2, pts: disp.map(p => [p.y, p.le / mx]), fmt: v => nf(v, 2) }, { name: 'Endleiste', c: 3, pts: disp.map(p => [p.y, p.te / mx]), dash: true, fmt: v => nf(v, 2) }] });
   $('#tbl-modes-s').innerHTML = `<thead><tr><th>Eigenform</th><th class="n">im Vakuum</th><th class="n">Torsionsanteil</th><th class="n">bei ${nf(P.v, 0)} m/s</th><th class="n">Dämpfung</th></tr></thead><tbody>` +
     A.modes.slice(0, 4).map((m, i) => { const c = A.cruise[i]; return `<tr${i === UI.modeSel ? ' class="sel"' : ''}><td>${esc(m.label)}</td><td class="n">${nf(m.f, 2)} Hz</td><td class="n">${nf(m.tors * 100, 0)} %</td><td class="n">${c ? nf(c.f, 2) + ' Hz' : '–'}</td><td class="n ${c && c.zeta < 0.02 ? 'warn' : ''}">${c ? nf(c.zeta * 100, 1) + ' %' : '–'}</td></tr>`; }).join('') +
-    `</tbody><caption>Dämpfung bei Reisefahrt: 2 % Struktur plus Luftkraft. Biegeformen sind stark aerodynamisch gedämpft, Torsionsformen kaum.</caption>`;
+    `</tbody><caption>Dämpfung bei Reisefahrt: 1,5 % Struktur (g = 0,03) plus Luftkraft. Biegeformen sind stark aerodynamisch gedämpft, Torsionsformen kaum.</caption>`;
   // Flatterdiagramm
   const tr = fl.track || [], nR = Math.min(4, A.modes.length), ser = [], serF = [];
   const vmaxPlot = tr.length ? Math.min(tr[tr.length - 1].V, Math.max(1.7 * vReq, (fl.vf || 0) * 1.3)) : 3 * P.vmax;
@@ -352,7 +354,7 @@ function renderStrukturMain(RR) {
     serF.push({ name: lab, c: k + 1, pts: b.pts.map(([V, z]) => [V, z ? z.im / 2 / Math.PI : NaN]), fmt: v => nf(v, 2) + ' Hz' });
   });
   const zmax = Math.min(0.5, Math.max(0.1, ...ser.flatMap(s => s.pts.map(p => p[1])).filter(fin)) * 1.05);
-  const vl = [{ x: vReq, label: '1,2·V_max' }].concat(fl.vf && fl.vf <= vmaxPlot ? [{ x: fl.vf, label: fl.vf > vReq * 0.85 && fl.vf < vReq * 1.15 ? '' : 'Flattern' }] : []);
+  const vl = [{ x: vReq, label: '1,2·V_D' }].concat(fl.vf && fl.vf <= vmaxPlot ? [{ x: fl.vf, label: fl.vf > vReq * 0.85 && fl.vf < vReq * 1.15 ? '' : 'Flattern' }] : []);
   $('#vg-sub').textContent = `Dämpfung und Frequenz der Strukturformen über der Fluggeschwindigkeit (Luftdichte ${nf(C.rho, 3)} kg/m³). Flattern beginnt, wo eine Dämpfung negativ wird.`;
   lineChart($('#ch-vg'), { h: 220, title: 'Dämpfungsgrad', x: { min: 0, max: vmaxPlot, fmt: v => nf(v, 0), tipFmt: v => nf(v, 1) + ' m/s', title: 'Fluggeschwindigkeit (m/s)' }, y: { min: -0.05, max: zmax, fmt: v => nf(v * 100, 0) + ' %' }, series: ser, vlines: vl, bands: fl.vf ? [{ x0: fl.vf, x1: vmaxPlot, label: '' }] : [] });
   const fmax = niceRange(serF.flatMap(s => s.pts.map(p => p[1])).filter(fin), 0.08, true)[1];

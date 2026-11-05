@@ -380,7 +380,7 @@ function buildCase(P, comps, k) {
   C.pw = powerEffects(C, C.lvl0.Dtot, P.v, C.rho, 0, C.lvl0.CL); C.slip = C.pw.sg;
   massLoop();
   C.npOff = neutralPoint(C, C.bal.g, { off: true });
-  C.layout = { g: C.bal.g, wingPoints: [] };
+  C.layout = { g: C.bal.g, wingPoints: wingPointMasses(C) };
   // Reiseflug gerade und im Kurvenflug
   const nT = 1 / Math.cos(clamp(P.bank, 0, 60) * DEG);
   C.lvl = flightPower(C, P.v, 1, C.rho, C.nu);

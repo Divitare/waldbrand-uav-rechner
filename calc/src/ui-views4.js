@@ -194,3 +194,82 @@ function renderRuder(RR) {
     cs.servo.map(s => `<tr><td>${esc(s.name)}<div class="small muted">${nf(s.Sf * 1e4, 0)} cm², Rudertiefe ${nf(s.cf * 100, 1)} cm</div></td><td class="n">${nf(s.H, 2)} N·m</td><td class="n">${nf(s.kgcm, 1)} kg·cm<div class="small muted">${nf(s.req, 2)} N·m</div></td></tr>`).join('') +
     `</tbody><caption>Gelenkmomentbeiwerte (je rad): Querruder C_h,α ${nf(a.h.Ca, 2)}, C_h,δ ${nf(a.h.Cd, 2)}; ${e.all ? 'Pendelruder' : `Höhenruder ${nf(e.h.Ca, 2)} / ${nf(e.h.Cd, 2)}`}; Seitenruder ${nf(r.h.Ca, 2)} / ${nf(r.h.Cd, 2)}. Geprüft gegen Theodorsens T-Funktionen.</caption>`;
 }
+
+/* ---------- Ansicht Struktur: ganzes Flugzeug, Leitwerk und Ruder ---------- */
+const vibData = C => cached('vib', () => vibAnalysis(C));
+function renderVib(RR) {
+  if (RR !== currentR()) return;
+  const { C, P } = RR, ids = ['#kpis-vib', '#vib-msg', '#tbl-vib', '#tbl-bal', '#bal-note', '#tbl-gvt', '#gvt-note'];
+  if (!C.struct) { ids.forEach(s => { $(s).innerHTML = ''; }); $('#vib-sub').textContent = 'Braucht das Bauweisen-Modell der Struktur.'; return; }
+  const V = vibData(C), vD = P.vmax, vR = V.vReq, cf = C.cfg, tg = C.tail;
+  const fv = v => (v ? nf(v, 1) : '> ' + nf(V.vMax, 0));
+  const hz = w => (fin(w) && w > 0 ? nf(w / (2 * Math.PI), 1) + ' Hz' : '–');
+  const el = ms => ms.filter(m => !m.rigid && m.omega > 0);
+  const anti1 = el(V.free.anti)[0], spR = V.bff.spRigid, spE = V.bff.sp, spD = V.spDyn;
+  $('#vib-sub').textContent = `Freies Flugzeug mit Rumpf als Starrkörper, Leitwerke auf ${V.fin.M.sp.kind === 'Träger' ? 'dem nachgiebigen Träger' : 'der nachgiebigen Rumpfröhre'}, Ruder als eigene Freiheitsgrade (Theodorsen, NACA Report 496). Strukturdämpfung g = 0,03 (AC 23.629-1B). Ziel: flatterfrei bis 1,2 × V_D = ${nf(vR, 0)} m/s im Betrieb, bis V_D = ${nf(vD, 0)} m/s mit freiem Ruder (Servoausfall, Spiel).`;
+  const freeMin = [V.ail, V.fin, V.ht].reduce((a, c) => (c.free && c.free.vf && (!a || c.free.vf < a) ? c.free.vf : a), null);
+  $('#kpis-vib').innerHTML = [
+    kpi('Flatterfrei im Betrieb', V.vfMin ? nf(V.vfMin, 1) : '> ' + nf(V.vMax, 0), 'm/s', `kleinster Fall · Ziel ${nf(vR, 0)} m/s`, V.ok ? 'ok' : 'bad'),
+    kpi('Ruder frei', freeMin ? nf(freeMin, 1) : '> ' + nf(V.vMax, 0), 'm/s', `Servoausfall oder Spiel · Ziel ${nf(vD, 0)} m/s`, V.okFree ? 'ok' : ''),
+    kpi('1. Biegung frei', V.b1 ? nf(V.b1.f, 2) : '–', 'Hz', `symmetrisch · antimetrisch ${anti1 ? nf(anti1.f, 2) : '–'} Hz · Torsion ${V.t1 ? nf(V.t1.f, 1) : '–'} Hz`),
+    kpi('Anstellwinkelschwingung', spR ? nf(spR.wn, 1) : '–', 'rad/s', `starr · Flugdynamik ${spD ? nf(spD.wn, 1) : '–'} rad/s · mit Flügelbiegung ${spE ? nf(spE.wn, 1) : '–'} rad/s`)
+  ].join('');
+  const msg = [];
+  for (const c of V.cases) if (!c.ok) msg.push(pill('crit', `${c.name}: Flattern bei ${nf(c.vf, 1)} m/s, unter 1,2 × V_D`));
+  if (V.ok) msg.push(pill('good', `Im Betrieb flatterfrei bis ${V.vfMin ? nf(V.vfMin, 0) + ' m/s' : 'über ' + nf(V.vMax, 0) + ' m/s'}`));
+  const surf = [['Querruder', V.ail], ['Seitenruder', V.fin], ['Höhenruder', V.ht]];
+  for (const [n, c] of surf) if (c.free && c.free.vf && c.free.vf < vD) msg.push(pill('warn', `${n} frei flattert ab ${nf(c.free.vf, 1)} m/s: Massenausgleich ${fin(c.needFree) ? '≥ ' + nf(c.needFree * 100, 0) + ' %' : 'reicht nicht'} oder spielfreie, selbsthemmende Anlenkung`));
+  if (V.bff.vf && V.bff.vf < vR) msg.push(pill('crit', `Freiflug-Flattern (Anstellwinkelschwingung mit Flügelbiegung) bei ${nf(V.bff.vf, 1)} m/s`));
+  else if (fin(V.bff.ratio) && V.bff.ratio < 2) msg.push(pill('info', `1. Flügelbiegung nur ${nf(V.bff.ratio, 1)} × über der Anstellwinkelschwingung: Freiflug-Flattern im Standschwingversuch und Flugversuch beobachten`));
+  const r45 = V.r45; msg.push(pill(r45.ratio <= 1 ? 'info' : 'warn', `Report 45 (nur Orientierung): Torsionsnachgiebigkeit F = ${nf(r45.F * 1e3, 2)}·10⁻³ rad·m²/N, ${nf(r45.ratio * 100, 0)} % der Grenze 200/V_D²`));
+  if (cf.tail === 'T') msg.push(pill('info', 'T-Leitwerk: Luftkräfte am Höhenleitwerk bei Seitenleitwerksschwingungen nicht erfasst, Standschwingversuch nötig'));
+  if (cf.mot === 'fin') msg.push(pill('info', 'Motor auf dem Seitenleitwerk: Propeller-Wirbelflattern (Whirl Flutter) nicht gerechnet'));
+  $('#vib-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
+  const row = (name, how, vf, wf, req, ok) => `<tr><td>${esc(name)}<div class="small muted">${how}</div></td><td class="n">${fv(vf)} m/s</td><td class="n">${vf ? hz(wf) : '–'}</td><td class="n">${nf(req, 0)} m/s</td><td class="${ok ? 'good' : 'crit'}">${ok ? '✓' : '× Flattern'}</td></tr>`;
+  const fN = c => (c.fNom ? `${c.fNom.measured ? 'gemessen' : 'aus Steifigkeit'} ${nf(c.fNom.f, 0)} Hz` : '');
+  const rows = [
+    row('Flügel eingespannt', `Biegung und Torsion${V.kEI !== 1 || V.kGJ !== 1 ? ', auf Standversuch geeicht' : ''}`, V.wing.vf, V.wing.wf, vR, !(V.wing.vf && V.wing.vf < vR)),
+    row('Freies Flugzeug', 'Hub, Nicken, Flügelformen, Höhenleitwerk', V.bff.vf, V.bff.wf, vR, !(V.bff.vf && V.bff.vf < vR)),
+    row('Querruder am Servo', `${fN(V.ail)}, untersucht 0,5–1,5-fach`, V.ail.vf, V.ail.wf, vR, V.ail.okOp),
+    row('Querruder frei', 'Servoausfall, Spiel', V.ail.free.vf, V.ail.free.wf, vD, V.ail.okFree)
+  ];
+  for (const [nm, c, rn] of [['Seitenleitwerk', V.fin, 'Seitenruder'], ['Höhenleitwerk', V.ht, 'Höhenruder']]) {
+    const slip = c.sV > 1.005 ? `, im Propellerstrahl (${nf((c.sV * c.sV - 1) * 100, 0)} % mehr Staudruck)` : '';
+    if (c.all) rows.push(row(nm + ' (Pendelruder)', `Servo als Drehfeder am Träger${slip}`, c.vf, c.wf, vR, c.okOp));
+    else { rows.push(row(`${nm} mit ${rn} am Servo`, `${fN(c)}, 0,5–1,5-fach${slip}`, c.vf, c.wf, vR, c.okOp)); rows.push(row(`${rn} frei`, 'Servoausfall, Spiel', c.free.vf, c.free.wf, vD, c.okFree)); }
+  }
+  $('#tbl-vib').innerHTML = `<thead><tr><th>Fall</th><th class="n">Flattern ab</th><th class="n">Frequenz</th><th class="n">Ziel</th><th>Ergebnis</th></tr></thead><tbody>${rows.join('')}</tbody>` +
+    `<caption>Flattergeschwindigkeit als wahre Fahrt bei der Luftdichte der Flughöhe; im Propellerstrahl umgerechnet mit dem Staudruck bei Vollgas und V_max. Ziel 1,2 × V_D nach AC 23.629-1B und ASTM F3093; Fehlerfälle bis V_D sinngemäß CS-25.629(b)(2).</caption>`;
+  // Massenausgleich
+  const nSeg = Math.max(1, Math.round(P.nAilSeg || 1)), d0 = [
+    ['Querruder (je Seite)', V.ail, V.ail.span, nSeg],
+    [tg.nFin > 1 ? 'Seitenruder (je Leitwerk)' : 'Seitenruder', V.fin, V.fin.span, 1],
+    ['Höhenruder', V.ht, tg.bh, 1]
+  ];
+  $('#bal-sub').textContent = `Ruder als Platte mit ${nf(P.wCtrl * 1000, 0)} g/m², Schwerpunkt ${nf(P.ctrlXcg, 0)} % der Rudertiefe hinter der Drehachse, Ausgleichsgewicht ein Viertel der Rudertiefe vor der Achse. Eingebaut: ${nf(P.ctrlBal, 0)} % Ausgleich.`;
+  const brow = ([name, c, span, nPiece]) => {
+    if (c.all || !c.cp) return `<tr><td>${esc(name)}</td><td colspan="5" class="muted">Pendelruder: kein Ruderspalt, Ausgleich über die Lage der Drehachse</td></tr>`;
+    const cp = c.cp, m0 = cp.mb0 * span, need = c.need, mBal = fin(need) ? need * cp.mb0 * cp.xb0 / cp.d * span : NaN, mPiece = mBal / nPiece;
+    const nTxt = (v) => (fin(v) ? (v > 0 ? nf(v * 100, 0) + ' %' : '0 %') : '> 150 %');
+    return `<tr><td>${esc(name)}<div class="small muted">Tiefe ${nf(c.cF * 100, 1)} cm · ${nf(span, 2)} m</div></td><td class="n">${nf(m0 * 1000, 0)} g</td><td class="n">${nTxt(c.needOp)}</td><td class="n">${nTxt(c.needFree)}</td><td class="n">${fin(mBal) ? nf(mBal * 1000, 0) + ' g' : '–'}</td>` +
+      `<td class="n">${fin(mPiece) && mPiece > 0 ? `${nf(mPiece * 24 * G, 1)} / ${nf(mPiece * 12 * G, 1)} N<div class="small muted">≥ ${nf(1.5 * c.fMax, 0)} Hz</div>` : '–'}</td></tr>`;
+  };
+  $('#tbl-bal').innerHTML = `<thead><tr><th>Ruder</th><th class="n">Masse</th><th class="n">Ausgleich Betrieb</th><th class="n">Ausgleich Servo frei</th><th class="n">Gewicht</th><th class="n">Halter 24 g / 12 g</th></tr></thead><tbody>${d0.map(brow).join('')}</tbody>` +
+    `<caption>Ausgleich in Prozent des statischen Moments um die Drehachse; Gewicht für den größeren der beiden Werte. Halter: Grenzlast 24 g senkrecht zur Ebene aus Drehachse und Gewicht, 12 g in der Ebene längs der Achse, Eigenfrequenz des Halters mindestens das 1,5-Fache der höchsten beteiligten Eigenfrequenz (AC 23.629-1B, Anhang 1).</caption>`;
+  $('#bal-note').innerHTML = 'Ein Gewicht verteilt über die Spannweite wirkt besser als ein einzelnes am Rand. Spiel in Gelenken, Gabelköpfen und Servogetriebe wirkt wie ein freies Ruder: so klein wie möglich halten und im Standversuch prüfen.';
+  // Eigenformen für den Standschwingversuch
+  const g0 = V.free0, gm = (arr, lab, n) => el(arr).slice(0, n).map(m => ({ lab: `${lab} ${m.label}`, f: m.f }));
+  const fmRow = (lab, f, f0, meas) => `<tr><td>${esc(lab)}</td><td class="n">${nf(f, 2)} Hz</td><td class="n">${f0 != null && Math.abs(f0 - f) > 0.005 ? nf(f0, 2) + ' Hz' : '–'}</td><td class="n">${meas > 0 ? nf(meas, 2) + ' Hz' : '–'}</td></tr>`;
+  const symC = el(V.free.sym), symU = el(g0.sym), antC = el(V.free.anti), antU = el(g0.anti);
+  const gr = [];
+  symC.slice(0, 3).forEach((m, i) => gr.push(fmRow(`Flügel symmetrisch ${m.label}`, m.f, symU[i] ? symU[i].f : null, i === 0 && m.kind === 'Biegung' ? P.gvtB1 : 0)));
+  antC.slice(0, 3).forEach((m, i) => gr.push(fmRow(`Flügel antimetrisch ${m.label}`, m.f, antU[i] ? antU[i].f : null, 0)));
+  if (P.gvtT1 > 0 && V.t1) gr.push(fmRow('Flügel 1. Torsion (geeicht)', V.t1.f, null, P.gvtT1));
+  el(V.fin.modes).slice(0, 2).forEach((m, i) => gr.push(fmRow(`Seitenleitwerk ${m.label}`, m.f, null, i === 0 ? P.gvtFin : 0)));
+  el(V.ht.modes).slice(0, 2).forEach((m, i) => gr.push(fmRow(`Höhenleitwerk ${m.label}`, m.f, null, i === 0 ? P.gvtHT : 0)));
+  for (const [n, c] of [['Querruder dreht am Servo', V.ail], ['Seitenruder dreht am Servo', V.fin], ['Höhenruder dreht am Servo', V.ht]]) if (c.fNom) gr.push(fmRow(n, c.fNom.f, c.fNom.measured ? c.fNom.fCalc : null, c.fNom.measured ? c.fNom.f : 0));
+  $('#gvt-sub').textContent = 'Frei aufgehängtes Flugzeug: diese Frequenzen sind im Standschwingversuch zu erwarten. Gemessene Werte links eintragen, dann rechnet der Rechner mit geeichten Steifigkeiten weiter.';
+  $('#tbl-gvt').innerHTML = `<thead><tr><th>Eigenform</th><th class="n">Rechnung</th><th class="n">ohne Eichung</th><th class="n">gemessen</th></tr></thead><tbody>${gr.join('')}</tbody>`;
+  const kTxt = [['Flügel Biegung', V.kEI], ['Flügel Torsion', V.kGJ], [V.fin.M.sp.kind + ' quer', V.kL], [V.fin.M.sp.kind + ' hoch', V.kV]].filter(([, k]) => Math.abs(k - 1) > 1e-3).map(([n, k]) => `${n} × ${nf(k, 2)}`);
+  $('#gvt-note').innerHTML = (kTxt.length ? `<b>Eichfaktoren:</b> ${kTxt.join(' · ')}. ` : '') + 'Eichung über k = (f_gemessen / f_Modell)²; die Massen bleiben, wie sie im Rechner stehen. Aufhängung so weich, dass die Starrkörperfrequenz unter einem Drittel der ersten Flügelbiegung liegt.';
+}

@@ -85,9 +85,11 @@ function geomPositions(C, s) {
   const P = C.P, pf = C.pf, tg = C.tail, ll = C.ll, cf = C.cfg, r = P.fusD / 2, zw = r, R = propRadius(P);
   const xLE0 = P.xWingLE + s, xqc0 = xLE0 + pf.cr / 4, xacw = xqc0 + ll.xac, xact = xacw + tg.lt;
   const xhLE = xact - 0.25 * tg.ch, xhTE = xhLE + tg.ch;
-  const vSw = 0.32, xvTE = xhTE + 0.01, xvLE = xvTE - tg.cv;            // Seitenleitwerk: Vorderkante um 0,32·Höhe zurückgesetzt
+  // Seitenleitwerk: Vorderkante um 0,32·Höhe zurückgesetzt, Spitzentiefe 62 %. Normal- und Kreuzleitwerk:
+  // Wurzel-Endleiste bündig mit dem Höhenleitwerk; T-Leitwerk: Spitze unter dem Höhenleitwerk (Hebelarm l_t bleibt)
+  const vSw = 0.32, xvLE = cf.tail === 'T' ? xhTE + 0.01 - 0.62 * tg.cv - vSw * tg.bv : xhTE + 0.01 - tg.cv, xvTE = xvLE + tg.cv;
   const zRoot = zw + P.zTail, zV0 = zRoot, zV1 = zRoot + tg.bv, zH = cf.tail === 'T' ? zV1 : zRoot;
-  const xTail = xvTE + 0.01, fus = fuselageShape(P, cf, xTail, zRoot);
+  const xTail = xvTE + 0.01, fus = fuselageShape(P, cf, xTail, zRoot);   // Ende von Träger bzw. Rumpf am Seitenleitwerksfuß
   // Träger (Rohr): unter der Flügelwurzel bzw. unter dem Flügel bei ±yB bis zum Leitwerksfuß
   const yB = cf.fus === 'twin' ? tg.yB : 0;
   const boom0 = cf.fus === 'twin' ? xLE0 + 0.25 * pf.cr : Math.min(P.fusL * 0.92, xLE0 + pf.cr * 0.9);

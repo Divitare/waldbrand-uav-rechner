@@ -40,7 +40,14 @@ function lineChart(el, cfg) {
   if (cfg.y.min < 0 && cfg.y.max > 0) s += `<line class="zero" x1="${m.l}" x2="${m.l + iw}" y1="${ys(0)}" y2="${ys(0)}"/>`;
   if (cfg.x.title) s += `<text class="axis-label" x="${m.l + iw / 2}" y="${H - 4}" text-anchor="middle">${esc(cfg.x.title)}</text>`;
   if (cfg.y.title) s += `<text class="axis-label" x="${m.l - 6}" y="${m.t - 2}" text-anchor="start" transform="translate(${-m.l + 12},0)">${esc(cfg.y.title)}</text>`;
-  for (const h of cfg.hlines || []) if (h.y >= cfg.y.min && h.y <= cfg.y.max) s += `<line class="hline" x1="${m.l}" x2="${m.l + iw}" y1="${ys(h.y)}" y2="${ys(h.y)}"/>${h.label ? `<text class="hline-label" x="${m.l + iw - 4}" y="${ys(h.y) - 5}" text-anchor="end">${esc(h.label)}</text>` : ''}`;
+  // Waagerechte Linien; Beschriftungen, die sich überdecken würden, wechseln auf die linke Seite oder entfallen
+  { const placed = { r: [], l: [] }, free = (side, y) => placed[side].every(v => Math.abs(v - y) > 11);
+    for (const h of (cfg.hlines || []).slice().sort((a, b) => a.y - b.y)) if (h.y >= cfg.y.min && h.y <= cfg.y.max) {
+      const y = ys(h.y); s += `<line class="hline" x1="${m.l}" x2="${m.l + iw}" y1="${y}" y2="${y}"/>`;
+      if (!h.label) continue;
+      const side = free('r', y) ? 'r' : free('l', y) ? 'l' : null; if (!side) continue; placed[side].push(y);
+      s += side === 'r' ? `<text class="hline-label" x="${m.l + iw - 4}" y="${y - 5}" text-anchor="end">${esc(h.label)}</text>` : `<text class="hline-label" x="${m.l + 4}" y="${y - 5}">${esc(h.label)}</text>`;
+    } }
   for (const v of cfg.vlines || []) if (v.x >= cfg.x.min && v.x <= cfg.x.max) s += `<line class="hline" x1="${xs(v.x)}" x2="${xs(v.x)}" y1="${m.t}" y2="${m.t + ih}"/>${v.label ? `<text class="hline-label" x="${xs(v.x) + 4}" y="${m.t + 11}">${esc(v.label)}</text>` : ''}`;
   const clip = `clip${Math.random().toString(36).slice(2, 8)}`;
   s += `<defs><clipPath id="${clip}"><rect x="${m.l}" y="${m.t - 2}" width="${iw}" height="${ih + 4}"/></clipPath></defs><g clip-path="url(#${clip})">`;
@@ -283,7 +290,7 @@ function aircraftSide(C, X, Z, sc, opt = {}) {
   const xv0 = g.xvLE, xvt = xv0 + g.vSw * tg.bv;
   wing += `<path d="M${f1(X(xv0))} ${f1(Z(g.zV0))}L${f1(X(xvt))} ${f1(Z(g.zV1))}L${f1(X(xvt + 0.62 * tg.cv))} ${f1(Z(g.zV1))}L${f1(X(g.xvTE))} ${f1(Z(g.zV0))}Z" fill="var(--sunken)" ${stroke}/>`;
   // Höhenleitwerk
-  wing += `<path d="${foilPath(C.tfoil, g.xhLE + (cf.tail === 'T' ? g.vSw * tg.bv : 0), g.zH, tg.ch)}" fill="var(--panel)" ${stroke}/>`;
+  wing += `<path d="${foilPath(C.tfoil, g.xhLE, g.zH, tg.ch)}" fill="var(--panel)" ${stroke}/>`;
   if (C.mass.solarHT > 0) wing += `<line x1="${f1(X(g.xhLE + 0.08 * tg.ch))}" x2="${f1(X(g.xhLE + 0.85 * tg.ch))}" y1="${f1(Z(g.zH) - 3)}" y2="${f1(Z(g.zH) - 3)}" stroke="var(--c2)" stroke-width="3"/>`;
   // Motor oben am Seitenleitwerk oder auf dem Pylon hinter dem Flügel
   if (cf.mot === 'fin') wing += nacelle(g.xMot + 0.03, g.zP) + prop(g.xProp, g.zP);

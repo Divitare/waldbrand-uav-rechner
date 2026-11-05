@@ -21,6 +21,8 @@ const t0 = Date.now();
 }
 // Goland-Flügel
 { const g = U.golandCheck(); chk('Goland Flattergeschwindigkeit (m/s)', g.VF, 137.2, 0.02); chk('Goland Divergenz (m/s)', g.VD, 252.8, 0.02); }
+// Typischer Profilschnitt (Hodges & Pierce), ohne und mit steifer Klappe (Theodorsen-Ruderterme)
+{ const t = U.sectionCheck(); chk('Profilschnitt U_F/(b·ω_θ)', t.vf, 2.17, 0.02); chk('Profilschnitt mit steifer Klappe', t.vfFlap, Number(t.vf.toFixed(4)), 0.005); }
 // Navion (Nelson)
 { const n = U.navionCheck(); chk('Navion Anstellwinkelschwingung Realteil', n.lon.sp.re, -2.51, 0.03); chk('Navion Taumelschwingung Imaginärteil', n.lat.dr.im, 2.33, 0.03); chk('Navion Rollbewegung', n.lat.roll.re, -8.43, 0.02); }
 // APC 10x7E (McCrink & Gregory), Arbeitsbereich
@@ -29,6 +31,11 @@ const t0 = Date.now();
 {
   const C = U.buildCase({ ...U.DEFAULT_PARAMS }, U.DEFAULT_COMPS.map(c => ({ ...c }))), A = U.aeroelastic(C), fd = U.flightDynamics(C);
   chk('Standardentwurf Stabilitätsmaß (% MAC)', C.bal.sm * 100, U.DEFAULT_PARAMS.smTarget, 0.05);
+  // Freies Flugzeug: Starrkörperformen und Anstellwinkelschwingung gegen die Flugdynamik (Gegenprobe zweier Modelle)
+  const fm = U.freeModes(C), bf = U.bodyFreedom(C, fm, { nStep: 6 });
+  const nR = fm.sym.filter(m => m.rigid).length * 10 + fm.anti.filter(m => m.rigid).length;
+  chk('Freies Flugzeug Starrkörperformen (sym·10 + anti)', nR, 21, 0);
+  chk('Anstellwinkelschwingung frei / Flugdynamik', bf.spRigid.wn / fd.lon.sp.wn, 1, 0.15);
   if (!(Number.isFinite(C.m) && Number.isFinite(C.lvl.pel) && A.modes.length && fd.crit.length)) { bad++; console.log('FEHLER Standardentwurf liefert keine vollständigen Ergebnisse'); }
 }
 // Fertige Seiten vorhanden

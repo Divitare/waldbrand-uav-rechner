@@ -34,7 +34,7 @@ function slipGeom(C, ps, aB, CL) {
   const zs = x => g.zP + (x - g.xProp) * Math.tan(aB) - (behind ? (x - g.xProp) * eps : Math.max(0, x - xTE) * eps);
   const out = { eps, kx, Rs, zs, fH: 0, fV: 0, fF: 0, kxH: 2, kxV: 2, kxF: 2, wingW: 0, kxW: 1, swV: 0, swHroll: 0 };
   // Höhenleitwerk: Spannweitenanteil im Strahl
-  const xH = g.xhLE + 0.25 * tg.ch + (C.cfg.tail === 'T' ? g.vSw * tg.bv : 0);
+  const xH = g.xhLE + 0.25 * tg.ch;
   if (xH > g.xProp) { const r = Rs(xH), dz = g.zH - zs(xH); if (Math.abs(dz) < r) out.fH = Math.min(1, 2 * Math.sqrt(r * r - dz * dz) / tg.bh); out.kxH = kx(xH); out.zsH = zs(xH); out.RsH = r; }
   // Seitenleitwerk(e): Höhenanteil im Strahl und Drall (Querkomponente der Umfangsgeschwindigkeit)
   const xV = g.xvLE + 0.25 * tg.cv + g.vSw * 0.42 * tg.bv, yf = tg.nFin > 1 ? g.yB : 0;
