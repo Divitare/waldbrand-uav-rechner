@@ -582,7 +582,8 @@ function kernData() {
   const vlm = (P2, a0 = 2 * Math.PI) => vlmWing(planform({ ...DEFAULT_PARAMS, ...P2 }), a0);
   const e10 = vlm({ span: 10, area: 10, planform: 'ellip', washout: 0, sweep: 0 }), r0 = vlm({ span: 6, area: 6, planform: 'taper', taper: 1, washout: 0, sweep: 0 }), r6 = vlm({ span: 6, area: 6, planform: 'taper', taper: 1, washout: 0, sweep: 30 });
   const helm = (A, cosL = 1) => 2 * Math.PI * A / (2 + Math.sqrt(A * A / (cosL * cosL) + 4));
-  return (UI.kern = { gl, nv, apc, apcC, e10, r0, r6, h10: helm(10), h6: helm(6, Math.cos(30 * DEG)) / helm(6) });
+  const sc = sectionCheck(), Cd = buildCase({ ...DEFAULT_PARAMS }, DEFAULT_COMPS.map(c => ({ ...c }))), bf = bodyFreedom(Cd, freeModes(Cd), { nStep: 6 }), fdd = flightDynamics(Cd);
+  return (UI.kern = { gl, nv, apc, apcC, e10, r0, r6, h10: helm(10), h6: helm(6, Math.cos(30 * DEG)) / helm(6), sc, sp: { free: bf.spRigid, dyn: fdd.lon.sp } });
 }
 function renderKern() {
   const k = kernData(), z = m => m ? `${nf(m.re, m.re > -0.1 ? 4 : 2)}${m.im ? ' ± ' + nf(Math.abs(m.im), m.re > -0.1 ? 3 : 2) + 'i' : ''}` : '–';
@@ -594,6 +595,9 @@ function renderKern() {
     row('', 'Flatterfrequenz', '70,7 rad/s', nf(k.gl.wF, 1) + ' rad/s', k.gl.wF, 70.7) +
     row('', 'Divergenzgeschwindigkeit', '252,8 m/s', nf(k.gl.VD, 1) + ' m/s', k.gl.VD, 252.8) +
     row('', '1. Biegung / 1. Torsion', '49,6 / 97,0 rad/s', nf(k.gl.w1, 1) + ' / ' + nf(k.gl.w2, 1) + ' rad/s', k.gl.w1, 49.6) +
+    row('Typischer Profilschnitt', 'U_F/(b·ω_θ) (Hodges & Pierce)', '2,17', nf(k.sc.vf, 3), k.sc.vf, 2.17) +
+    row('', 'mit steifer, ausgeglichener Klappe', nf(k.sc.vf, 3) + ' (ohne Klappe)', nf(k.sc.vfFlap, 3), k.sc.vfFlap, k.sc.vf) +
+    row('Freies Flugzeug', 'Anstellwinkelschwingung ω (Standardentwurf)', nf(k.sp.dyn.wn, 2) + ' rad/s (Flugdynamik)', nf(k.sp.free.wn, 2) + ' rad/s', k.sp.free.wn, k.sp.dyn.wn) +
     row('Navion (Nelson)', 'Anstellwinkelschwingung', '−2,51 ± 2,59i', z(n.lon.sp), n.lon.sp.re, -2.51) +
     row('', 'Phygoide', '−0,017 ± 0,213i', z(n.lon.ph), n.lon.ph.im, 0.213) +
     row('', 'Taumelschwingung', '−0,49 ± 2,33i', z(n.lat.dr), n.lat.dr.im, 2.33) +
