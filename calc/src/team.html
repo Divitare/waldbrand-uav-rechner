@@ -1,0 +1,25 @@
+  <!-- Team -->
+  <section class="view" id="v-team" data-view="team" hidden>
+    <div class="panel" id="team">
+      <div class="panel-head">
+        <div>
+          <h2>Team-Varianten</h2>
+          <p>Gemeinsam gespeicherte Stände für alle mit diesem Link. Laden ersetzt eure aktuellen Werte. Speichern, Überschreiben und Löschen brauchen das Team-Passwort.</p>
+        </div>
+        <span id="team-state"></span>
+      </div>
+      <p class="note" id="t-loaded" hidden></p>
+      <ul class="vlist" id="t-list" aria-label="Gespeicherte Varianten"><li class="empty">Lade Varianten …</li></ul>
+      <form class="pgrid" id="t-form" autocomplete="on" style="margin-top:14px">
+        <div class="field wide"><label for="t-name">Name der Variante</label><input type="text" id="t-name" maxlength="80" placeholder="z. B. 6 m, SD7037, 3,5 kg Akku"></div>
+        <div class="field"><label for="t-author">Dein Name</label><input type="text" id="t-author" maxlength="60" autocomplete="name"></div>
+        <div class="field"><label for="t-key">Team-Passwort</label><input type="password" id="t-key" autocomplete="current-password"></div>
+      </form>
+      <div class="table-actions">
+        <button class="btn primary" type="button" id="t-save-new">Als neue Variante speichern</button>
+        <button class="btn" type="button" id="t-save-over" disabled>Geladene Variante überschreiben</button>
+        <button class="btn" type="button" id="t-refresh">Liste aktualisieren</button>
+        <span class="status-msg" id="t-msg" role="status"></span>
+      </div>
+    </div>
+  </section>

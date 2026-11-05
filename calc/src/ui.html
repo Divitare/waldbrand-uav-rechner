@@ -1,0 +1,329 @@
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Solar-UAV · Aerodynamik, Schwerpunkt, Struktur, Flugdynamik, Energie, Einsatz · SORA 2.5</div>
+      <h1>Waldbrand-UAV Energiebudget</h1>
+      <p class="lead" id="lead">Auslegungsrechner für ein Solarflugzeug mit 5–6 m Spannweite: Profilpolaren, Wirbelgitter mit Pfeilung, Widerstandsaufbau, Schwerpunkt und Neutralpunkt, Werkstoffe, Eigenschwingungen und Flattern, Propeller-Kennfeld, Flugeigenschaften, Einstrahlung auf den gewölbten Flügel, Tages- und Dauerflugbilanz nach ETH-Methodik, echte Wetterdaten, Einsatzleistung und SORA. Änderungen bleiben in diesem Browser gespeichert.</p>
+    </div>
+    <div class="top-actions">
+      <label class="small muted" for="preset-sel">Vorlage</label>
+      <select id="preset-sel" style="width:auto">
+        <option value="">– wählen –</option>
+        <option value="design">Waldbrand-Entwurf (Standard)</option>
+        <option value="atlantik">AtlantikSolar AS-2 (Referenz)</option>
+        <option value="skysailor">Sky-Sailor (Referenz)</option>
+      </select>
+      <button class="btn" type="button" id="btn-share">Teilen / Sichern</button>
+      <button class="btn" type="button" id="btn-reset">Zurücksetzen</button>
+    </div>
+  </header>
+
+  <dialog id="share-dlg" class="panel" style="max-width:min(760px,92vw);border:1px solid var(--line);color:var(--ink)">
+    <div class="panel-head"><div><h2>Konfiguration teilen oder sichern</h2><p>Der Text enthält alle Eingaben und die Komponentenliste. Zum Laden einfügen und übernehmen.</p></div></div>
+    <textarea id="share-text" rows="9" aria-label="Konfiguration als Text"></textarea>
+    <div class="table-actions">
+      <button class="btn primary" type="button" id="share-copy">Kopieren</button>
+      <button class="btn" type="button" id="share-load">Eingefügten Text übernehmen</button>
+      <button class="btn" type="button" id="share-close">Schließen</button>
+      <span class="status-msg" id="share-msg" role="status"></span>
+    </div>
+  </dialog>
+
+  <div class="nav">
+    <nav class="views" id="views" aria-label="Ansichten">
+      <a href="#uebersicht" data-v="uebersicht">Übersicht</a>
+      <a href="#flugzeug" data-v="flugzeug">Flugzeug</a>
+      <a href="#schwerpunkt" data-v="schwerpunkt">Schwerpunkt</a>
+      <a href="#struktur" data-v="struktur">Struktur</a>
+      <a href="#antrieb" data-v="antrieb">Antrieb</a>
+      <a href="#flugdynamik" data-v="flugdynamik">Flugdynamik</a>
+      <a href="#profile" data-v="profile">Profile</a>
+      <a href="#komponenten" data-v="komponenten">Komponenten</a>
+      <a href="#energie" data-v="energie">Energie</a>
+      <a href="#wetter" data-v="wetter">Wetter</a>
+      <a href="#einsatz" data-v="einsatz">Einsatz</a>
+      <a href="#robustheit" data-v="robustheit">Robustheit</a>
+      <a href="#sora" data-v="sora">SORA</a>
+      <a href="#validierung" data-v="validierung">Validierung</a>
+      <!--TEAM-NAV-->
+    </nav>
+    <div class="strip" id="strip" aria-live="polite"></div>
+  </div>
+
+  <!-- Übersicht -->
+  <section class="view" id="v-uebersicht" data-view="uebersicht" hidden>
+    <div class="verdict" id="verdict"></div>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Wichtigste Stellgrößen</h3><div class="pgrid" data-form="quick"></div>
+          <p class="note" style="margin-top:12px">Alle weiteren Eingaben stehen in den Ansichten Flugzeug, Komponenten, Energie, Wetter und Einsatz.</p></div>
+        <div class="panel"><h3 class="first">Vergleichsstand</h3><p class="note" id="cmp-note">Merkt sich den aktuellen Stand. Danach zeigt die Übersicht bei jeder Änderung, was besser oder schlechter wird.</p>
+          <div class="table-actions"><button class="btn sm primary" type="button" id="cmp-set">Aktuellen Stand merken</button><button class="btn sm" type="button" id="cmp-clear" hidden>Vergessen</button></div></div>
+        <!--TEAM-PANEL-->
+      </div>
+      <div class="main">
+        <div class="kpis" id="kpis"></div>
+        <div class="panel" id="cmp-panel" hidden><div class="panel-head"><div><h2>Gegenüber dem gemerkten Stand</h2><p id="cmp-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-cmp"></table></div></div>
+        <div class="panel">
+          <div class="panel-head"><div><h2>Einsatztag</h2><p id="day-sub"></p></div><div class="tabs" role="tablist" id="day-tabs"><button class="tab" role="tab" data-t="mission">Einsatz ab Start</button><button class="tab" role="tab" data-t="periodic">Dauerflug (2 Tage)</button></div></div>
+          <div class="chart" id="ch-day-p"></div>
+          <div class="chart" id="ch-day-s"></div>
+        </div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Masse</h2><p id="mass-sub"></p></div></div><div class="bars" id="bars-mass"></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Leistung im Reiseflug</h2><p id="pow-sub"></p></div></div><div class="bars" id="bars-power"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Flugzeug -->
+  <section class="view" id="v-flugzeug" data-view="flugzeug" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Flügel</h3><div class="pgrid" data-form="wing"></div>
+          <h3>Leitwerk und Rumpf</h3><div class="pgrid" data-form="tail"></div>
+          <h3>Flugzustand</h3><div class="pgrid" data-form="flight"></div></div>
+        <div class="panel"><h3 class="first">Antrieb</h3><div class="pgrid" data-form="prop"></div></div>
+        <div class="panel"><h3 class="first">Struktur</h3><div class="pgrid" data-form="struct"></div>
+          <details class="more"><summary>Bauweise und Flächengewichte</summary><div class="pgrid" data-form="struct2"></div></details></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Grundriss und Auftriebsverteilung</h2><p id="pf-sub"></p></div></div>
+          <div class="chart" id="svg-planform"></div><div class="chart" id="ch-span"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Leistungskurve</h2><p id="pc-sub"></p></div></div>
+          <div class="chart" id="ch-power"></div><div class="kpis" id="kpis-speed" style="margin-top:12px"></div></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Widerstandsaufbau</h2><p id="drag-sub"></p></div></div><div class="bars" id="bars-drag"></div><div class="table-wrap" style="margin-top:12px"><table class="data" id="tbl-aero"></table></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Strukturmasse</h2><p id="struct-sub"></p></div></div><div class="bars" id="bars-struct"></div><div class="table-wrap" style="margin-top:12px"><table class="data" id="tbl-struct"></table></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h2>Antrieb</h2><p id="prop-sub"></p></div></div><div class="bars" id="bars-prop"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Schwerpunkt -->
+  <section class="view" id="v-schwerpunkt" data-view="schwerpunkt" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Anordnung und Trimmung</h3><div class="pgrid" data-form="layout"></div></div>
+        <div class="panel"><h3 class="first">Leitwerk</h3><div class="pgrid" data-form="layout2"></div></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Seitenansicht und Wägediagramm</h2><p id="cg-sub"></p></div></div>
+          <div class="chart side-view" id="svg-side"></div><div id="cg-msg" style="margin-top:10px"></div><div class="kpis" id="kpis-cg" style="margin-top:12px"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Massen und Hebelarme</h2><p id="cgt-sub"></p></div></div>
+          <div class="table-wrap"><table class="data" id="tbl-cg"></table></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Vier Motoranordnungen im Vergleich</h2><p id="mot-sub"></p></div></div>
+          <div class="table-wrap"><table class="data" id="tbl-mot"></table></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Pfeilung: Momente, Aerodynamik, Aeroelastik</h2><p id="sw-sub"></p></div></div>
+          <div class="two"><div class="chart" id="ch-sw1"></div><div class="chart" id="ch-sw2"></div></div>
+          <div class="table-wrap" style="margin-top:12px"><table class="data" id="tbl-sw"></table></div><div class="hint" id="sw-note" style="margin-top:12px"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Solarzellen auf dem Höhenleitwerk</h2><p id="hts-sub"></p></div></div>
+          <div class="table-wrap"><table class="data" id="tbl-hts"></table></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Struktur -->
+  <section class="view" id="v-struktur" data-view="struktur" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Werkstoffe und Bauweise</h3><div class="pgrid" data-form="mat"></div></div>
+        <div class="panel"><h3 class="first">Transportteilung</h3><div class="pgrid" data-form="split"></div></div>
+        <div class="panel"><h3 class="first">Lasten und Steifigkeit</h3><div class="pgrid" data-form="struct"></div>
+          <details class="more"><summary>Flächengewichte</summary><div class="pgrid" data-form="struct2"></div></details></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Eigenschwingungen und Aeroelastik</h2><p id="ae-sub"></p></div></div>
+          <div class="kpis" id="kpis-ae"></div><div id="ae-msg" style="margin-top:10px"></div></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Steifigkeit entlang der Spannweite</h2><p id="stiff-sub"></p></div></div><div class="chart" id="ch-stiff"></div><div class="chart" id="ch-axes"></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Eigenformen (Halbflügel)</h2><p id="modes-sub"></p></div></div><div class="chart" id="ch-modes"></div><div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-modes-s"></table></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h2>Flatterdiagramm</h2><p id="vg-sub"></p></div></div>
+          <div class="two"><div class="chart" id="ch-vg"></div><div class="chart" id="ch-vf"></div></div></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Resonanz mit dem Propeller</h2><p id="camp-sub"></p></div></div><div class="chart" id="ch-camp"></div><div id="camp-msg" style="margin-top:8px"></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Transportteilung</h2><p id="tr-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-transport"></table></div><div id="tr-joints" class="note" style="margin-top:10px"></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h2>Werkstoffe</h2><p id="mat-sub"></p></div></div>
+          <div class="two"><div class="table-wrap"><table class="data" id="tbl-mat"></table></div><div class="table-wrap"><table class="data" id="tbl-matcmp"></table></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Antrieb -->
+  <section class="view" id="v-antrieb" data-view="antrieb" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Propeller</h3><div class="pgrid" data-form="propb"></div></div>
+        <div class="panel"><h3 class="first">Motor, Regler, Akku</h3><div class="pgrid" data-form="motor"></div></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Betriebspunkt Reiseflug</h2><p id="op-sub"></p></div><div id="op-act"></div></div>
+          <div class="kpis" id="kpis-prop"></div><div id="op-msg" style="margin-top:10px"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Kennfeld: Gesamtwirkungsgrad Akku bis Schub</h2><p id="map-sub"></p></div></div><div class="chart" id="svg-pmap"></div></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Steigen und Sinken</h2><p id="climb-sub"></p></div></div><div class="chart" id="ch-climb"></div><div class="kpis" id="kpis-climb" style="margin-top:12px"></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Propellerkennlinien</h2><p id="ct-sub"></p></div></div><div class="chart" id="ch-eta"></div><div class="chart" id="ch-ct"></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h2>Betriebspunkte</h2><p>Drehzahl, Strom und Wirkungsgrade in typischen Flugzuständen.</p></div></div><div class="table-wrap"><table class="data" id="tbl-op"></table></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Flugdynamik -->
+  <section class="view" id="v-flugdynamik" data-view="flugdynamik" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Einflussgrößen</h3><div class="pgrid" data-form="dyn"></div>
+          <p class="note" style="margin-top:10px">Weitere Größen: Schwerpunktlage und Massen in der Ansicht Schwerpunkt, Steifigkeit in der Ansicht Struktur.</p></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Eigenbewegungen und Dämpfung</h2><p id="dyn-sub"></p></div><div class="tabs" id="dyn-tabs" role="group" aria-label="Flügelmodell"><button class="tab" type="button" data-dt="flex">Flügel elastisch</button><button class="tab" type="button" data-dt="rigid">starr</button></div></div>
+          <div class="kpis" id="kpis-dyn"></div><div class="table-wrap" style="margin-top:12px"><table class="data" id="tbl-dmodes"></table></div></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Eigenwerte</h2><p id="sp-sub"></p></div></div><div class="chart" id="svg-splane"></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Antwort auf eine Bö</h2><p id="resp-sub"></p></div></div><div class="chart" id="ch-resp-lon"></div><div class="chart" id="ch-resp-lat"></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h2>Stabilitätsderivative</h2><p id="der-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-deriv"></table></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Profile -->
+  <section class="view" id="v-profile" data-view="profile" hidden>
+    <div class="panel">
+      <div class="panel-head"><div><h2>Profilvergleich am eigenen Flugzeug</h2><p id="af-sub"></p></div>
+        <div class="chips" id="af-cats"></div></div>
+      <div class="table-wrap"><table class="data" id="tbl-af"></table></div>
+    </div>
+    <div class="two">
+      <div class="panel"><div class="panel-head"><div><h2>Polaren bei Reise-Reynoldszahl</h2><p id="polar-sub"></p></div></div>
+        <div class="chart" id="ch-polar"></div><div class="chart" id="ch-polar2"></div></div>
+      <div class="panel"><div class="panel-head"><div><h2>Konturen</h2><p>Bis zu vier Profile aus der Tabelle markieren. Orange gestrichelt: Bereich der Solarzellen.</p></div></div>
+        <div class="chart" id="svg-shapes"></div><div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-afsel"></table></div></div>
+    </div>
+  </section>
+
+  <!-- Komponenten -->
+  <section class="view" id="v-komponenten" data-view="komponenten" hidden>
+    <div class="panel">
+      <div class="panel-head"><div><h2>Bordsysteme und Nutzlast</h2><p>Leistung × Einschaltdauer ergibt den Mittelwert. Der Zeitplan legt fest, wann die Komponente läuft. Widerstandsfläche nur für außen liegende Teile. ⓘ öffnet eine Beschreibung mit Eignung je Einsatzart.</p></div>
+        <div class="chips" id="comp-presets"></div></div>
+      <div class="table-wrap"><table class="comps" id="tbl-comps"></table></div>
+      <div class="table-actions"><button class="btn" type="button" id="comp-add">+ Eigene Komponente</button><span class="status-msg" id="comp-msg"></span></div>
+    </div>
+    <div class="panel"><div class="panel-head"><div><h2>Bordleistung nach Zeitplan</h2><p>Mittlere Leistung der Bordsysteme in den vier Betriebsarten.</p></div></div><div class="kpis" id="kpis-sched"></div></div>
+  </section>
+
+  <!-- Energie -->
+  <section class="view" id="v-energie" data-view="energie" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Ort und Tag</h3><div class="pgrid" data-form="env"></div></div>
+        <div class="panel"><h3 class="first">Akku</h3><div class="pgrid" data-form="batt"></div></div>
+        <div class="panel"><h3 class="first">Solargenerator</h3><div class="pgrid" data-form="solar"></div>
+          <details class="more"><summary>Verluste und Temperatur</summary><div class="pgrid" data-form="solar2"></div></details></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Energiebilanz des Tages</h2><p id="eb-sub"></p></div></div><div class="kpis" id="kpis-energy"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Jahresverlauf bei klarem Himmel</h2><p id="season-sub"></p></div></div><div class="chart" id="ch-season"></div><div class="chart" id="ch-season2"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Parameterstudien</h2><p id="study-sub"></p></div><div class="tabs" role="tablist" id="study-tabs"></div></div><div class="chart" id="ch-study"></div><div class="chart" id="ch-study2"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Einstrahlung auf den gewölbten Flügel</h2><p id="sol-sub"></p></div></div><div class="chart" id="ch-solgeo"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Wetter -->
+  <section class="view" id="v-wetter" data-view="wetter" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Wetterquelle</h3><div class="pgrid" data-form="wx"></div>
+          <div id="wx-upload" style="margin-top:12px"></div></div>
+        <div class="panel" id="gen-panel"><h3 class="first">Wettergenerator: Monatswerte</h3><div id="gen-table"></div></div>
+        <div class="panel"><h3 class="first">Wind</h3><div class="pgrid" data-form="wind"></div></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Einsatzfähigkeit über das Jahr</h2><p id="wx-sub"></p></div><div class="chips"><button class="btn primary sm" type="button" id="wx-run">Berechnen</button></div></div>
+          <div class="progress" id="wx-prog" hidden><div></div></div>
+          <div class="kpis" id="kpis-wx" style="margin:10px 0 14px"></div>
+          <div class="chart" id="ch-wx-month"></div><div class="chart" id="ch-wx-end"></div><div class="chart" id="ch-wx-h"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Tage im Jahr</h2><p>Excess Time jedes einzelnen Tages, wenn sein Wetter sich wiederholen würde (ETH-Kriterium). Über null: Dauerflug an diesem Tag möglich.</p></div></div><div class="chart" id="ch-wx-days"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Einsatz -->
+  <section class="view" id="v-einsatz" data-view="einsatz" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Einsatzfenster</h3><div class="pgrid" data-form="mission"></div>
+          <h3>Sensoren</h3><div class="pgrid" data-form="sensor"></div>
+          <h3>Brand-Erkennung</h3><div class="pgrid" data-form="fire"></div></div>
+      </div>
+      <div class="main">
+        <div class="kpis" id="kpis-mis"></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Wind in Flughöhe</h2><p id="wind-sub"></p></div></div><div class="chart" id="ch-wind"></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Kleinster erkennbarer Brand</h2><p id="fire-sub"></p></div></div><div class="chart" id="ch-fire"></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h2>Flughöhe abwägen</h2><p>Höher fliegen vergrößert den Streifen und die Flächenleistung, verschlechtert aber Bodenauflösung und Erkennungsschwelle.</p></div></div><div class="table-wrap"><table class="data" id="tbl-alt"></table></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Robustheit -->
+  <section class="view" id="v-robustheit" data-view="robustheit" hidden>
+    <div class="panel"><div class="panel-head"><div><h2>Empfindlichkeit (Tornado)</h2><p id="torn-sub"></p></div></div><div class="torn" id="torn"></div></div>
+    <div class="panel"><div class="panel-head"><div><h2>Monte-Carlo-Simulation</h2><p id="mc-sub"></p></div>
+      <div class="chips"><label class="small muted" for="mc-n">Läufe</label><select id="mc-n" style="width:auto"><option>100</option><option selected>300</option><option>1000</option></select><button class="btn primary sm" type="button" id="mc-run">Neu würfeln</button></div></div>
+      <div class="kpis" id="kpis-mc" style="margin-bottom:14px"></div><div class="chart" id="ch-mc"></div>
+      <details class="more"><summary>Angenommene Unsicherheiten</summary><div class="table-wrap"><table class="data" id="tbl-unc"></table></div></details></div>
+  </section>
+
+  <!-- SORA -->
+  <section class="view" id="v-sora" data-view="sora" hidden>
+    <div class="cols">
+      <div class="side"><div class="panel"><h3 class="first">Boden- und Luftrisiko</h3><div class="pgrid" data-form="sora"></div></div></div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Ergebnis</h2><p>Grobe Orientierung nach JARUS SORA 2.5. Keine Genehmigungsgrundlage: maßgeblich sind JARUS-Dokumente, EASA-AMC und die zuständige Behörde.</p></div></div><div id="sora-out"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Intrinsische Bodenrisikoklasse (iGRC)</h2><p>Spalte aus der größeren von Spannweite und Höchstgeschwindigkeit, Zeile aus der Bevölkerungsdichte.</p></div></div><div class="table-wrap"><table class="mat" id="tbl-igrc"></table></div></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>SAIL-Matrix</h2></div></div><div class="table-wrap"><table class="mat small" id="tbl-sail"></table></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Angrenzendes Gebiet und Containment</h2></div></div><div id="sora-adj"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Validierung -->
+  <section class="view" id="v-validierung" data-view="validierung" hidden>
+    <div class="panel"><div class="panel-head"><div><h2>Referenzflugzeuge</h2><p>Das Modell mit den veröffentlichten Daten realer Solarflugzeuge nachgerechnet. Nur Geometrie, Massen der Bordsysteme und Akkus sind vorgegeben, Struktur und Leistung rechnet das Modell selbst.</p></div></div>
+      <div class="table-wrap"><table class="data" id="tbl-ref"></table></div></div>
+    <div class="panel"><div class="panel-head"><div><h2>Rechenkerne gegen Lehrbuch und Windkanal</h2><p>Flatter- und Divergenzrechnung am Goland-Flügel, Bewegungsgleichungen mit den Navion-Daten aus Nelson, Wirbelgitter gegen geschlossene Formeln, Propellerrechnung gegen Windkanalmessungen am APC 10x7E.</p></div></div>
+      <div class="table-wrap"><table class="data" id="tbl-kern"></table></div>
+      <div class="two" style="margin-top:12px"><div class="chart" id="ch-apc1"></div><div class="chart" id="ch-apc2"></div></div></div>
+    <div class="two">
+      <div class="panel"><div class="panel-head"><div><h2>NeuralFoil gegen XFoil (MH 139F)</h2><p>Profilwiderstand in 10⁻⁴ (Zählern). XFoil-Polaren aus dem ETH-Werkzeug, NeuralFoil aus den eingebetteten Tabellen.</p></div></div><div class="table-wrap"><table class="data" id="tbl-nfxf"></table></div></div>
+      <div class="panel"><div class="panel-head"><div><h2>Wölbungsfaktor der Solarzellen</h2><p>Tagesertrag des gewölbten Flügels relativ zu waagerechten Zellen ohne Einfallswinkelverluste. Das ETH-Werkzeug setzt pauschal 0,95 an.</p></div></div><div class="table-wrap"><table class="data" id="tbl-camber"></table></div></div>
+    </div>
+    <div class="panel"><div class="panel-head"><div><h2>Wettergenerator gegen echtes typisches Jahr</h2><p>Der Generator bekommt nur die Monatsmittel des Datensatzes und erzeugt daraus 20 Jahre. Verglichen wird der Anteil erfolgreicher Einsatztage.</p></div><button class="btn sm" type="button" id="val-gen-run">Vergleich rechnen</button></div><div class="chart" id="ch-valgen"></div></div>
+    <div class="panel"><div class="panel-head"><div><h2>Eigene Flugdaten einpassen</h2><p>Geschwindigkeit (m/s) und gemessene elektrische Antriebsleistung (W), eine Zeile je Messpunkt. Angepasst wird P = a·V³ + b/V, also schädlicher und induzierter Anteil getrennt.</p></div></div>
+      <div class="two"><div><textarea id="fit-text" rows="9" aria-label="Messpunkte">V;P  (Beispielwerte, durch eigene Messungen ersetzen)
+9.5;50.7
+10;49.4
+11;52.8
+12;55.9
+13;63.7
+14;70.4
+15;80.6
+16;91.3</textarea><div class="pgrid" style="margin-top:10px" data-form="fit"></div><div class="table-actions"><button class="btn primary" type="button" id="fit-apply">Ausgleichskurve als Leistungsmodell übernehmen</button><span class="status-msg" id="fit-msg"></span></div></div><div><div class="chart" id="ch-fit"></div><div id="fit-out" class="note" style="margin-top:8px"></div></div></div></div>
+    <div class="panel"><div class="panel-head"><div><h2>Grenzen des Modells</h2></div></div><ul class="src-list" id="limits"></ul></div>
+    <div class="panel"><div class="panel-head"><div><h2>Quellen und Methoden</h2></div></div><ul class="src-list" id="sources"></ul></div>
+  </section>
+  <!--TEAM-VIEW-->
+
+  <footer id="foot">Rechenkern: Profilpolaren aus NeuralFoil (MIT) und XFoil (ETH), Wirbelgitter nach Weissinger, Stabilität und Eigenbewegungen nach Etkin, Flattern nach Theodorsen, Propeller nach QPROP (Drela), Strukturmodell kalibriert an AtlantikSolar, Tages- und Dauerflugsimulation nach Leutenegger et al. und Oettershagen et al. (ETH Zürich), Wetterdaten PVGIS (EU JRC) und IWEC (ASHRAE). Alle Ergebnisse sind Auslegungsschätzungen und ersetzen keine Erprobung.</footer>
+</div>

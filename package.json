@@ -1,0 +1,18 @@
+{
+  "name": "waldbrand-uav-rechner",
+  "private": true,
+  "description": "Auslegungsrechner für ein solares Waldbrand-Überwachungs-UAV mit Cloudflare-Worker für Team-Varianten",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node calc/tools/build.mjs && node calc/tests/check.cjs",
+    "check": "node calc/tests/check.cjs",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "db:local": "wrangler d1 execute uav-budget --local --file=./worker/schema.sql",
+    "db:remote": "wrangler d1 execute uav-budget --remote --file=./worker/schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  }
+}

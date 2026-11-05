@@ -1,0 +1,15 @@
+# Baut die Seiten und prüft die Rechenkerne bei jedem Push und Pull Request.
+# Veröffentlicht wird nicht hier, sondern von Cloudflare Workers Builds (siehe README).
+name: Prüfung
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run build

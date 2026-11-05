@@ -1,0 +1,11 @@
+node_modules/
+.wrangler/
+.dev.vars
+# Erzeugt von npm run build
+public/index.html
+dist/
+calc/tests/_model.cjs
+calc/tests/out/
+__pycache__/
+# Externe Quellen für die Datenerzeugung (Profildatenbank, NeuralFoil, pvlib)
+ext/

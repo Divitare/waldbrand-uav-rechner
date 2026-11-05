@@ -1,0 +1,9 @@
+/* Team-Varianten */
+.vlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.vlist li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 9px 12px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--sunken); }
+.vlist li.active { border-color: var(--accent); background: var(--accent-soft); }
+.vlist li.empty { color: var(--ink-2); font-size: 13.5px; }
+.vlist .vinfo { min-width: 0; flex: 1 1 280px; }
+.vlist .vname { font-family: var(--font-display); font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.vlist .vmeta { font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.vlist .vacts { display: flex; gap: 6px; }

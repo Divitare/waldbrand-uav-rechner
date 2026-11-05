@@ -1,0 +1,445 @@
+{
+ "INFO": {
+  "ap": {
+   "r": "kkk",
+   "what": "Flugregler mit Lage- und Drucksensoren. Er regelt Lage, Kurs, Höhe und Geschwindigkeit und fliegt Wegpunkte ab. Das GNSS liefert die Position.",
+   "why": "Grundvoraussetzung für autonomen Flug außerhalb der Sichtweite. Die Logdaten braucht ihr für die Flugerprobung und als Nachweis in der SORA.",
+   "tip": "Eine zweite IMU und ein zweites GNSS kosten kaum Energie und verbessern die Robustheitsnachweise in der SORA."
+  },
+  "servo": {
+   "r": "kkk",
+   "what": "Stellmotoren für Quer-, Höhen- und Seitenruder sowie Klappen. Der Wert hier ist die mittlere Haltelast im Flug, ihre Masse steckt in der Zelle.",
+   "why": "Ohne sie keine Steuerung.",
+   "tip": "Bei Turbulenz steigt der Verbrauch deutlich. Servos mit geringer Ruhestromaufnahme und spielfreie Anlenkungen sparen Energie."
+  },
+  "pitot": {
+   "r": "kkk",
+   "what": "Misst die Geschwindigkeit gegenüber der Luft über den Staudruck.",
+   "why": "Hält das Flugzeug sicher über der Abrissgeschwindigkeit, gerade wenn ihr sparsam nahe am Minimum fliegt. Aus der Differenz zur GNSS-Geschwindigkeit schätzt der Autopilot den Wind, nützlich für Ausbreitungsmodelle von Feuer und Rauch.",
+   "tip": "Gegen Feuchte und Insekten schützen. Ein zweiter Sensor ist eine günstige Redundanz."
+  },
+  "mppt": {
+   "r": "kkk",
+   "what": "Laderegler, der die Solarzellen immer im Punkt maximaler Leistung betreibt und damit den Akku lädt.",
+   "why": "Ohne MPPT geht ein großer Teil der Solarleistung verloren, weil Zellspannung und Akkuspannung nicht zusammenpassen.",
+   "tip": "Mehrere MPPT, je einer pro Flügelsegment, geben Redundanz. Bei AtlantikSolar fiel im Rekordflug ein MPPT teilweise aus und kostete bis zu 23 % Solarleistung."
+  },
+  "lights": {
+   "r": "kkk",
+   "what": "Positions- und Blitzlichter (Anti-Collision-Lights).",
+   "why": "Macht euch für bemannte Luftfahrt sichtbar. Für Flüge in der Dämmerung und nachts in der Regel Bedingung der Genehmigung.",
+   "tip": "LED-Blitzer im Pulsbetrieb brauchen im Mittel nur wenig Leistung."
+  },
+  "flarm": {
+   "r": "kkk",
+   "what": "FLARM sendet die eigene Position an andere FLARM-Geräte und empfängt deren Positionen. ADS-B In empfängt die Positionen von Flugzeugen mit Transponder. Remote ID sendet die gesetzlich geforderte Drohnenkennung.",
+   "why": "Taktische Minderung des Luftrisikos in der SORA (Erkennen und Ausweichen). Im Alpenraum mit viel Segelflug fast unverzichtbar.",
+   "tip": "Ein kombiniertes Modul wie das FLARM Atom UAV deckt alle drei Funktionen mit rund 1,4 W ab."
+  },
+  "chute": {
+   "r": "kkk",
+   "what": "Rettungsfallschirm, der das Flugzeug bei einem Notfall kontrolliert zu Boden bringt.",
+   "why": "Minderung M2 des Bodenrisikos in der SORA. Für euch voraussichtlich der wichtigste Hebel, um bei SAIL III zu bleiben.",
+   "tip": "Die Masse fest einplanen. Für eine anerkannte Minderung muss das System nach einer Norm wie ASTM F3322 nachgewiesen werden."
+  },
+  "fts": {
+   "r": "kkk",
+   "what": "Eigene Logik mit eigenem Empfänger und eigener Stromversorgung, die den Fallschirm auslöst und den Flug beendet, auch wenn der Autopilot ausfällt.",
+   "why": "Für die Robustheit der Minderung M2 und für das Containment in der SORA, also dass das Flugzeug sein Fluggebiet nicht verlässt.",
+   "tip": "Unabhängig vom Autopiloten versorgen, sonst zählt es nicht als unabhängig."
+  },
+  "telem": {
+   "r": "kkk",
+   "what": "Funkverbindung für Steuerbefehle und Statusdaten zur Bodenstation (C2-Link) im 868-MHz-Band.",
+   "why": "Hauptverbindung im Nahbereich mit geringer Latenz, unabhängig vom Mobilfunk.",
+   "tip": "Die Reichweite hängt stark vom Gelände ab. In Tälern bricht die Sichtverbindung schnell ab, deshalb braucht ihr für Flüge außer Sicht einen zweiten Pfad."
+  },
+  "lte": {
+   "r": "koo",
+   "what": "Mobilfunkmodem für Steuerung und Daten mit großer Reichweite.",
+   "why": "Waldbrand: Treffer, Bildausschnitte und Koordinaten gehen sofort an die Einsatzleitung. Kartierung: Daten lassen sich auch an Bord speichern. Maritim: Über See endet die Netzabdeckung meist wenige Kilometer vor der Küste.",
+   "tip": "Nutzung in der Luft mit dem Netzbetreiber klären. Die Abdeckung in Gebirgstälern ist lückenhaft."
+  },
+  "irid": {
+   "r": "kok",
+   "what": "Satellitenmodem für Kurznachrichten (Iridium SBD) mit weltweiter Abdeckung.",
+   "why": "Rückfallebene für Position, Status und Notkommandos, wenn Funk und Mobilfunk weg sind. Über See und im Gebirge oft die einzige Verbindung.",
+   "tip": "Nur kleine Datenmengen, Kosten pro Nachricht. Mit niedriger Einschaltdauer betreiben."
+  },
+  "video": {
+   "r": "ono",
+   "what": "Funkstrecke, die dauerhaft ein Livebild zur Bodenstation überträgt.",
+   "why": "Live-Lagebild für die Einsatzleitung, zum Beispiel bei einem laufenden Brand oder beim Verfolgen eines Boots.",
+   "tip": "Kostet mehr Energie als die meisten Sensoren. Meist reicht es, an Bord zu erkennen und nur Treffer mit Bildausschnitt zu senden."
+  },
+  "ir": {
+   "r": "kok",
+   "what": "Wärmebildkamera im langwelligen Infrarot (8 bis 14 µm), die pro Pixel eine Temperatur liefert.",
+   "why": "Waldbrand: Glutnester, Feuerfront und Brandintensität, auch durch dünnen Rauch und nachts. Maritim: Boote und Personen nachts. Kartierung: Temperaturkarten, etwa für Bodenfeuchte oder Gebäude.",
+   "tip": "Bei 640 Pixeln Breite und 120 m Flughöhe liegt die Bodenauflösung je nach Objektiv bei etwa 10 bis 20 cm pro Pixel."
+  },
+  "rgb": {
+   "r": "kkk",
+   "what": "Fest eingebaute Farbkamera.",
+   "why": "Rauch tagsüber erkennen, Lage dokumentieren, Orthofotos und 3D-Modelle erstellen, Boote identifizieren.",
+   "tip": "Für die Kartierung eine Kamera mit Global Shutter wählen. Einzelbilder im Intervall sparen Energie gegenüber Video."
+  },
+  "pm": {
+   "r": "knn",
+   "what": "Optischer Feinstaubsensor für die Partikelgrößen PM1, PM2,5 und PM10.",
+   "why": "Erkennt Rauchfahnen früh, auch ohne Sicht, und kartiert, wohin der Rauch zieht.",
+   "tip": "Ansaugung außerhalb des Propellerstrahls anordnen. Günstige Sensoren reagieren auf Luftfeuchte und brauchen Kalibrierung."
+  },
+  "gas": {
+   "r": "kon",
+   "what": "Gassensoren für Kohlenmonoxid und Kohlendioxid (NDIR) plus Temperatur, Feuchte und Luftdruck.",
+   "why": "Aus dem Verhältnis von CO zu CO₂ seht ihr, ob es offen brennt oder schwelt. Temperatur und Feuchte sind wichtig für die Einschätzung des Brandrisikos.",
+   "tip": "NDIR-Sensoren brauchen Aufwärmzeit und reagieren langsam. Kreisen über einer Fahne liefert bessere Daten als ein schneller Überflug."
+  },
+  "cpu": {
+   "r": "kok",
+   "what": "Bordrechner mit KI-Beschleuniger für die Erkennung im Bild, etwa Feuer, Rauch oder Boote.",
+   "why": "Überträgt nur Treffer statt eines Videostroms und kann autonom reagieren, zum Beispiel über einem Hotspot kreisen.",
+   "tip": "Einschaltdauer klein halten: Eine einfache Temperaturschwelle in der Wärmebildkamera weckt den Rechner nur bei Bedarf."
+  },
+  "gimbal": {
+   "r": "onk",
+   "what": "Stabilisierte, schwenkbare Kamera mit Zoom, Wärmebild und Laser-Entfernungsmesser.",
+   "why": "Ziele identifizieren und verfolgen, ohne das Flugzeug darauf auszurichten. Mit dem Entfernungsmesser lässt sich die Position eines Feuers oder Boots genau bestimmen.",
+   "tip": "Größter Einzelposten bei Masse und Leistung. Als Wechselnutzlast nur für Missionen einbauen, die ihn brauchen."
+  },
+  "lrf": {
+   "r": "ooo",
+   "what": "Einzelnes Laser-Entfernungsmessermodul, das die Entfernung zu einem Punkt misst.",
+   "why": "Zusammen mit einer festen Kamera die Zielkoordinaten genau bestimmen. Auch als Höhenmesser über Grund für die Kartierung.",
+   "tip": "Auf Laserklasse 1 (augensicher) achten."
+  },
+  "ms": {
+   "r": "okn",
+   "what": "Kamera mit mehreren schmalen Spektralbändern, etwa Rot, Red Edge und nahes Infrarot.",
+   "why": "Vegetationsindizes wie NDVI und NDWI zeigen Trockenheit und damit das Brandrisiko vor einem Feuer und die Brandschwere danach.",
+   "tip": "Braucht einen Lichtsensor oder ein Kalibrierpanel für vergleichbare Werte."
+  },
+  "lidar": {
+   "r": "nkn",
+   "what": "Laserscanner, der eine 3D-Punktwolke der Oberfläche erzeugt, mit präzisem Inertialsystem (INS).",
+   "why": "Baumhöhe, Kronendichte und Brennstoffmenge für Ausbreitungsmodelle, außerdem genaue Geländemodelle.",
+   "tip": "Braucht RTK- oder PPK-Positionierung und geringe Flughöhe. Es entstehen große Datenmengen."
+  },
+  "swir": {
+   "r": "ooo",
+   "what": "Kamera im kurzwelligen Infrarot (0,9 bis 1,7 µm).",
+   "why": "Sieht besser durch Dunst und dünnen Rauch als eine Farbkamera und zeigt sehr heiße Flammen. Über Wasser ist das Sonnenglitzern schwächer.",
+   "tip": "Teuer. Bei manchen Modellen gilt Exportkontrolle."
+  },
+  "ais": {
+   "r": "nnk",
+   "what": "Empfänger für die Positionsmeldungen von Schiffen (AIS).",
+   "why": "Schiffe ohne AIS-Signal fallen sofort auf. Zusammen mit dem Kamerabild entsteht ein Lagebild.",
+   "tip": "Sehr leicht und sparsam. Als Antenne genügt ein kurzer Draht im Flügel oder Rumpf."
+  },
+  "pol": {
+   "r": "nnk",
+   "what": "Kamera, die die Polarisation des Lichts misst.",
+   "why": "Unterdrückt Spiegelungen auf Wasser. Boote und Kielwasser werden im Sonnenglitzern sichtbar.",
+   "tip": "Vor allem bei tief stehender Sonne nützlich."
+  },
+  "sdr": {
+   "r": "nno",
+   "what": "Software-Funkempfänger, der Funkaktivität in einem breiten Frequenzbereich erkennt und peilt.",
+   "why": "Erkennt, dass und wo gesendet wird, etwa Satellitentelefone oder GPS-Tracker an Paketen im Wasser.",
+   "tip": "Rechtlich heikel: Inhalte mitzuhören ist ohne behördliche Befugnis verboten, auch die reine Erkennung ist reguliert."
+  },
+  "as-av": {
+   "r": null,
+   "what": "Gesamte Avionik von AtlantikSolar: Autopilot, Funk, Sensoren, Kabel und Halterungen (davon 628 g Kabel und Halterungen).",
+   "why": "Referenzwert aus Oettershagen et al. 2017, damit der Vergleich mit dem Paper aufgeht.",
+   "tip": "Für euren eigenen Entwurf durch eure Komponenten ersetzen."
+  },
+  "as-mppt": {
+   "r": null,
+   "what": "Solar-Laderegler von AtlantikSolar.",
+   "why": "Referenzwert aus Oettershagen et al. 2017.",
+   "tip": "Für euren eigenen Entwurf durch eure Komponenten ersetzen."
+  },
+  "heat": {
+   "r": "ooo",
+   "what": "Heizfolie mit Thermostat am Akkupack, nachts aktiv.",
+   "why": "Lithium-Ionen-Zellen verlieren unter etwa 10 °C spürbar Kapazität und dürfen unter 0 °C nicht geladen werden. Eine warme, isolierte Akkubox hält Kapazität und Ladefähigkeit am Morgen.",
+   "tip": "Zuerst isolieren, dann heizen: ein paar Zentimeter Schaum bringen oft mehr als Watt. Den Zeitplan auf „bei Nacht“ lassen und die Einschaltdauer nach Nachttemperatur wählen."
+  }
+ },
+ "DEFAULT_COMPS": [
+  {
+   "id": "ap",
+   "name": "Autopilot + GNSS (Pixhawk-Klasse)",
+   "group": "av",
+   "m": 80,
+   "p": 2.5,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "servo",
+   "name": "Servos, Haltelast im Mittel (Masse in Zelle)",
+   "group": "av",
+   "m": 0,
+   "p": 3,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "pitot",
+   "name": "Fahrtmesser (Pitot + Sensor)",
+   "group": "av",
+   "m": 15,
+   "p": 0.1,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "mppt",
+   "name": "Solar-MPPT-Laderegler",
+   "group": "av",
+   "m": 60,
+   "p": 0.5,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "lights",
+   "name": "Positions- und Blitzlichter",
+   "group": "av",
+   "m": 30,
+   "p": 1.5,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "flarm",
+   "name": "FLARM + ADS-B In + Remote ID",
+   "group": "sich",
+   "m": 50,
+   "p": 1.4,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "chute",
+   "name": "Rettungsfallschirm (M2)",
+   "group": "sich",
+   "m": 550,
+   "p": 0,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "fts",
+   "name": "Unabhängige Fallschirmauslösung",
+   "group": "sich",
+   "m": 40,
+   "p": 0.3,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "telem",
+   "name": "Telemetriefunk 868 MHz",
+   "group": "kom",
+   "m": 40,
+   "p": 1,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "lte",
+   "name": "LTE-Modem",
+   "group": "kom",
+   "m": 60,
+   "p": 2.5,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "irid",
+   "name": "Iridium-Kurznachrichtenmodem (C2-Backup)",
+   "group": "kom",
+   "m": 35,
+   "p": 1.5,
+   "d": 20,
+   "on": true
+  },
+  {
+   "id": "video",
+   "name": "Video-Downlink (Dauerstream)",
+   "group": "kom",
+   "m": 120,
+   "p": 7,
+   "d": 100,
+   "on": false
+  },
+  {
+   "id": "ir",
+   "name": "Radiometrische LWIR-Wärmebildkamera (640)",
+   "group": "sens",
+   "m": 80,
+   "p": 1.2,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "rgb",
+   "name": "RGB-Kamera, fest montiert",
+   "group": "sens",
+   "m": 70,
+   "p": 2.5,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "pm",
+   "name": "Partikelsensor PM1 / 2,5 / 10",
+   "group": "sens",
+   "m": 35,
+   "p": 0.35,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "gas",
+   "name": "CO + CO₂ (NDIR) + Temp./Feuchte/Druck",
+   "group": "sens",
+   "m": 50,
+   "p": 0.4,
+   "d": 100,
+   "on": true
+  },
+  {
+   "id": "cpu",
+   "name": "Edge-Rechner (Pi 5 + KI-Beschleuniger)",
+   "group": "sens",
+   "m": 100,
+   "p": 7,
+   "d": 50,
+   "on": true
+  },
+  {
+   "id": "gimbal",
+   "name": "Gimbal EO/IR mit Zoom + Laser-Entfernungsmesser",
+   "group": "sens",
+   "m": 650,
+   "p": 12,
+   "d": 100,
+   "on": false
+  },
+  {
+   "id": "lrf",
+   "name": "Laser-Entfernungsmesser-Modul (einzeln)",
+   "group": "sens",
+   "m": 45,
+   "p": 1.5,
+   "d": 10,
+   "on": false
+  },
+  {
+   "id": "ms",
+   "name": "Multispektralkamera",
+   "group": "sens",
+   "m": 250,
+   "p": 5,
+   "d": 100,
+   "on": false
+  },
+  {
+   "id": "lidar",
+   "name": "LiDAR + präzises INS",
+   "group": "sens",
+   "m": 400,
+   "p": 8,
+   "d": 100,
+   "on": false
+  },
+  {
+   "id": "swir",
+   "name": "SWIR-Kamera",
+   "group": "sens",
+   "m": 220,
+   "p": 4.5,
+   "d": 100,
+   "on": false
+  },
+  {
+   "id": "ais",
+   "name": "AIS-Empfänger",
+   "group": "mar",
+   "m": 40,
+   "p": 0.8,
+   "d": 100,
+   "on": false
+  },
+  {
+   "id": "pol",
+   "name": "Polarisationskamera",
+   "group": "mar",
+   "m": 100,
+   "p": 3,
+   "d": 100,
+   "on": false
+  },
+  {
+   "id": "sdr",
+   "name": "SDR-Spektrummonitor",
+   "group": "mar",
+   "m": 120,
+   "p": 4,
+   "d": 100,
+   "on": false
+  }
+ ],
+ "GROUPS": [
+  [
+   "av",
+   "Basis-Avionik"
+  ],
+  [
+   "sich",
+   "Luftraum & Sicherheit"
+  ],
+  [
+   "kom",
+   "Kommunikation"
+  ],
+  [
+   "sens",
+   "Sensorik"
+  ],
+  [
+   "mar",
+   "Maritim"
+  ],
+  [
+   "own",
+   "Eigene"
+  ]
+ ],
+ "PRESETS": "ERR coreOf is not defined",
+ "CFG": [
+  [
+   "wb",
+   "Waldbrand"
+  ],
+  [
+   "ka",
+   "Kartierung"
+  ],
+  [
+   "ma",
+   "Maritim"
+  ]
+ ],
+ "RATE": {
+  "k": "Kern",
+  "o": "optional",
+  "n": "nicht nötig"
+ }
+}

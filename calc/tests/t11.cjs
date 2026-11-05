@@ -1,0 +1,23 @@
+const { load } = require('./load.cjs');
+const U = load(); const f = (x, d = 2) => (typeof x === 'number' ? (Number.isFinite(x) ? x.toFixed(d) : String(x)) : String(x));
+const run = (lab, over) => {
+  const P = { ...U.DEFAULT_PARAMS, ...over }, C = U.buildCase(P, U.DEFAULT_COMPS.map(c => ({ ...c })));
+  const t0 = Date.now(), A = U.aeroelastic(C), dt = Date.now() - t0;
+  const s0 = A.sec[0];
+  console.log(`\n${lab}: m ${f(C.m)} kg, Struktur ${f(C.mass.struct)} | EI0 ${f(s0.EI, 0)} GJ0 ${f(s0.GJ, 0)} m' ${f(s0.m, 3)} xcg ${f(s0.xcg, 3)} xea ${f(s0.xea, 3)} | dTip ${f(C.struct.dTip, 3)} m | ${dt} ms`);
+  console.log('  Moden', A.modes.map(m => `${m.label} ${f(m.f, 2)} Hz (T ${f(m.tors, 2)})`).join(', '));
+  console.log('  Divergenz V_D', f(A.VD, 1), 'm/s', '| Flattern V_F', f(A.flutter.vf, 1), 'm/s', A.flutter.wf ? f(A.flutter.wf / 2 / Math.PI, 2) + ' Hz' : '', '| Auftriebswirksamkeit bei vmax', f(A.liftEff, 3));
+  const tr = A.flutter.track.find(t => t.V >= P.v) || A.flutter.track[0];
+  console.log('  Wurzeln bei Reise', f(tr.V, 1), 'm/s:', tr.roots.map(r => `${f(r.f, 2)} Hz g ${f(r.g, 3)}`).join(', '));
+  const NP = C.np, b = C.bal;
+  console.log('  NP', f(NP.xnp, 3), 'xac', f(C.ll.xac, 3), 'CG', f(b.xcg, 3), 'SM', f(b.sm * 100, 1), '% s', f(b.s, 3), 'Akku', f(b.xBatt, 3), 'Ballast', f(b.ballast, 3), b.msg);
+  const fd = U.flightDynamics(C);
+  console.log('  Flugdyn', fd.crit.map(c => c.k + ' ' + f(c.val, 2) + (c.ok ? '' : '!')).join(' '), '| Clb', f(fd.d.Clb, 3), 'ClbSweep', f(fd.d.ClbSweep, 3), 'Cnb', f(fd.d.Cnb, 3));
+};
+run('Standard', {});
+for (const sw of [-15, -8, 8, 15]) run('Pfeilung ' + sw + '°', { sweep: sw });
+run('GFK-Gurte', { matCap: 'gfk_ud' });
+run('Rohrholm', { sparType: 'tube' });
+run('Motoren am Flügel', { motorPos: 'wing' });
+run('Akku im Flügel', { battInWing: true });
+run('Holm 40 %', { xSpar: 40 });

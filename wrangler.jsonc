@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Muss mit dem Worker-Namen im Cloudflare-Dashboard übereinstimmen, sonst bricht der Build ab.
+  "name": "uav-budget",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-13",
+  // Wird bei jedem Build aus calc/ erzeugt (npm run build), nicht von Hand bearbeiten.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "uav-budget",
+      "database_id": "c0b9cedc-0844-48e0-839f-a9de39cd6cce"
+    }
+  ],
+  "observability": { "enabled": true }
+}
