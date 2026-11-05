@@ -47,6 +47,7 @@
       <a href="#robustheit" data-v="robustheit">Robustheit</a>
       <a href="#sora" data-v="sora">SORA</a>
       <a href="#validierung" data-v="validierung">Validierung</a>
+      <a href="#formeln" data-v="formeln">Formeln</a>
       <!--TEAM-NAV-->
     </nav>
     <div class="strip" id="strip" aria-live="polite"></div>
@@ -364,6 +365,13 @@
   </section>
 
   <!-- Validierung -->
+  <section class="view" id="v-formeln" data-view="formeln" hidden>
+    <div class="panel"><div class="panel-head"><div><h2>Formeln und Quellen</h2><p id="fx-sub"></p></div></div>
+      <div class="fx-tools"><input type="search" id="fx-q" placeholder="Suchen: Formel, Größe, Quelle, Funktion …" aria-label="Formeln durchsuchen"><select id="fx-ch" aria-label="Kapitel"></select></div>
+      <div id="fx-list" class="fx-list"></div></div>
+    <div class="panel"><div class="panel-head"><div><h2>Literatur</h2><p>Alle Quellen, auf die sich der Rechner stützt.</p></div></div><ol class="lit" id="fx-lit"></ol></div>
+  </section>
+
   <section class="view" id="v-validierung" data-view="validierung" hidden>
     <div class="panel"><div class="panel-head"><div><h2>Referenzflugzeuge</h2><p>Das Modell mit den veröffentlichten Daten realer Solarflugzeuge nachgerechnet. Nur Geometrie, Massen der Bordsysteme und Akkus sind vorgegeben, Struktur und Leistung rechnet das Modell selbst.</p></div></div>
       <div class="table-wrap"><table class="data" id="tbl-ref"></table></div></div>

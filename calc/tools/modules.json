@@ -17,7 +17,8 @@
     "turb.js",
     "sim.js",
     "ext.js",
-    "defaults.js"
+    "defaults.js",
+    "formulas.js"
   ],
   "ui": [
     "ui-base.js",

@@ -505,12 +505,12 @@ function renderBattV(R) {
     kpi('Steigen bei Reserve', nf(cr.roc, 1), 'm/s', `voll ${nf(cf.roc, 1)} m/s · Schub ${nf(cr.T, 1)} statt ${nf(cf.T, 1)} N bei ${nf(b.Vc, 1)} m/s`, cr.roc < 1 ? 'bad' : '')
   ].join('');
   const msg = [];
-  if (cr.Ucell < cut) msg.push(pill('crit', `Bei ${nf(b.zRes * 100, 0)} % Ladung bricht die Zellspannung unter Vollgas auf ${nf(cr.Ucell, 2)} V ein (Abschaltung ${nf(cut, 1)} V): Reserve erhöhen oder mehr Zellen parallel`));
-  else msg.push(pill('good', `Zellspannung bleibt auch bei Reserveladung und Vollgas über ${nf(cut, 1)} V`));
-  if (cr.roc < 0.5 * cf.roc) msg.push(pill('warn', `Steigleistung bei Reserveladung nur ${nf(cr.roc / Math.max(1e-6, cf.roc) * 100, 0)} % des vollen Akkus`));
+  if (cr.Ucell < cut) msg.push(pillF('crit', `Bei ${nf(b.zRes * 100, 0)} % Ladung bricht die Zellspannung unter Vollgas auf ${nf(cr.Ucell, 2)} V ein (Abschaltung ${nf(cut, 1)} V): Reserve erhöhen oder mehr Zellen parallel`, 'bat-u', 'ucell'));
+  else msg.push(pillF('good', `Zellspannung bleibt auch bei Reserveladung und Vollgas über ${nf(cut, 1)} V`, 'bat-u', 'ucell'));
+  if (cr.roc < 0.5 * cf.roc) msg.push(pillF('warn', `Steigleistung bei Reserveladung nur ${nf(cr.roc / Math.max(1e-6, cf.roc) * 100, 0)} % des vollen Akkus`, 'bat-u', 'roc'));
   if (P.hStore > 0) {
     const hm0 = mis ? mis.hMax : 0, eH = hEnergy(C, P.hStore);
-    msg.push(pill('info', `Höhenspeicher bis ${nf(P.hStore, 0)} m: ${nf(eH, 1)} Wh Akku-Gegenwert, im Einsatz erreicht ${nf(hm0, 0)} m${mis && mis.tTop > 0 ? `, ${fmtDur(mis.tTop)} ganz oben` : ''}`));
+    msg.push(pillF('info', `Höhenspeicher bis ${nf(P.hStore, 0)} m: ${nf(eH, 1)} Wh Akku-Gegenwert, im Einsatz erreicht ${nf(hm0, 0)} m${mis && mis.tTop > 0 ? `, ${fmtDur(mis.tTop)} ganz oben` : ''}`, 'bat-alt', 'tExc'));
     if (P.hAGL + P.hStore > 150) msg.push(pill('warn', `Größte Flughöhe ${nf(P.hAGL + P.hStore, 0)} m über Grund: Betriebsgenehmigung und Luftraum prüfen; Bodenauflösung der Kameras wird gröber`));
   }
   $('#bv-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
@@ -541,11 +541,11 @@ function renderImg(R) {
   const msg = [];
   for (const c of [ir, rgb]) {
     const t3 = tot(c);
-    if (t3 > 1) msg.push(pill('warn', `${c.name}: bis ${nf(t3, 1)} px Bewegungsunschärfe (3σ Turbulenz plus Vorwärtsflug). Abhilfe: stabilisierte Aufhängung, ${c.name === 'Wärmebild' ? 'Kamera mit kürzerer Zeitkonstante' : 'kürzere Belichtung'}, höher oder langsamer fliegen`));
-    else msg.push(pill('good', `${c.name}: Unschärfe unter einem Pixel (${nf(t3, 2)} px mit 3σ Turbulenz)`));
+    if (t3 > 1) msg.push(pillF('warn', `${c.name}: bis ${nf(t3, 1)} px Bewegungsunschärfe (3σ Turbulenz plus Vorwärtsflug). Abhilfe: stabilisierte Aufhängung, ${c.name === 'Wärmebild' ? 'Kamera mit kürzerer Zeitkonstante' : 'kürzere Belichtung'}, höher oder langsamer fliegen`, 'turb-blur', c.name === 'Wärmebild' ? 'blur' : null));
+    else msg.push(pillF('good', `${c.name}: Unschärfe unter einem Pixel (${nf(t3, 2)} px mit 3σ Turbulenz)`, 'turb-blur', c.name === 'Wärmebild' ? 'blur' : null));
   }
   const ovl = ir.gsd * P.irRes * P.overlap / 100;
-  msg.push(pill(3 * ir.footprint > ovl / 2 ? 'warn' : 'info', 3 * ir.footprint > ovl / 2 ? `Bildversatz 3σ ${nf(3 * ir.footprint, 1)} m größer als die halbe Überlappung der Suchbahnen (${nf(ovl / 2, 1)} m): Lücken möglich, Überlappung erhöhen` : `Bildversatz 3σ ${nf(3 * ir.footprint, 1)} m bleibt innerhalb der halben Überlappung (${nf(ovl / 2, 1)} m)`));
+  msg.push(pillF(3 * ir.footprint > ovl / 2 ? 'warn' : 'info', 3 * ir.footprint > ovl / 2 ? `Bildversatz 3σ ${nf(3 * ir.footprint, 1)} m größer als die halbe Überlappung der Suchbahnen (${nf(ovl / 2, 1)} m): Lücken möglich, Überlappung erhöhen` : `Bildversatz 3σ ${nf(3 * ir.footprint, 1)} m bleibt innerhalb der halben Überlappung (${nf(ovl / 2, 1)} m)`, 'turb-resp'));
   $('#img-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   // kumulierter Effektivwert der Drehraten über der Frequenz
   const fmax = 6, cum = k => { const out = []; let s2 = 0; for (let i = 1; i < tr.ws.length; i++) { const w = tr.ws[i]; if (w <= tr.wAP) continue; const a = Math.max(tr.ws[i - 1], tr.wAP); s2 += 0.5 * (tr.S[k][i] + tr.S[k][i - 1]) * (w - a); const f = w / (2 * Math.PI); if (f > fmax) break; out.push([f, Math.sqrt(s2) * D]); } return out; };

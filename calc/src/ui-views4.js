@@ -26,7 +26,7 @@ RENDER.konfiguration = (R) => {
   else msg.push(pill(pc.need === 'fold' ? 'info' : 'crit', pc.need === 'fold' ? `Propeller ragt ${nf(-Math.min(pc.open, pc0.open) * 100, 0)} cm unter die Bodenlinie: Klapppropeller, Motor vor dem Aufsetzen stoppen` : 'Auch der gefaltete Propeller berührt den Boden'));
   if (ts && ts.boom && ts.boom.util > 1.001) msg.push(pill('info', `Leitwerksträger verstärkt: ${nf(ts.boom.linReq * 1000, 0)} g/m statt ${nf(P.boomLin * 1000, 0)} g/m (${esc(ts.boom.worst.name)})`));
   if (ts && ts.cone && ts.cone.util > 1.001) msg.push(pill('info', `Rumpfröhre örtlich verstärkt (bis ${nf(ts.cone.util * 100, 0)} % des Mindest-Flächengewichts)`));
-  if (C.np.kFlex < 0.9) msg.push(pill('warn', `Weicher Träger: Höhenleitwerk wirkt bei Reisefahrt nur zu ${nf(C.np.kFlex * 100, 0)} %, Neutralpunkt wandert nach vorn`));
+  if (C.np.kFlex < 0.9) msg.push(pillF('warn', `Weicher Träger: Höhenleitwerk wirkt bei Reisefahrt nur zu ${nf(C.np.kFlex * 100, 0)} %, Neutralpunkt wandert nach vorn`, 'tail-flex', 'sm'));
   $('#cf-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   $('#kpis-cf').innerHTML = [
     kpi('Schublinie', nfs((g.zP - bal.zcg) * 100, 0), 'cm', `über dem Schwerpunkt · Propeller ${nf(g.xProp, 2)} m ab Bug`),
@@ -112,12 +112,12 @@ function renderGround(RR) {
   $('#kpis-ground').innerHTML = k.join('');
   const msg = [];
   const sim = lc.sim;
-  if (sim.crash) msg.push(pill('crit', `Nach dem ${lc.kind === 'catapult' ? 'Katapult' : 'Abwurf'} sinkt das Flugzeug auf den Boden: ${lc.kind === 'catapult' ? 'Schiene verlängern oder steiler stellen' : 'Katapult verwenden oder schneller werfen'}`));
-  else msg.push(pill(sim.hMin < 0.6 ? 'warn' : 'good', `Tiefster Punkt ${nf(sim.hMin, 2)} m über Grund${sim.tSafe != null ? `, sicher im Steigflug nach ${nf(sim.tSafe, 1)} s` : ''}`));
+  if (sim.crash) msg.push(pillF('crit', `Nach dem ${lc.kind === 'catapult' ? 'Katapult' : 'Abwurf'} sinkt das Flugzeug auf den Boden: ${lc.kind === 'catapult' ? 'Schiene verlängern oder steiler stellen' : 'Katapult verwenden oder schneller werfen'}`, 'launch', 'launch'));
+  else msg.push(pillF(sim.hMin < 0.6 ? 'warn' : 'good', `Tiefster Punkt ${nf(sim.hMin, 2)} m über Grund${sim.tSafe != null ? `, sicher im Steigflug nach ${nf(sim.tSafe, 1)} s` : ''}`, 'launch', 'launch'));
   if (lc.kind === 'catapult' && lc.nx > P.nLaunchMax) msg.push(pill('warn', `Startbeschleunigung ${nf(lc.nx, 1)} g über der zulässigen ${nf(P.nLaunchMax, 1)} g: längere Schiene`));
   if (lc.kind === 'hand' && C.m > 8) msg.push(pill('warn', `${nf(C.m, 1)} kg lassen sich kaum sicher werfen: Katapult vorsehen`));
   if (lc.kind === 'hand' && C.cfg.mot === 'pusher') msg.push(pill('warn', 'Handstart mit Druckpropeller: Wurfhand nahe am Propellerkreis'));
-  if (ld.nCG > 10) msg.push(pill('warn', `Landestoß ${nf(ld.nCG, 1)} g: Akkuhalter und Kameras auf diese Last auslegen oder mehr Federweg`));
+  if (ld.nCG > 10) msg.push(pillF('warn', `Landestoß ${nf(ld.nCG, 1)} g: Akkuhalter und Kameras auf diese Last auslegen oder mehr Federweg`, 'land', 'land'));
   msg.push(pill(pc.need === 'free' ? 'good' : 'info', pc.need === 'free' ? 'Propeller ohne Bodenberührung' : 'Klapppropeller nötig'));
   $('#gr-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   const pts = sim.pts;
@@ -145,12 +145,12 @@ function renderRuder(RR) {
     kpi('Servo größtes Moment', nf(Math.max(...cs.servo.map(s => s.kgcm)), 1), 'kg·cm', 'mit Faktor 1,5 auf das Gelenkmoment (Profiltheorie, eher zu hoch)')
   ].join('');
   const msg = [];
-  for (const c of e.cases) if (Math.abs(c.deg) > P.elevMax) msg.push(pill('crit', `Höhenruder reicht nicht: ${c.name} braucht ${nfs(c.deg, 0)}°`));
-  else if (Math.abs(c.deg) > 0.8 * P.elevMax) msg.push(pill('warn', `${c.name}: ${nfs(c.deg, 0)}° (über 80 % des Vollausschlags)`));
+  for (const c of e.cases) if (Math.abs(c.deg) > P.elevMax) msg.push(pillF('crit', `Höhenruder reicht nicht: ${c.name} braucht ${nfs(c.deg, 0)}°`, 'ctrl-elev'));
+  else if (Math.abs(c.deg) > 0.8 * P.elevMax) msg.push(pillF('warn', `${c.name}: ${nfs(c.deg, 0)}° (über 80 % des Vollausschlags)`, 'ctrl-elev'));
   for (const c of e.cases) if (Math.abs(c.CLh) > 0.85 * e.ClhMax) msg.push(pill('warn', `Höhenleitwerk nahe am Abriss: ${c.name} (c_A,H ${nfs(c.CLh, 2)})`));
-  if (a.lvlB > 1 || a.lvlC > 1) msg.push(pill('warn', 'Rollen langsamer als MIL-F-8785C Level 1: Querruder länger, tiefer oder weiter ausschlagen'));
-  if (a.VR < 1.2 * P.vmax) msg.push(pill('crit', `Querruderumkehr bei ${nf(a.VR, 0)} m/s unter 1,2 × V_max: torsionssteifere Nase oder Ruder weiter innen`));
-  if (r.maxDeg > P.rudMax) msg.push(pill('crit', `Seitenruder reicht nicht (${nf(r.maxDeg, 0)}° nötig)`));
+  if (a.lvlB > 1 || a.lvlC > 1) msg.push(pillF('warn', 'Rollen langsamer als MIL-F-8785C Level 1: Querruder länger, tiefer oder weiter ausschlagen', 'ctrl-roll'));
+  if (a.VR < 1.2 * P.vmax) msg.push(pillF('crit', `Querruderumkehr bei ${nf(a.VR, 0)} m/s unter 1,2 × V_max: torsionssteifere Nase oder Ruder weiter innen`, 'ctrl-rev'));
+  if (r.maxDeg > P.rudMax) msg.push(pillF('crit', `Seitenruder reicht nicht (${nf(r.maxDeg, 0)}° nötig)`, 'ctrl-rud'));
   if (Math.abs(r.pwTrim.dr) * RAD > 5) msg.push(pill('info', `Drall bei Vollgas braucht ${nf(Math.abs(r.pwTrim.dr) * RAD, 1)}° Seitenruder`));
   if (a.cellOverAil) msg.push(pill('warn', `Solarzellen reichen bis ${nf(P.cellX1, 0)} % der Tiefe, das Querruder beginnt bei ${nf((1 - P.ailCf) * 100, 0)} %: Zellen auf dem Ruder oder Ruder schmaler`));
   if (!msg.length) msg.push(pill('good', 'Alle Ruder mit Reserve ausgelegt'));
@@ -215,13 +215,14 @@ function renderVib(RR) {
     kpi('Anstellwinkelschwingung', spR ? nf(spR.wn, 1) : '–', 'rad/s', `starr · Flugdynamik ${spD ? nf(spD.wn, 1) : '–'} rad/s · mit Flügelbiegung ${spE ? nf(spE.wn, 1) : '–'} rad/s`)
   ].join('');
   const msg = [];
-  for (const c of V.cases) if (!c.ok) msg.push(pill('crit', `${c.name}: Flattern bei ${nf(c.vf, 1)} m/s, unter 1,2 × V_D`));
-  if (V.ok) msg.push(pill('good', `Im Betrieb flatterfrei bis ${V.vfMin ? nf(V.vfMin, 0) + ' m/s' : 'über ' + nf(V.vMax, 0) + ' m/s'}`));
+  const fidOf = k => ({ wing: 'ae-flutter', bff: 'vib-bff', ail: 'vib-ctrl', fin: 'vib-tail', ht: 'vib-tail' }[k]);
+  for (const c of V.cases) if (!c.ok) msg.push(pillF('crit', `${c.name}: Flattern bei ${nf(c.vf, 1)} m/s, unter 1,2 × V_D`, fidOf(c.k)));
+  if (V.ok) msg.push(pillF('good', `Im Betrieb flatterfrei bis ${V.vfMin ? nf(V.vfMin, 0) + ' m/s' : 'über ' + nf(V.vMax, 0) + ' m/s'}`, 'ae-req'));
   const surf = [['Querruder', V.ail], ['Seitenruder', V.fin], ['Höhenruder', V.ht]];
-  for (const [n, c] of surf) if (c.free && c.free.vf && c.free.vf < vD) msg.push(pill('warn', `${n} frei flattert ab ${nf(c.free.vf, 1)} m/s: Massenausgleich ${fin(c.needFree) ? '≥ ' + nf(c.needFree * 100, 0) + ' %' : 'reicht nicht'} oder spielfreie, selbsthemmende Anlenkung`));
-  if (V.bff.vf && V.bff.vf < vR) msg.push(pill('crit', `Freiflug-Flattern (Anstellwinkelschwingung mit Flügelbiegung) bei ${nf(V.bff.vf, 1)} m/s`));
-  else if (fin(V.bff.ratio) && V.bff.ratio < 2) msg.push(pill('info', `1. Flügelbiegung nur ${nf(V.bff.ratio, 1)} × über der Anstellwinkelschwingung: Freiflug-Flattern im Standschwingversuch und Flugversuch beobachten`));
-  const r45 = V.r45; msg.push(pill(r45.ratio <= 1 ? 'info' : 'warn', `Report 45 (nur Orientierung): Torsionsnachgiebigkeit F = ${nf(r45.F * 1e3, 2)}·10⁻³ rad·m²/N, ${nf(r45.ratio * 100, 0)} % der Grenze 200/V_D²`));
+  for (const [n, c] of surf) if (c.free && c.free.vf && c.free.vf < vD) msg.push(pillF('warn', `${n} frei flattert ab ${nf(c.free.vf, 1)} m/s: Massenausgleich ${fin(c.needFree) ? '≥ ' + nf(c.needFree * 100, 0) + ' %' : 'reicht nicht'} oder spielfreie, selbsthemmende Anlenkung`, 'vib-bal'));
+  if (V.bff.vf && V.bff.vf < vR) msg.push(pillF('crit', `Freiflug-Flattern (Anstellwinkelschwingung mit Flügelbiegung) bei ${nf(V.bff.vf, 1)} m/s`, 'vib-bff'));
+  else if (fin(V.bff.ratio) && V.bff.ratio < 2) msg.push(pillF('info', `1. Flügelbiegung nur ${nf(V.bff.ratio, 1)} × über der Anstellwinkelschwingung: Freiflug-Flattern im Standschwingversuch und Flugversuch beobachten`, 'vib-bff'));
+  const r45 = V.r45; msg.push(pillF(r45.ratio <= 1 ? 'info' : 'warn', `Report 45 (nur Orientierung): Torsionsnachgiebigkeit F = ${nf(r45.F * 1e3, 2)}·10⁻³ rad·m²/N, ${nf(r45.ratio * 100, 0)} % der Grenze 200/V_D²`, 'vib-r45'));
   if (cf.tail === 'T') msg.push(pill('info', 'T-Leitwerk: Luftkräfte am Höhenleitwerk bei Seitenleitwerksschwingungen nicht erfasst, Standschwingversuch nötig'));
   if (cf.mot === 'fin') msg.push(pill('info', 'Motor auf dem Seitenleitwerk: Propeller-Wirbelflattern (Whirl Flutter) nicht gerechnet'));
   $('#vib-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
@@ -273,3 +274,26 @@ function renderVib(RR) {
   const kTxt = [['Flügel Biegung', V.kEI], ['Flügel Torsion', V.kGJ], [V.fin.M.sp.kind + ' quer', V.kL], [V.fin.M.sp.kind + ' hoch', V.kV]].filter(([, k]) => Math.abs(k - 1) > 1e-3).map(([n, k]) => `${n} × ${nf(k, 2)}`);
   $('#gvt-note').innerHTML = (kTxt.length ? `<b>Eichfaktoren:</b> ${kTxt.join(' · ')}. ` : '') + 'Eichung über k = (f_gemessen / f_Modell)²; die Massen bleiben, wie sie im Rechner stehen. Aufhängung so weich, dass die Starrkörperfrequenz unter einem Drittel der ersten Flügelbiegung liegt.';
 }
+
+/* ---------- Ansicht Formeln ---------- */
+RENDER.formeln = () => {
+  const sel = $('#fx-ch');
+  if (!sel.options.length) sel.innerHTML = `<option value="">Alle Kapitel</option>` + FORMULA_CH.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
+  if (UI.fxSel) { $('#fx-q').value = ''; sel.value = ''; }
+  renderFormulaList();
+  $('#fx-sub').textContent = `${FORMULAS.length} Rechenschritte mit Formel, Quelle und Ort im Code; ${Object.keys(LIT).length} Quellen. Die Stellgrößen führen zum Eingabefeld. Dieselben Einträge stehen in docs/BERECHNUNGEN.md im Repository.`;
+  $('#fx-lit').innerHTML = Object.entries(LIT).sort((a, b) => a[1].localeCompare(b[1], 'de')).map(([k, t]) => `<li id="lit-${k}">${esc(t)}</li>`).join('');
+};
+function renderFormulaList() {
+  const q = ($('#fx-q').value || '').trim().toLowerCase(), ch = $('#fx-ch').value, out = [];
+  for (const [ck, cl] of FORMULA_CH) {
+    if (ch && ch !== ck) continue;
+    const list = FORMULAS.filter(f => f.ch === ck && (!q || [f.t, f.f, f.v, f.n, f.at, ...(f.p || []).map(k => (PM[k] ? PM[k].l : k)), ...(f.s || []).map(x => LIT[litOf(x).k] || x)].join(' ').toLowerCase().includes(q)));
+    if (!list.length) continue;
+    out.push(`<h3 class="first">${esc(cl)}</h3>` + list.map(f => `<div class="fx-card${UI.fxSel === f.id ? ' sel' : ''}" id="fx-${f.id}"><h4>${esc(f.t)}</h4><div class="fx">${formulaHTML(f, { link: false, code: true })}</div></div>`).join(''));
+  }
+  $('#fx-list').innerHTML = out.join('') || '<p class="note">Nichts gefunden.</p>';
+  if (UI.fxSel) { const el = document.getElementById('fx-' + UI.fxSel); if (el) setTimeout(() => el.scrollIntoView({ block: 'center' }), 60); UI.fxSel = null; }
+}
+$('#fx-q').addEventListener('input', () => renderFormulaList());
+$('#fx-ch').addEventListener('change', () => renderFormulaList());

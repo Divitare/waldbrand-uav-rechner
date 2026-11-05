@@ -156,9 +156,9 @@ RENDER.schwerpunkt = (R) => {
   const drg = [P.trimMode !== 'wing' ? 'Flügel samt Leitwerk' : null, 'Bordsysteme', !P.battInWing && P.trimMode !== 'battery' ? 'Akku' : null].filter(Boolean).join(', ');
   $('#cg-sub').innerHTML = `Oben maßstäblich von der Seite, unten jede Masse an ihrer Längslage (Höhe ∝ √Masse). Ziehbar (oder Pfeiltasten): ${esc(drg)}.${P.trimMode === 'battery' && !P.battInWing ? ' Der Akku wird automatisch so gesetzt, dass das Ziel-Stabilitätsmaß erreicht wird.' : P.trimMode === 'wing' ? ' Der Flügel wird automatisch so gesetzt, dass das Ziel-Stabilitätsmaß erreicht wird.' : ''} <span id="cg-live" class="mono"></span>`;
   const sm = bal.sm * 100, msg = [];
-  if (bal.msg) msg.push(pill(bal.ballast > 0.05 ? 'crit' : 'warn', bal.msg + ` ${nf(bal.ballast * 1000, 0)} g Ballast.`));
-  if (sm < 3) msg.push(pill('crit', `Stabilitätsmaß nur ${nf(sm, 1)} %: kaum noch längsstabil`)); else if (sm > 25) msg.push(pill('warn', `Stabilitätsmaß ${nf(sm, 1)} %: sehr kopflastig, hoher Trimmaufwand`));
-  if (!msg.length) msg.push(pill('good', `Schwerpunkt ${nf(sm, 1)} % MAC vor dem Neutralpunkt${bal.ballast > 0 ? '' : ', ohne Ballast'}`));
+  if (bal.msg) msg.push(pillF(bal.ballast > 0.05 ? 'crit' : 'warn', bal.msg + ` ${nf(bal.ballast * 1000, 0)} g Ballast.`, 'mass-trim', 'mass'));
+  if (sm < 3) msg.push(pillF('crit', `Stabilitätsmaß nur ${nf(sm, 1)} %: kaum noch längsstabil`, 'mass-np', 'sm')); else if (sm > 25) msg.push(pillF('warn', `Stabilitätsmaß ${nf(sm, 1)} %: sehr kopflastig, hoher Trimmaufwand`, 'mass-np', 'sm'));
+  if (!msg.length) msg.push(pillF('good', `Schwerpunkt ${nf(sm, 1)} % MAC vor dem Neutralpunkt${bal.ballast > 0 ? '' : ', ohne Ballast'}`, 'mass-np', 'sm'));
   for (const n of C.cfg.notes) msg.push(pill('warn', n.t));
   if (bal.g.boomClear < 0) msg.push(pill('crit', `Rohrträger läuft ${nf(-bal.g.boomClear * 100, 0)} cm tief durch den Propellerkreis: so nicht baubar. Zwei Träger oder Seglerrumpf mit Pylon wählen.`));
   if (C.cfg.mot !== 'nose') msg.push(pill('info', `Motor ${nf(bal.g.xMot - bal.xcg, 2)} m hinter und ${nf((bal.g.zP - bal.zcg) * 100, 0)} cm über dem Schwerpunkt · Antriebsleitung ${nf((C.harness.byKey.wmot || 0) * 1000, 0)} g`));
@@ -305,10 +305,10 @@ function renderStrukturMain(RR) {
     kpi('Leitwerk schwingt', d.fm[0] ? nf(d.fm[0].f, 1) : '–', 'Hz', `Seitenleitwerk quer · Höhenleitwerk ${d.hm[0] ? nf(d.hm[0].f, 1) : '–'} Hz${fin(tb.t) ? ` · Trägerwand ${nf(tb.t * 1000, 2)} mm` : ''}`)
   ].join('');
   const msg = [];
-  msg.push(A.okF ? pill('good', fl.vf ? `Flatterfrei bis ${nf(fl.vf, 0)} m/s (${nf(fl.vf / P.vmax, 2)} × V_max)` : 'Kein Flattern im Rechenbereich') : pill('crit', `Flattern bei ${nf(fl.vf, 1)} m/s – unter 1,2 × V_max. Torsionssteifere Nase, Holm weiter hinten, Zellen weiter vorn oder V_max senken.`));
-  msg.push(A.okD ? pill('good', fin(A.VD) ? `Divergenz erst bei ${nf(A.VD, 0)} m/s` : 'Keine Divergenz') : pill('crit', `Divergenz bei ${nf(A.VD, 1)} m/s – unter 1,2 × V_max`));
+  msg.push(A.okF ? pillF('good', fl.vf ? `Flatterfrei bis ${nf(fl.vf, 0)} m/s (${nf(fl.vf / P.vmax, 2)} × V_max)` : 'Kein Flattern im Rechenbereich', 'ae-flutter', 'vfWing') : pillF('crit', `Flattern bei ${nf(fl.vf, 1)} m/s – unter 1,2 × V_max. Torsionssteifere Nase, Holm weiter hinten, Zellen weiter vorn oder V_max senken.`, 'ae-flutter', 'vfWing'));
+  msg.push(A.okD ? pillF('good', fin(A.VD) ? `Divergenz erst bei ${nf(A.VD, 0)} m/s` : 'Keine Divergenz', 'ae-div') : pillF('crit', `Divergenz bei ${nf(A.VD, 1)} m/s – unter 1,2 × V_max`, 'ae-div'));
   const rc = d.res.hits.filter(h => h.cruise);
-  if (rc.length) msg.push(pill('warn', `${rc.map(h => h.name).join(', ')} nahe der Reisedrehzahl angeregt (${rc.map(h => nf(h.rpm, 0)).join(', ')} U/min)`));
+  if (rc.length) msg.push(pillF('warn', `${rc.map(h => h.name).join(', ')} nahe der Reisedrehzahl angeregt (${rc.map(h => nf(h.rpm, 0)).join(', ')} U/min)`, 'vib-res'));
   else if (d.res.hits.length) msg.push(pill('info', `${d.res.hits.length} Eigenfrequenz${d.res.hits.length > 1 ? 'en' : ''} nur beim Steigen durchfahren`));
   else msg.push(pill('good', `Keine Eigenfrequenz im Drehzahlbereich ${nf(d.res.rpm0, 0)}–${nf(d.res.rpm1, 0)} U/min`));
   if (st.stiffF > 1.01) msg.push(pill('info', `Holm durch die Durchbiegungsgrenze bestimmt (× ${nf(st.stiffF, 2)})`));
@@ -462,8 +462,8 @@ RENDER.antrieb = (R) => {
   if (!op || !op.ok) msg.push(pill('crit', 'Reiseflug-Schub mit diesem Motor nicht erreichbar (Spannung oder Strom am Limit)'));
   if (op && op.J > 0.9 * pd.tab.J0) msg.push(pill('warn', 'Propeller arbeitet nahe am Schubnullpunkt: Steigung zu klein oder Drehzahl zu niedrig'));
   if (tipM > 0.6) msg.push(pill('warn', `Blattspitze bei Vollgas Mach ${nf(tipM, 2)}: laut und verlustreich`));
-  if (op && op.ok && op.etaTot < 0.5) msg.push(pill('warn', `Gesamtwirkungsgrad nur ${nf(op.etaTot * 100, 0)} %: Propeller größer und langsamer, Kv anpassen`));
-  if (cg.bestC.roc < 1) msg.push(pill('warn', 'Weniger als 1 m/s Steigen: Startphase und Aufwinde-Ausgleich knapp'));
+  if (op && op.ok && op.etaTot < 0.5) msg.push(pillF('warn', `Gesamtwirkungsgrad nur ${nf(op.etaTot * 100, 0)} %: Propeller größer und langsamer, Kv anpassen`, 'prop-bemt'));
+  if (cg.bestC.roc < 1) msg.push(pillF('warn', 'Weniger als 1 m/s Steigen: Startphase und Aufwinde-Ausgleich knapp', 'drag-climb', 'roc'));
   if (!msg.length) msg.push(pill('good', `Motor im Reiseflug bei ${nf(op.throttle * 100, 0)} % Gas, Reserve bis ${nf(pd.mx.T, 1)} N Schub`));
   $('#op-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   $('#map-sub').textContent = `Akkuleistung bis Schubleistung: Propeller (Blattelementmethode mit Prandtl-Verlusten) × Motor (Ersatzschaltbild nach Drela) × Regler × Getriebe${C.motor.eta < 1 ? ' × Einbauverlust' : ''}. Leer: mit diesem Motor nicht erreichbar.`;
@@ -618,9 +618,9 @@ function renderSlip(R) {
   $('#slip-sub').textContent = `Strahl nach der Strahltheorie im Reiseflug (Schub ${nf(pw.T, 2)} N, induzierte Geschwindigkeit ${nf(pw.ps.vi, 2)} m/s, im Fernfeld ${nf(2 * pw.ps.vi, 2)} m/s). Band: Strahlrand, hinter dem Flügel um den Abwind ${nf(sg.eps * RAD, 1)}° abgelenkt, ohne Vermischung (obere Abschätzung).`;
   const cr = st.rows.find(r => r.k === 'climb'), gl = st.rows.find(r => r.k === 'glide'), cu = st.rows.find(r => r.k === 'cruise');
   const msg = [];
-  if (Math.abs(cr.CLh) > 0.75) msg.push(pill('crit', `Vollgas braucht c_A,H ${nf(cr.CLh, 2)} am Höhenleitwerk: nahe am Abriss. Schublinie tiefer, Leitwerk größer oder Gas begrenzen.`));
-  else if (Math.abs(cr.CLh - gl.CLh) > 0.3) msg.push(pill('warn', `Gas geben verstellt die Trimmung deutlich (c_A,H ${nfs(gl.CLh, 2)} → ${nfs(cr.CLh, 2)})`));
-  else msg.push(pill('good', `Trimmänderung mit Gas gering (c_A,H ${nfs(gl.CLh, 2)} → ${nfs(cr.CLh, 2)})`));
+  if (Math.abs(cr.CLh) > 0.75) msg.push(pillF('crit', `Vollgas braucht c_A,H ${nf(cr.CLh, 2)} am Höhenleitwerk: nahe am Abriss. Schublinie tiefer, Leitwerk größer oder Gas begrenzen.`, 'slip-moment'));
+  else if (Math.abs(cr.CLh - gl.CLh) > 0.3) msg.push(pillF('warn', `Gas geben verstellt die Trimmung deutlich (c_A,H ${nfs(gl.CLh, 2)} → ${nfs(cr.CLh, 2)})`, 'slip-moment'));
+  else msg.push(pillF('good', `Trimmänderung mit Gas gering (c_A,H ${nfs(gl.CLh, 2)} → ${nfs(cr.CLh, 2)})`, 'slip-moment'));
   if (gl.sm < 0.05) msg.push(pill('warn', `Ohne Motor nur ${nf(gl.sm * 100, 1)} % Stabilitätsmaß (mit Motor ${nf(cu.sm * 100, 1)} %)`));
   if (Math.abs(pw.swV) > 1.5 * DEG) msg.push(pill('info', `Drall trifft das Seitenleitwerk mit ${nf(Math.abs(pw.swV) * RAD, 1)}° Schräganströmung: Seitenruder trimmen (Richtung je nach Drehsinn)`));
   $('#slip-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;

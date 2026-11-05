@@ -39,29 +39,29 @@ function verdictOf(R) {
 }
 function flagsOf(R) {
   const { P, C, mis, so, mp } = R, f = [];
-  if (C.m > P.mtomLimit) f.push(pill('crit', `Abflugmasse ${nf(C.m, 2)} kg über ${nf(P.mtomLimit, 1)} kg`));
-  else f.push(pill('good', `Abflugmasse ${nf(C.m / P.mtomLimit * 100, 0)} % der zulässigen`));
+  if (C.m > P.mtomLimit) f.push(pillF('crit', `Abflugmasse ${nf(C.m, 2)} kg über ${nf(P.mtomLimit, 1)} kg`, 'mass-loop', 'mass'));
+  else f.push(pillF('good', `Abflugmasse ${nf(C.m / P.mtomLimit * 100, 0)} % der zulässigen`, 'mass-loop', 'mass'));
   const vr = P.v / C.vs, vrt = P.v / C.vsTurn;
-  if (vr < 1.25) f.push(pill('crit', `Reise nur ${nf(vr, 2)} × Mindestfahrt`)); else if (vrt < 1.15) f.push(pill('warn', `Kurvenflug nur ${nf(vrt, 2)} × Mindestfahrt`));
-  if (C.turn.clPeak > 0.92) f.push(pill('warn', `Im Kurvenflug örtlich ${nf(C.turn.clPeak * 100, 0)} % von c_a,max`));
-  const conf = foilMeta(C.foil, C.mode, P.v * C.pf.mac / C.nu).conf; if (conf < 0.8) f.push(pill('warn', `Polaren unsicher (Konfidenz ${nf(conf, 2)})`));
+  if (vr < 1.25) f.push(pillF('crit', `Reise nur ${nf(vr, 2)} × Mindestfahrt`, 'drag-stall', 'vs')); else if (vrt < 1.15) f.push(pillF('warn', `Kurvenflug nur ${nf(vrt, 2)} × Mindestfahrt`, 'drag-stall', 'vs'));
+  if (C.turn.clPeak > 0.92) f.push(pillF('warn', `Im Kurvenflug örtlich ${nf(C.turn.clPeak * 100, 0)} % von c_a,max`, 'aero-clmax'));
+  const conf = foilMeta(C.foil, C.mode, P.v * C.pf.mac / C.nu).conf; if (conf < 0.8) f.push(pillF('warn', `Polaren unsicher (Konfidenz ${nf(conf, 2)})`, 'aero-polar'));
   if (C.lvl.ext) f.push(pill('warn', 'Reynoldszahl außerhalb der Tabellen'));
-  if (R.cold > 0) f.push(pill('warn', `${nf(R.cold, 1)} h ohne Laden (Akku unter 0 °C)`));
-  if (mp.ws.pHold < 0.9) f.push(pill('warn', `Wind übersteigt 90 % der Fahrt an ${nf((1 - mp.ws.pHold) * 100, 0)} % der Zeit`));
+  if (R.cold > 0) f.push(pillF('warn', `${nf(R.cold, 1)} h ohne Laden (Akku unter 0 °C)`, 'bat-step'));
+  if (mp.ws.pHold < 0.9) f.push(pillF('warn', `Wind übersteigt 90 % der Fahrt an ${nf((1 - mp.ws.pHold) * 100, 0)} % der Zeit`, 'mis-wind'));
   if (P.v > P.vmax) f.push(pill('warn', 'Reise schneller als SORA-Höchstgeschwindigkeit'));
   if (so.sail) f.push(pill(ROMAN[so.sail] <= 3 ? 'good' : 'warn', `SAIL ${so.sail}`));
   if (C.bal) {
-    if (C.bal.sm < 0.03) f.push(pill('crit', `Stabilitätsmaß nur ${nf(C.bal.sm * 100, 1)} %`));
-    if (C.bal.ballast > 0.02) f.push(pill('warn', `${nf(C.bal.ballast * 1000, 0)} g Trimmballast`));
+    if (C.bal.sm < 0.03) f.push(pillF('crit', `Stabilitätsmaß nur ${nf(C.bal.sm * 100, 1)} %`, 'mass-np', 'sm'));
+    if (C.bal.ballast > 0.02) f.push(pillF('warn', `${nf(C.bal.ballast * 1000, 0)} g Trimmballast`, 'mass-trim', 'mass'));
   }
   const kk = keyOf(), ae = UI.cache.ae && UI.cache.ae.k === kk ? UI.cache.ae.v : null, dy = UI.cache.dyn && UI.cache.dyn.k === kk ? UI.cache.dyn.v : null;
   if (ae) {
     const A = ae.A;
-    f.push(A.okF ? pill('good', A.flutter.vf ? `Flattern erst bei ${nf(A.flutter.vf, 0)} m/s` : 'Kein Flattern im Rechenbereich') : pill('crit', `Flattern bei ${nf(A.flutter.vf, 0)} m/s`));
-    if (!A.okD) f.push(pill('crit', `Divergenz bei ${nf(A.VD, 0)} m/s`));
-    if (ae.res.hits.length) f.push(pill('warn', `Eigenfrequenz im Propeller-Drehzahlbereich`));
+    f.push(A.okF ? pillF('good', A.flutter.vf ? `Flattern erst bei ${nf(A.flutter.vf, 0)} m/s` : 'Kein Flattern im Rechenbereich', 'ae-flutter', 'vfWing') : pillF('crit', `Flattern bei ${nf(A.flutter.vf, 0)} m/s`, 'ae-flutter', 'vfWing'));
+    if (!A.okD) f.push(pillF('crit', `Divergenz bei ${nf(A.VD, 0)} m/s`, 'ae-div'));
+    if (ae.res.hits.length) f.push(pillF('warn', `Eigenfrequenz im Propeller-Drehzahlbereich`, 'vib-res'));
   } else if (C.struct) f.push(pill('info', 'Schwingungsrechnung läuft …'));
-  if (dy) { const w = dy.flex.crit.reduce((a, c) => (c.level > a.level ? c : a), { level: 1 }); f.push(w.level === 1 ? pill('good', 'Flugeigenschaften Level 1') : pill(w.level === 2 ? 'info' : 'warn', `${w.name}: Level ${w.level}`)); }
+  if (dy) { const w = dy.flex.crit.reduce((a, c) => (c.level > a.level ? c : a), { level: 1 }); f.push(w.level === 1 ? pillF('good', 'Flugeigenschaften Level 1', 'dyn-crit') : pillF(w.level === 2 ? 'info' : 'warn', `${w.name}: Level ${w.level}`, 'dyn-crit')); }
   if (C.struct && C.struct.stiffF > 1.01) f.push(pill('info', 'Holm steifigkeitsbestimmt'));
   if (P.structMode === 'fix') { const est = structureMass(C, C.m); f.push(pill('info', `Strukturmodell schätzt ${nf(est, 2)} kg`)); }
   return f.join('');

@@ -5,7 +5,8 @@
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
-    "build": "node calc/tools/build.mjs && node calc/tests/check.cjs",
+    "build": "node calc/tools/build.mjs && node calc/tools/docs.mjs --check && node calc/tests/check.cjs",
+    "docs": "node calc/tools/docs.mjs",
     "check": "node calc/tests/check.cjs",
     "dev": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",

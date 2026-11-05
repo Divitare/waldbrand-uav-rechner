@@ -17,6 +17,12 @@ function fmtDur(h) { if (!fin(h)) return h === Infinity ? '∞' : '–'; const s
 const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 function fmtDoy(n, y) { const d = new Date(Date.UTC(y || 2026, 0, n)); return d.getUTCDate() + '. ' + MONTHS[d.getUTCMonth()]; }
 function pill(kind, text) { const ic = { good: '✓', warn: '!', crit: '×', info: 'i' }[kind] || 'i'; return `<span class="pill ${kind}"><span class="ic" aria-hidden="true">${ic}</span>${esc(text)}</span>`; }
+// Hinweis zum Aufklappen: Formel aus dem Katalog, Stellgrößen mit Sprung zum Eingabefeld, auf Wunsch Einfluss der Stellgrößen
+function pillF(kind, text, fid, metric) {
+  if (typeof FORMULA_BY_ID === 'undefined' || !FORMULA_BY_ID[fid]) return pill(kind, text);
+  const ic = { good: '✓', warn: '!', crit: '×', info: 'i' }[kind] || 'i';
+  return `<details class="pillx ${kind}" data-f="${fid}"${metric ? ` data-m="${metric}"` : ''}><summary class="pill ${kind}"><span class="ic" aria-hidden="true">${ic}</span>${esc(text)}<span class="pmore" aria-hidden="true"></span></summary><div class="pillx-body"></div></details>`;
+}
 const pct = x => nf(x * 100, 0) + ' %';
 
 /* ---------- Daten aus der Seite ---------- */
@@ -344,7 +350,7 @@ function applyPreset(key) {
 function markPreset() { S.preset = ''; const el = $('#preset-sel'); if (el) el.value = ''; }
 
 /* ---------- Ansichten ---------- */
-const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'ruder', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'validierung', 'team'];
+const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'ruder', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'validierung', 'formeln', 'team'];
 let VIEW = 'uebersicht';
 function showView(v) {
   if (!VIEWS.includes(v) || !document.getElementById('v-' + v)) v = 'uebersicht';
@@ -387,3 +393,86 @@ function renderView(force) {
   const fn = RENDER[VIEW];
   if (fn) { try { fn(R, force); } catch (err) { console.error(err); } }
 }
+
+/* ---------- Formeln zu Hinweisen, Sprung zur Stellgröße, Einfluss der Stellgrößen ---------- */
+const shortCite = k => { const t = LIT[k] || k, m = /^([^,(]+?)(?:,[^()]*?)?\s*\((\d{4})\)/.exec(t); return m ? `${m[1].replace(/ u\. a\.$/, '').trim()} ${m[2]}` : t.split('. ')[0]; };
+function paramText(k) {
+  const m = PM[k], v = S.params[k]; if (!m) return esc(k);
+  let val;
+  if (m.sel === 'bool') val = v ? 'ja' : 'nein';
+  else if (m.sel && SEL[m.sel === true ? k : m.sel]) { const o = SEL[m.sel === true ? k : m.sel].find(o => String(o[0]) === String(v)); val = o ? o[1] : String(v); }
+  else if (typeof v === 'number') { const d = m.step >= 1 ? 0 : m.step >= 0.1 ? 1 : m.step >= 0.01 ? 2 : 3; val = nf(v, d) + (m.u ? ' ' + m.u : ''); }
+  else val = String(v ?? '–');
+  return `${esc(m.l)} <b>${esc(val)}</b>`;
+}
+// Ansicht, in der eine Stellgröße eingegeben wird (erstes Formular mit dieser Größe)
+function paramView(k) {
+  for (const el of $$('[data-form]')) if ((FORMS[el.dataset.form] || []).includes(k)) { const sec = el.closest('.view'); if (sec && sec.dataset.view !== 'uebersicht') return sec.dataset.view; }
+  for (const el of $$('[data-form]')) if ((FORMS[el.dataset.form] || []).includes(k)) { const sec = el.closest('.view'); if (sec) return sec.dataset.view; }
+  return null;
+}
+function jumpTo(k) {
+  const v = paramView(k); if (!v) return;
+  const go = () => {
+    const el = $(`#v-${v} [data-k="${k}"]`); if (!el) return;
+    const det = el.closest('details'); if (det) det.open = true;
+    const fld = el.closest('.field') || el; fld.classList.add('flash'); setTimeout(() => fld.classList.remove('flash'), 2200);
+    fld.scrollIntoView({ block: 'center', behavior: 'smooth' }); try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+  };
+  if (VIEW !== v) { location.hash = v; setTimeout(go, 120); } else go();
+}
+function formulaHTML(f, opt = {}) {
+  const src = (f.s || []).map(litOf).map(l => `${esc(shortCite(l.k))}${l.at ? ', ' + esc(l.at) : ''}`).join('; ');
+  const pars = (f.p || []).filter(k => PM[k]).map(k => `<button type="button" class="chip" data-jump="${k}" title="Zum Eingabefeld">${paramText(k)}</button>`).join('');
+  return `<pre class="fx-f">${esc(f.f)}</pre>${f.v ? `<p class="fx-v">${esc(f.v)}</p>` : ''}${f.n ? `<p class="fx-v">${esc(f.n)}</p>` : ''}` +
+    (pars ? `<div class="fx-p"><span class="muted">Stellgrößen</span>${pars}</div>` : '') +
+    `<p class="fx-s">Quelle: ${src || '–'}${opt.link !== false ? ` · <a href="#formeln" data-fid="${f.id}">im Formelkatalog</a>` : ''}${opt.code ? ` · <code>${esc(f.at)}</code>` : ''}</p>`;
+}
+// Kennzahlen für den Einfluss der Stellgrößen (jeweils ganzer Rechenfall)
+const METRICS = {
+  mass: { l: 'Abflugmasse', u: 'kg', d: 2, fn: (P, c) => buildCase(P, c).m },
+  vs: { l: 'Reise / Mindestfahrt', u: '', d: 2, fn: (P, c) => P.v / buildCase(P, c).vs },
+  sm: { l: 'Stabilitätsmaß', u: '% MAC', d: 1, fn: (P, c) => buildCase(P, c).bal.sm * 100 },
+  tExc: { l: 'Excess Time (klar, Auslegungstag)', u: 'h', d: 2, fn: (P, c) => { const C = buildCase(P, c), n = dayOfYear(P.date), y = yearOf(P.date); return periodic(C, daySeries(C, envClear(P, n, y))).tExc; } },
+  vfWing: { l: 'Flattern Flügel', u: 'm/s', d: 1, fn: (P, c) => { const A = aeroelastic(buildCase(P, c), { nStep: 24 }); return A.flutter.vf || NaN; } },
+  ucell: { l: 'Zellspannung Vollgas bei Reserve', u: 'V', d: 3, fn: (P, c) => battReport(buildCase(P, c)).climbRes.Ucell },
+  roc: { l: 'Steigen bei Reserve', u: 'm/s', d: 2, fn: (P, c) => battReport(buildCase(P, c)).climbRes.roc },
+  blur: { l: 'Unschärfe Wärmebild (3σ + vorwärts)', u: 'px', d: 2, fn: (P, c) => { const im = imageStability(buildCase(P, c)); return 3 * im.ir.blurE + im.ir.blurV; } },
+  land: { l: 'Landestoß', u: 'g', d: 1, fn: (P, c) => buildCase(P, c).land.nCG },
+  launch: { l: 'tiefster Punkt nach dem Start', u: 'm', d: 2, fn: (P, c) => launchCheck(buildCase(P, c)).sim.hMin },
+  wire: { l: 'Kabelmasse', u: 'g', d: 0, fn: (P, c) => buildCase(P, c).mass.wire * 1000 }
+};
+function sensitivity(fid, mk, box) {
+  const f = FORMULA_BY_ID[fid], M = METRICS[mk]; if (!f || !M) return;
+  const P0 = S.params, comps = S.comps, keys = (f.p || []).filter(k => PM[k] && !PM[k].sel && typeof P0[k] === 'number' && PM[k].step > 0);
+  if (!keys.length) { box.innerHTML = '<p class="note">Keine stetigen Stellgrößen in dieser Formel.</p>'; return; }
+  let base; try { base = M.fn(P0, comps); } catch (e) { base = NaN; }
+  const rows = []; let i = 0;
+  box.innerHTML = `<p class="note">Rechnet ${keys.length} Stellgrößen …</p>`;
+  const step = () => {
+    if (i >= keys.length) {
+      rows.sort((a, b) => Math.max(Math.abs(b.dm), Math.abs(b.dp)) - Math.max(Math.abs(a.dm), Math.abs(a.dp)));
+      const fm = v => (fin(v) ? nf(v, M.d) : '–'), fd = v => (fin(v) ? nfs(v, M.d) : '–');
+      box.innerHTML = `<table class="data sens"><thead><tr><th>Stellgröße</th><th class="n">−</th><th class="n">+</th></tr></thead><tbody>${rows.map(r => `<tr><td><button type="button" class="linkish" data-jump="${r.k}">${esc(PM[r.k].l)}</button><div class="small muted">${esc(r.lab)}</div></td><td class="n">${fm(r.vm)}<div class="small muted">${fd(r.dm)}</div></td><td class="n">${fm(r.vp)}<div class="small muted">${fd(r.dp)}</div></td></tr>`).join('')}</tbody>` +
+        `<caption>${esc(M.l)} heute ${fm(base)}${M.u ? ' ' + esc(M.u) : ''}; jede Stellgröße allein um 10 % (ganzzahlige um einen Schritt) verändert.</caption></table>`;
+      return;
+    }
+    const k = keys[i++], m = PM[k], v0 = P0[k], dv = m.step >= 1 && Number.isInteger(v0) ? m.step : Math.max(Math.abs(v0) * 0.1, m.step);
+    const vm = clamp(v0 - dv, m.min, m.max), vp = clamp(v0 + dv, m.min, m.max), ev = v => { if (v === v0) return base; try { return M.fn({ ...P0, [k]: v }, comps); } catch (e) { return NaN; } };
+    const a = ev(vm), b = ev(vp), d = m.step >= 1 ? 0 : m.step >= 0.1 ? 1 : 2;
+    rows.push({ k, vm: a, vp: b, dm: a - base, dp: b - base, lab: `${nf(vm, d)} … ${nf(vp, d)}${m.u ? ' ' + m.u : ''}` });
+    box.firstElementChild && (box.firstElementChild.textContent = `Rechnet ${i} von ${keys.length} Stellgrößen …`);
+    setTimeout(step, 0);
+  };
+  setTimeout(step, 0);
+}
+document.addEventListener('toggle', e => {
+  const d = e.target; if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('pillx') || !d.open) return;
+  const f = FORMULA_BY_ID[d.dataset.f], body = d.querySelector('.pillx-body'); if (!f || !body) return;
+  body.innerHTML = `<div class="fx"><div class="fx-t">${esc(f.t)}</div>${formulaHTML(f)}${d.dataset.m && METRICS[d.dataset.m] ? `<div class="fx-act"><button type="button" class="btn sm" data-sens="${d.dataset.m}" data-sf="${f.id}">Einfluss der Stellgrößen auf ${esc(METRICS[d.dataset.m].l)} rechnen</button></div><div class="fx-sens"></div>` : ''}</div>`;
+}, true);
+document.addEventListener('click', e => {
+  const j = e.target.closest('[data-jump]'); if (j) { e.preventDefault(); jumpTo(j.dataset.jump); return; }
+  const sb = e.target.closest('[data-sens]'); if (sb) { const box = sb.closest('.fx').querySelector('.fx-sens'); sb.disabled = true; sensitivity(sb.dataset.sf, sb.dataset.sens, box); return; }
+  const fl = e.target.closest('a[data-fid]'); if (fl) { UI.fxSel = fl.dataset.fid; UI.fxQuery = ''; }
+});
