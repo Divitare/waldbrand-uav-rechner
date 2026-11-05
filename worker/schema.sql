@@ -1,4 +1,4 @@
--- Bereits in der Cloudflare-D1-Datenbank "uav-budget" angelegt.
+-- In der Cloudflare-D1-Datenbank "uav-budget" angelegt (Tabelle variants).
 -- Nur für lokale Tests nötig: npm run db:local
 CREATE TABLE IF NOT EXISTS variants (
   id TEXT PRIMARY KEY,

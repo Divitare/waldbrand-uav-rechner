@@ -51,8 +51,8 @@ git push -u origin main
 
 ### 2. Cloudflare mit dem Repository verbinden
 
-**Worker gibt es schon** (bisher mit `wrangler deploy` hochgeladen, Name `uav-budget`):
-Cloudflare-Dashboard → **Workers & Pages** → `uav-budget` → **Settings** → **Builds** → **Connect**,
+**Worker gibt es schon** (Name `waldbrand-uav-rechner`):
+Cloudflare-Dashboard → **Workers & Pages** → `waldbrand-uav-rechner` → **Settings** → **Builds** → **Connect**,
 GitHub-Konto autorisieren, Repository wählen.
 
 **Worker gibt es noch nicht:** **Workers & Pages** → **Create application** → **GitHub** →
@@ -67,7 +67,7 @@ Einstellungen in beiden Fällen:
 | Deploy command | `npx wrangler deploy` |
 | Root directory | leer lassen (`/`) |
 
-Der Worker-Name im Dashboard muss `uav-budget` sein wie in `wrangler.jsonc`, sonst bricht der Build ab.
+Der Worker-Name im Dashboard muss `waldbrand-uav-rechner` sein wie in `wrangler.jsonc`, sonst bricht der Build ab.
 
 ### 3. Team-Passwort und Datenbank (nur falls noch nicht geschehen)
 
