@@ -38,6 +38,7 @@
       <a href="#struktur" data-v="struktur">Struktur</a>
       <a href="#antrieb" data-v="antrieb">Antrieb</a>
       <a href="#flugdynamik" data-v="flugdynamik">Flugdynamik</a>
+      <a href="#ruder" data-v="ruder">Ruder</a>
       <a href="#profile" data-v="profile">Profile</a>
       <a href="#komponenten" data-v="komponenten">Komponenten</a>
       <a href="#energie" data-v="energie">Energie</a>
@@ -196,6 +197,29 @@
           <div class="panel"><div class="panel-head"><div><h2>Propellerkennlinien</h2><p id="ct-sub"></p></div></div><div class="chart" id="ch-eta"></div><div class="chart" id="ch-ct"></div></div>
         </div>
         <div class="panel"><div class="panel-head"><div><h2>Betriebspunkte</h2><p>Drehzahl, Strom und Wirkungsgrade in typischen Flugzuständen.</p></div></div><div class="table-wrap"><table class="data" id="tbl-op"></table></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ruder -->
+  <section class="view" id="v-ruder" data-view="ruder" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Ruder</h3><div class="pgrid" data-form="ctrl"></div></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Ruder im Überblick</h2><p id="ru-sub"></p></div></div>
+          <div class="kpis" id="kpis-ru"></div><div id="ru-msg" style="margin-top:10px"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Höhenruder</h2><p id="el-sub"></p></div></div>
+          <div class="chart" id="ch-elev"></div><div class="table-wrap" style="margin-top:12px"><table class="data" id="tbl-elev"></table></div></div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Rollen mit Vollausschlag</h2><p id="roll-sub"></p></div></div><div class="chart" id="ch-roll"></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Querruder am elastischen Flügel</h2><p id="ae-ail-sub"></p></div></div><div class="chart" id="ch-ailel"></div></div>
+        </div>
+        <div class="two">
+          <div class="panel"><div class="panel-head"><div><h2>Seitenruder und Trimmung</h2><p id="rd-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-rud"></table></div></div>
+          <div class="panel"><div class="panel-head"><div><h2>Gelenkmomente und Servos</h2><p id="sv-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-servo"></table></div></div>
+        </div>
       </div>
     </div>
   </section>

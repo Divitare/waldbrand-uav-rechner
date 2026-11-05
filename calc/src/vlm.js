@@ -59,7 +59,7 @@ function vlmWing(pf, a2d, N = 40) {
     vlm: true, N, M: N, AR: pf.AR, a0: a2d, CLa, CLb, xac, Cmb, kaa, kab, kbb, st, cosL: Math.cos((pf.sweep || 0) * DEG), tanL,
     Clp: -8 * sum(Gp, p => p.ym) / (S * pf.b * pf.b), ClbDih: -4 * sum(Gd, p => p.ym) / (S * pf.b), ClbDihFull: -4 * sum(Gd2, p => p.ym) / (S * pf.b),
     sGa: sum(Ga), sGax: sum(Ga, p => p.xqc), sGq: sum(Gq), sGqx: sum(Gq, p => p.xqc),
-    CLqRef: 4 * sum(Gq) / S * 2 / cbar, CmqRef: -4 * sum(Gq, p => p.xqc) / (S * cbar) * 2 / cbar, Ga, Gq, pan
+    CLqRef: 4 * sum(Gq) / S * 2 / cbar, CmqRef: -4 * sum(Gq, p => p.xqc) / (S * cbar) * 2 / cbar, Ga, Gb, Gq, pan, la, T, kc
   };
 }
 // Klassische Traglinie mit derselben Schnittstelle (nur noch zur Kontrolle in der Validierung)

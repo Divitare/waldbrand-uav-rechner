@@ -125,3 +125,72 @@ function renderGround(RR) {
     series: [{ name: 'Höhe über Grund (m)', c: 1, pts: pts.map(p => [p[0], p[1]]), fmt: v => nf(v, 2) + ' m' }, { name: 'Fahrt (m/s)', c: 2, pts: pts.map(p => [p[0], p[2]]), fmt: v => nf(v, 1) + ' m/s' }],
     hlines: [{ y: sim.vSafe, label: `1,2 × V_s = ${nf(sim.vSafe, 1)} m/s` }] });
 }
+
+/* ---------- Ansicht Ruder ---------- */
+const ctrlData = C => cached('ctrl', () => controlSurfaces(C, dynData(C).flex));
+RENDER.ruder = (R) => { $('#ru-sub').textContent = 'Wird gerechnet …'; later(() => renderRuder(R)); };
+function renderRuder(RR) {
+  if (RR !== currentR()) return;
+  const { C, P } = RR, cs = ctrlData(C), a = cs.ail, e = cs.elev, r = cs.rud, lv = l => LVL_TXT[l];
+  $('#ru-sub').textContent = `Querruder ${nf(a.e0 * 100, 0)}–${nf(a.e1 * 100, 0)} % der Halbspannweite, ${nf(P.ailCf * 100, 0)} % tief (Wirksamkeit ${nf(a.tau0, 2)}); Höhenruder ${e.all ? 'als Pendelruder' : nf(P.elevCf * 100, 0) + ' % tief (' + nf(e.tau0, 2) + ')'}; Seitenruder ${nf(P.rudCf * 100, 0)} % tief (${nf(r.tau0, 2)}). Profiltheorie mit Abminderung für große Ausschläge (DATCOM).`;
+  const elW = e.cases.reduce((x, c) => (Math.abs(c.deg) > Math.abs(x.deg) ? c : x), e.cases[0]);
+  $('#kpis-ru').innerHTML = [
+    kpi('Rollen 60° Reiseflug', fin(a.rB.t) ? nf(a.rB.t, 2) : '–', 's', `${lv(a.lvlB)} · gefordert 1,7 s (MIL-F-8785C, Kl. I, Kat. B) · pb/2V ${nf(a.rB.pb2V, 3)}`, a.lvlB > 1 ? 'bad' : ''),
+    kpi('Rollen 30° im Anflug', fin(a.rC.t) ? nf(a.rC.t, 2) : '–', 's', `${lv(a.lvlC)} · gefordert 1,3 s (Kat. C) bei ${nf(a.Va, 1)} m/s`, a.lvlC > 1 ? 'bad' : ''),
+    kpi('Querruder bei V_max', nf(a.etaVmax * 100, 0), '%', `elastischer Flügel · Umkehr bei ${fin(a.VR) ? nf(a.VR, 1) + ' m/s' : 'keiner'}`, a.etaVmax < 0.5 || a.VR < 1.2 * P.vmax ? 'bad' : ''),
+    kpi('Höhenruder größter Ausschlag', nfs(elW.deg, 1), '°', `${esc(elW.name)} · Vollausschlag ±${nf(P.elevMax, 0)}°`, Math.abs(elW.deg) > P.elevMax ? 'bad' : ''),
+    kpi('Höhenruder je g', nf(e.dPerG, 1), '°/g', `bei ${nf(P.v, 1)} m/s · Nickdämpfung überwiegt bei kleiner Flächenbelastung`),
+    kpi('Seitenruder größter Ausschlag', nf(r.maxDeg, 1), '°', `von ±${nf(P.rudMax, 0)}° · Schiebeflug ${nf(r.beta * RAD, 1)}°`, r.maxDeg > P.rudMax ? 'bad' : ''),
+    kpi('Negatives Wendemoment', nf(a.adverse * 100, 1), '%', `Cn_δa/Cl_δa · Seitenruder ${nf(Math.abs(r.drAdverse) * RAD, 1)}° zum Ausgleich`),
+    kpi('Servo größtes Moment', nf(Math.max(...cs.servo.map(s => s.kgcm)), 1), 'kg·cm', 'mit Faktor 1,5 auf das Gelenkmoment (Profiltheorie, eher zu hoch)')
+  ].join('');
+  const msg = [];
+  for (const c of e.cases) if (Math.abs(c.deg) > P.elevMax) msg.push(pill('crit', `Höhenruder reicht nicht: ${c.name} braucht ${nfs(c.deg, 0)}°`));
+  else if (Math.abs(c.deg) > 0.8 * P.elevMax) msg.push(pill('warn', `${c.name}: ${nfs(c.deg, 0)}° (über 80 % des Vollausschlags)`));
+  for (const c of e.cases) if (Math.abs(c.CLh) > 0.85 * e.ClhMax) msg.push(pill('warn', `Höhenleitwerk nahe am Abriss: ${c.name} (c_A,H ${nfs(c.CLh, 2)})`));
+  if (a.lvlB > 1 || a.lvlC > 1) msg.push(pill('warn', 'Rollen langsamer als MIL-F-8785C Level 1: Querruder länger, tiefer oder weiter ausschlagen'));
+  if (a.VR < 1.2 * P.vmax) msg.push(pill('crit', `Querruderumkehr bei ${nf(a.VR, 0)} m/s unter 1,2 × V_max: torsionssteifere Nase oder Ruder weiter innen`));
+  if (r.maxDeg > P.rudMax) msg.push(pill('crit', `Seitenruder reicht nicht (${nf(r.maxDeg, 0)}° nötig)`));
+  if (Math.abs(r.pwTrim.dr) * RAD > 5) msg.push(pill('info', `Drall bei Vollgas braucht ${nf(Math.abs(r.pwTrim.dr) * RAD, 1)}° Seitenruder`));
+  if (a.cellOverAil) msg.push(pill('warn', `Solarzellen reichen bis ${nf(P.cellX1, 0)} % der Tiefe, das Querruder beginnt bei ${nf((1 - P.ailCf) * 100, 0)} %: Zellen auf dem Ruder oder Ruder schmaler`));
+  if (!msg.length) msg.push(pill('good', 'Alle Ruder mit Reserve ausgelegt'));
+  $('#ru-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
+  // Höhenruder-Trimmkurven
+  const cv = e.curves, all = [...cv.off, ...cv.on, ...cv.full].map(p => p[1]), yr = niceRange([...all, P.elevMax, -P.elevMax].map(v => clamp(v, -2 * P.elevMax, 2 * P.elevMax)), 0.05);
+  $('#el-sub').textContent = `Ausschlag zum Trimmen über der Fahrt (negativ: Hinterkante hoch). Bezug: Reiseflug ohne Ausschlag (Einstellwinkel des Höhenleitwerks entsprechend gewählt). Mit Schubmoment, Strahl am Leitwerk und nachgiebigem Träger.`;
+  lineChart($('#ch-elev'), { h: 230, x: { min: cv.off[0][0], max: cv.off[cv.off.length - 1][0], fmt: v => nf(v, 0), tipFmt: v => nf(v, 1) + ' m/s', title: 'Fluggeschwindigkeit (m/s)' }, y: { min: yr[0], max: yr[1], fmt: v => nf(v, 0) + '°' },
+    series: [{ name: 'Motor aus', c: 2, pts: cv.off, fmt: v => nfs(v, 1) + '°' }, { name: 'Reiseflug (Schub = Widerstand)', c: 1, pts: cv.on, fmt: v => nfs(v, 1) + '°' }, { name: 'Vollgas', c: 4, pts: cv.full, fmt: v => nfs(v, 1) + '°' }],
+    hlines: [{ y: -P.elevMax, label: `Vollausschlag −${nf(P.elevMax, 0)}°` }, { y: P.elevMax, label: `+${nf(P.elevMax, 0)}°` }], vlines: [{ x: P.v, label: 'Reise' }] });
+  $('#tbl-elev').innerHTML = `<thead><tr><th>Fall</th><th class="n">Fahrt</th><th class="n">n</th><th class="n">c_A,H</th><th class="n">Ausschlag</th></tr></thead><tbody>` +
+    e.cases.map(c => `<tr><td>${esc(c.name)}</td><td class="n">${nf(c.V, 1)} m/s</td><td class="n">${nf(c.n, 1)}</td><td class="n ${Math.abs(c.CLh) > 0.85 * e.ClhMax ? 'warn' : ''}">${nfs(c.CLh, 2)}</td><td class="n ${Math.abs(c.deg) > P.elevMax ? 'crit' : !c.ok ? 'warn' : ''}">${nfs(c.deg, 1)}°</td></tr>`).join('') +
+    `</tbody><caption>Schwerpunkt vorn/hinten: ± ${nf(P.cgTol, 1)} cm. Höhenleitwerk erreicht etwa c_A,H ±${nf(e.ClhMax, 2)} (Profil plus Ruder). Höhenruder je g ${nf(e.dPerG, 1)}°: Ausschlag für zusätzliches Lastvielfaches bei Reisefahrt (Etkin & Reid).</caption>`;
+  // Rollen
+  $('#roll-sub').textContent = `Querlage über der Zeit bei Vollausschlag ${nf(P.ailMax, 0)}° aus dem Geradeausflug (Einfreiheitsgrad-Modell, Rollzeitkonstante ${nf(a.rB.tau, 2)} s, elastische Wirksamkeit eingerechnet).`;
+  const t1 = Math.max(2.5, (fin(a.rB.t) ? a.rB.t : 2) * 1.3);
+  lineChart($('#ch-roll'), { h: 210, x: { min: 0, max: t1, fmt: v => nf(v, 1) + ' s' }, y: { min: 0, max: 90, ticks: [0, 30, 60, 90], fmt: v => nf(v, 0) + '°' },
+    series: [{ name: `Reiseflug ${nf(a.Vc, 1)} m/s`, c: 1, pts: (a.rB.curve || []).filter(p => p[0] <= t1), fmt: v => nf(v, 1) + '°' }, { name: `Anflug ${nf(a.Va, 1)} m/s`, c: 2, pts: (a.rC.curve || []).filter(p => p[0] <= t1), fmt: v => nf(v, 1) + '°' }],
+    hlines: [{ y: 60, label: 'Kat. B: 60° in 1,7 s' }, { y: 30, label: 'Kat. C: 30° in 1,3 s' }], vlines: [{ x: 1.7, label: '' }, { x: 1.3, label: '' }] });
+  // Elastische Querruderwirksamkeit
+  later(() => {
+    if (RR !== currentR()) return;
+    const A = aeData(C), Vt = Math.max(1.5 * P.vmax, fin(a.VR) ? Math.min(a.VR * 1.2, 4 * P.vmax) : 2 * P.vmax), pts = [];
+    const hA = hingeCoef(clamp(P.ailCf, 0.05, 0.6)), t0 = flapTau(clamp(P.ailCf, 0.05, 0.6));
+    for (let i = 0; i <= 30; i++) { const V = Math.max(1, Vt * i / 30); let ef = NaN; try { ef = aileronElastic(A.A.bm, V, 0.5 * C.rho * V * V, a.e0, a.e1, t0 * 0.85, hA.Cmd * 0.85); } catch (er) { /* ohne Modell */ } pts.push([V, ef]); }
+    $('#ae-ail-sub').textContent = `Rollgeschwindigkeit je Ausschlag, elastisch gegen starr. Das Ruder verdreht den Flügel nach unten (Moment c_m,δ ${nf(hA.Cmd, 2)} je rad) und nimmt sich so Wirkung; bei der Umkehrgeschwindigkeit rollt das Flugzeug falsch herum.`;
+    lineChart($('#ch-ailel'), { h: 210, x: { min: 0, max: Vt, fmt: v => nf(v, 0), tipFmt: v => nf(v, 1) + ' m/s', title: 'Fluggeschwindigkeit (m/s)' }, y: { min: Math.min(-0.2, ...pts.map(p => p[1]).filter(fin)), max: 1.05, fmt: v => nf(v * 100, 0) + ' %' },
+      series: [{ name: 'Querruderwirksamkeit', c: 1, pts, fmt: v => nf(v * 100, 1) + ' %' }], hlines: [{ y: 0, label: '' }], vlines: [{ x: P.vmax, label: 'V_max' }, { x: 1.2 * P.vmax, label: '1,2·V_max' }].concat(fin(a.VR) && a.VR < Vt ? [{ x: a.VR, label: 'Umkehr' }] : []), legend: false });
+  });
+  // Seitenruder
+  const rd = v => `${nfs(v * RAD, 1)}°`;
+  $('#rd-sub').textContent = 'Stationärer Schiebeflug bei Seitenwind im Anflug (Nelson): Querlage, Quer- und Seitenruder halten den Schiebewinkel. Drall und Motormoment bei Vollgas (Richtung je nach Drehsinn).';
+  $('#tbl-rud').innerHTML = `<thead><tr><th>Fall</th><th class="n">Seitenruder</th><th class="n">Querruder</th><th class="n">Querlage</th></tr></thead><tbody>` +
+    `<tr><td>Seitenwind ${nf(Math.max(P.vCross, 0.2 * C.vs), 1)} m/s, Schiebewinkel ${nf(r.beta * RAD, 1)}°</td><td class="n ${Math.abs(r.cross.dr) * RAD > P.rudMax ? 'crit' : ''}">${rd(r.cross.dr)}</td><td class="n">${rd(r.cross.da)}</td><td class="n">${rd(r.cross.phi)}</td></tr>` +
+    `<tr><td>Vollgas: Drall ${nf(Math.abs(r.pwTrim.swV || 0) * RAD, 1)}° am Seitenleitwerk, Motormoment</td><td class="n">${rd(Math.abs(r.pwTrim.dr))}</td><td class="n">${rd(Math.abs(r.pwTrim.da))}</td><td class="n">–</td></tr>` +
+    `<tr><td>Querruder voll, negatives Wendemoment ausgleichen</td><td class="n">${rd(Math.abs(r.drAdverse))}</td><td class="n">±${nf(P.ailMax, 0)}°</td><td class="n">–</td></tr>` +
+    `</tbody><caption>Cn_δr ${nf(r.CnDr, 4)} je rad (Strahl und elastischer Träger eingerechnet), Cl_δa ${nf(a.ClDa, 3)}, Cn_δa ${nf(a.CnDa, 4)} je rad (Wirbelgitter, Trefftz-Ebene).</caption>`;
+  // Gelenkmomente
+  $('#sv-sub').textContent = 'Vollausschlag bei V_A und ein Drittel davon bei V_max, Anstellwinkel bzw. Schiebewinkel gleichsinnig; Gelenkmoment nach der Profiltheorie (gemessen meist 50–70 % davon). Servo mit Faktor 1,5.';
+  $('#tbl-servo').innerHTML = `<thead><tr><th>Ruder</th><th class="n">Gelenkmoment</th><th class="n">Servo</th></tr></thead><tbody>` +
+    cs.servo.map(s => `<tr><td>${esc(s.name)}<div class="small muted">${nf(s.Sf * 1e4, 0)} cm², Rudertiefe ${nf(s.cf * 100, 1)} cm</div></td><td class="n">${nf(s.H, 2)} N·m</td><td class="n">${nf(s.kgcm, 1)} kg·cm<div class="small muted">${nf(s.req, 2)} N·m</div></td></tr>`).join('') +
+    `</tbody><caption>Gelenkmomentbeiwerte (je rad): Querruder C_h,α ${nf(a.h.Ca, 2)}, C_h,δ ${nf(a.h.Cd, 2)}; ${e.all ? 'Pendelruder' : `Höhenruder ${nf(e.h.Ca, 2)} / ${nf(e.h.Cd, 2)}`}; Seitenruder ${nf(r.h.Ca, 2)} / ${nf(r.h.Cd, 2)}. Geprüft gegen Theodorsens T-Funktionen.</caption>`;
+}

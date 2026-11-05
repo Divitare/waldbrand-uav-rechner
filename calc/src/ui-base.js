@@ -82,6 +82,12 @@ const PM = {};
   ['wireDropSol', 'Spannungsfall Solarleitungen', '%', 0.1, 0.3, 5, null, 'Bei Spitzenleistung. Kleiner heißt dickere, schwerere Leitungen und weniger Verlust.'],
   ['nAilSeg', 'Querruder-Segmente je Seite', '', 1, 1, 4, null, 'Je Segment ein Servo. Lange Flügel teilen die Querruder, damit sie sich nicht verwinden.'],
   ['ailEta0', 'Querruder von', '× b/2', 0.01, 0.1, 0.9], ['ailEta1', 'Querruder bis', '× b/2', 0.01, 0.2, 1],
+  ['ailCf', 'Querruder Tiefe', '× c', 0.01, 0.05, 0.6, null, 'Anteil der Flügeltiefe hinter der Drehachse. Üblich 20–30 %.'], ['ailMax', 'Querruder Vollausschlag', '°', 1, 5, 40],
+  ['elevCf', 'Höhenruder Tiefe', '× c', 0.01, 0.1, 1, null, '1 heißt Pendelhöhenruder (ganze Fläche beweglich). Üblich 30–45 %.'], ['elevMax', 'Höhenruder Vollausschlag', '°', 1, 5, 40],
+  ['rudCf', 'Seitenruder Tiefe', '× c', 0.01, 0.1, 1], ['rudMax', 'Seitenruder Vollausschlag', '°', 1, 5, 40],
+  ['vCross', 'Seitenwind bei der Landung', 'm/s', 0.5, 0, 15, null, 'Mindestens 0,2 × Mindestfahrt (CS-23.233). Ohne Fahrwerk wird meist gegen den Wind gelandet.'],
+  ['cgTol', 'Schwerpunkttoleranz', '± cm', 0.5, 0, 10, null, 'Streuung durch Beladung und Einbau. Das Höhenruder muss beide Grenzlagen trimmen können.'],
+  ['nCtrl', 'Lastvielfaches für die Ruderauslegung', 'g', 0.1, 1.1, 4, null, 'Steilste Kurve, die das Höhenruder noch halten soll (1,5 g = 48° Querlage). Das Bruch-Lastvielfache gilt nur für die Struktur.'],
   ['landGear', 'Landung', '', 0, 0, 0, 'landGear'], ['vSink', 'Sinkgeschwindigkeit beim Aufsetzen', 'm/s', 0.1, 0.3, 4, null, 'Auslegungswert für den Landestoß. Ruhige Wiesenlandung 0,8–1,2 m/s, harte Landung 1,5–2 m/s.'],
   ['skidStroke', 'Federweg der Kufe', 'm', 0.005, 0.005, 0.2], ['bellyStroke', 'Eindrückweg Rumpfboden', 'm', 0.002, 0.003, 0.1, null, 'Schaumstoff-Bauchpolster: wenige Zentimeter. Wenig Weg heißt hohe Stoßlast auf Akku und Einbauten.'],
   ['skidCdA', 'Kufe Widerstandsfläche', 'cm²', 0.5, 0, 50], ['wBelly', 'Verstärkung Rumpfboden', 'kg/m²', 0.05, 0, 3],
@@ -150,6 +156,7 @@ const FORMS = {
   layout: ['trimMode', 'smTarget', 'xWingLE', 'xBatt', 'zBatt', 'battInWing', 'mAntrieb'],
   layout2: ['htSolar', 'zTail', 'etaTail', 'tailArm', 'vH', 'fusL'],
   wire: ['wireModel', 'mWireFix', 'wireExtra', 'wireDropSol', 'nAilSeg', 'ailEta0', 'ailEta1'],
+  ctrl: ['ailEta0', 'ailEta1', 'ailCf', 'ailMax', 'nAilSeg', 'elevCf', 'elevMax', 'rudCf', 'rudMax', 'vCross', 'cgTol', 'nCtrl', 'vH', 'vV'],
   ground: ['landGear', 'vSink', 'skidStroke', 'bellyStroke', 'skidCdA', 'wBelly', 'landPitch', 'launch', 'launchRail', 'launchAngle', 'vHand', 'vLaunchK', 'nLaunchMax'],
   dyn: ['dihedral', 'sweep', 'vV', 'arV', 'vH', 'tailArm', 'smTarget', 'v'],
   flight: ['v', 'vmax', 'mtomLimit', 'turnFrac', 'bank', 'hAGL', 'alt', 'turbDay', 'powerModel', 'pMeas', 'mMeas', 'rhoMeas', 'zuschlag'],
@@ -318,7 +325,7 @@ function applyPreset(key) {
 function markPreset() { S.preset = ''; const el = $('#preset-sel'); if (el) el.value = ''; }
 
 /* ---------- Ansichten ---------- */
-const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'validierung', 'team'];
+const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'ruder', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'validierung', 'team'];
 let VIEW = 'uebersicht';
 function showView(v) {
   if (!VIEWS.includes(v) || !document.getElementById('v-' + v)) v = 'uebersicht';

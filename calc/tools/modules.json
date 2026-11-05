@@ -11,6 +11,7 @@
     "aeroel.js",
     "dyn.js",
     "power.js",
+    "controls.js",
     "sim.js",
     "ext.js",
     "defaults.js"

@@ -193,7 +193,17 @@ function planformSVG(el, C) {
   s += `<path d="${cell(1)}" fill="var(--c2)" fill-opacity="0.22" stroke="var(--c2)" stroke-width="1"/><path d="${cell(-1)}" fill="var(--c2)" fill-opacity="0.22" stroke="var(--c2)" stroke-width="1"/>`;
   // t/4-Linie
   s += `<path d="M${X(-b / 2)} ${Y(xLE(1) + pf.ct / 4)}L${X(0)} ${Y(pf.cr / 4)}L${X(b / 2)} ${Y(xLE(1) + pf.ct / 4)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 4"/>`;
-  s += boom + fus + ht + vt + mot;
+  // Ruder: Querruder an der Flügelhinterkante, Höhenruder am Höhenleitwerk
+  let ctl = '';
+  const a0 = clamp(P.ailEta0, 0.1, 0.95), a1 = clamp(P.ailEta1, a0 + 0.02, 1), cfA = clamp(P.ailCf, 0.05, 0.6), nS = Math.max(1, Math.round(P.nAilSeg || 1));
+  for (const sgn of [1, -1]) {
+    const pts = []; for (let i = 0; i <= 12; i++) { const e = a0 + (a1 - a0) * i / 12; pts.push(e); }
+    ctl += `<path d="M${pts.map(e => `${X(sgn * e * b / 2).toFixed(1)} ${Y(xLE(e) + (1 - cfA) * pf.chordAt(e)).toFixed(1)}`).join('L')}L${pts.slice().reverse().map(e => `${X(sgn * e * b / 2).toFixed(1)} ${Y(xLE(e) + pf.chordAt(e)).toFixed(1)}`).join('L')}Z" fill="var(--c5)" fill-opacity="0.25" stroke="var(--c5)" stroke-width="1"/>`;
+    for (let k = 1; k < nS; k++) { const e = a0 + (a1 - a0) * k / nS; ctl += `<line x1="${X(sgn * e * b / 2)}" x2="${X(sgn * e * b / 2)}" y1="${Y(xLE(e) + (1 - cfA) * pf.chordAt(e))}" y2="${Y(xLE(e) + pf.chordAt(e))}" stroke="var(--c5)"/>`; }
+  }
+  const cfE = clamp(P.elevCf, 0.1, 1);
+  ctl += `<rect x="${X(-tg.bh / 2)}" y="${Y(xht + (1 - cfE) * tg.ch)}" width="${tg.bh * sc}" height="${cfE * tg.ch * sc}" fill="var(--c5)" fill-opacity="0.25" stroke="var(--c5)" stroke-width="1"/>`;
+  s += boom + fus + ht + vt + mot + ctl;
   if (C.bal) {
     const xs = rel(C.bal.xcg), xn = rel(C.np.xnp), w = Math.max(14, P.fusD * sc * 0.9);
     s += `<line x1="${X(0) - w}" x2="${X(0) + w}" y1="${Y(xn)}" y2="${Y(xn)}" stroke="var(--accent)" stroke-width="2"/><text class="hline-label" x="${X(0) + w + 4}" y="${Y(xn) + 4}">N</text>`;
