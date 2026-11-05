@@ -8,7 +8,8 @@ function configMatrix(P, comps) {
   for (const fus of Object.keys(FUS_TYPES)) for (const mot of Object.keys(MOTOR_POS)) {
     const P2 = { ...P, fusType: fus, motorPos: mot }, C = buildCase(P2, comps);
     const n = dayOfYear(P2.date), y = yearOf(P2.date), ser = daySeries(C, envClear(P2, n, y)), mis = mission(C, ser, ser, false), per = periodic(C, ser);
-    out.push({ fus, mot, C, mis, per, ok: C.cfg.mot === mot && !(C.bal.g.boomClear < 0) });
+    let clh = NaN; try { clh = powerStates(C).rows.find(r => r.k === 'climb').CLh; } catch (e) { /* ohne Kennfeld */ }
+    out.push({ fus, mot, C, mis, per, clh, ok: C.cfg.mot === mot && !(C.bal.g.boomClear < 0) });
   }
   return out;
 }
@@ -53,7 +54,8 @@ function renderConfigMatrix(RR) {
         `<span class="nums"><span>Masse</span><b>${nf(C.m, 2)} kg${sel ? '' : ` <span class="${dm < -0.005 ? 'good' : dm > 0.005 ? 'crit' : 'muted'}">(${nfs(dm, 2)})</span>`}</b>` +
         `<span>Leistung</span><b>${nf(C.pProp, 1)} W${sel ? '' : ` <span class="${dp < -0.05 ? 'good' : dp > 0.05 ? 'crit' : 'muted'}">(${nfs(dp, 1)})</span>`}</b>` +
         `<span>Ballast</span><b class="${C.bal.ballast > 0.05 ? 'crit' : ''}">${fmtKg(C.bal.ballast)}</b><span>Kabel</span><b>${nf(C.mass.wire * 1000, 0)} g</b>` +
-        `<span>Schublinie</span><b>${nfs((C.bal.g.zP - C.bal.zcg) * 100, 0)} cm</b><span>min. SoC</span><b class="${r.mis && !r.mis.ok ? 'crit' : ''}">${fin(soc) ? nf(soc, 0) + ' %' : '–'}</b></span></button>`;
+        `<span>Schublinie</span><b>${nfs((C.bal.g.zP - C.bal.zcg) * 100, 0)} cm</b><span>c_A,H Vollgas</span><b class="${Math.abs(r.clh) > 0.75 ? 'crit' : Math.abs(r.clh) > 0.5 ? 'warn' : ''}">${fin(r.clh) ? nfs(r.clh, 2) : '–'}</b>` +
+        `<span>min. SoC</span><b class="${r.mis && !r.mis.ok ? 'crit' : ''}">${fin(soc) ? nf(soc, 0) + ' %' : '–'}</b></span></button>`;
     }
   }
   $('#cf-matrix').innerHTML = h;

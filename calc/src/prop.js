@@ -63,31 +63,45 @@ function sectionCoef(foil, Re, al) {
   const cl = r0.cl + (r1.cl - r0.cl) * t;
   return { cl, cd: profileCd(foil, mode, Re, cl), stall: 0 };
 }
+// Ein Blattelement bei Radius r (Umfangsgeschwindigkeit Om·r): Impuls- und Blattelementgleichgewicht mit
+// Prandtl-Verlust; Rückgabe je Meter Radius für alle Blätter: Schub dT, Moment dQ, Induktionsfaktoren a, a'
+function bemtElem(g, V, Om, r, rho, nu) {
+  const R = g.R, x = r / R, c = g.c(x), beta = g.beta(x), sig = g.B * c / (2 * Math.PI * r);
+  const phi0 = Math.atan2(V, Om * r);
+  const ev = phi => {
+    const al = beta - phi, W0 = Math.hypot(V, Om * r), co = sectionCoef(g.foil, W0 * c / nu, al);
+    const sp = Math.sin(phi), cp = Math.cos(phi), cn = co.cl * cp - co.cd * sp, ct = co.cl * sp + co.cd * cp;
+    const ft = g.B / 2 * (R - r) / (r * sp), fh = g.B / 2 * (r - g.Rh) / (g.Rh * sp), F = Math.max(0.05, 4 / (Math.PI * Math.PI) * Math.acos(Math.exp(-ft)) * Math.acos(Math.exp(-fh)));
+    const k = clamp(sig * cn / (4 * F * sp * sp), -0.7, 0.7), kp = sig * ct / (4 * F * sp * cp);
+    const a = k / (1 - k), ap = kp / (1 + kp);
+    return { R: sp / (1 + a) - (V / (Om * r)) * cp / (1 - ap), a, ap, co, sp, cp };
+  };
+  let lo = phi0 + 1e-6, hi = Math.min(Math.PI / 2 - 1e-3, beta + 0.35), flo = ev(lo), fhi = ev(hi), z;
+  if (flo.R * fhi.R > 0) z = ev(phi0);
+  else { for (let it = 0; it < 40; it++) { const mid = (lo + hi) / 2, fm = ev(mid); if (fm.R * flo.R > 0) { lo = mid; flo = fm; } else hi = mid; } z = ev((lo + hi) / 2); }
+  const Va = V * (1 + z.a), Vt = Om * r * (1 - z.ap), W2 = Va * Va + Vt * Vt, phi = Math.atan2(Va, Vt);
+  const co = sectionCoef(g.foil, Math.sqrt(W2) * c / nu, beta - phi), sp = Math.sin(phi), cp = Math.cos(phi);
+  return { dT: 0.5 * rho * W2 * g.B * c * (co.cl * cp - co.cd * sp), dQ: 0.5 * rho * W2 * g.B * c * (co.cl * sp + co.cd * cp) * r, a: z.a, ap: z.ap };
+}
 // Schub und Moment bei Fluggeschwindigkeit V (m/s) und Drehzahl n (1/s)
 function bemt(g, V, n, rho, nu, Ns = 18) {
   const Om = 2 * Math.PI * n, R = g.R, dr = (R - g.Rh) / Ns;
   let T = 0, Q = 0;
-  for (let i = 0; i < Ns; i++) {
-    const r = g.Rh + (i + 0.5) * dr, x = r / R, c = g.c(x), beta = g.beta(x), sig = g.B * c / (2 * Math.PI * r);
-    const phi0 = Math.atan2(V, Om * r);
-    const ev = phi => {
-      const al = beta - phi, W0 = Math.hypot(V, Om * r), co = sectionCoef(g.foil, W0 * c / nu, al);
-      const sp = Math.sin(phi), cp = Math.cos(phi), cn = co.cl * cp - co.cd * sp, ct = co.cl * sp + co.cd * cp;
-      const ft = g.B / 2 * (R - r) / (r * sp), fh = g.B / 2 * (r - g.Rh) / (g.Rh * sp), F = Math.max(0.05, 4 / (Math.PI * Math.PI) * Math.acos(Math.exp(-ft)) * Math.acos(Math.exp(-fh)));
-      const k = clamp(sig * cn / (4 * F * sp * sp), -0.7, 0.7), kp = sig * ct / (4 * F * sp * cp);
-      const a = k / (1 - k), ap = kp / (1 + kp);
-      return { R: sp / (1 + a) - (V / (Om * r)) * cp / (1 - ap), a, ap, co, sp, cp };
-    };
-    let lo = phi0 + 1e-6, hi = Math.min(Math.PI / 2 - 1e-3, beta + 0.35), flo = ev(lo), fhi = ev(hi), z;
-    if (flo.R * fhi.R > 0) z = ev(phi0);
-    else { for (let it = 0; it < 40; it++) { const mid = (lo + hi) / 2, fm = ev(mid); if (fm.R * flo.R > 0) { lo = mid; flo = fm; } else hi = mid; } z = ev((lo + hi) / 2); }
-    const Va = V * (1 + z.a), Vt = Om * r * (1 - z.ap), W2 = Va * Va + Vt * Vt, phi = Math.atan2(Va, Vt);
-    const co = sectionCoef(g.foil, Math.sqrt(W2) * c / nu, beta - phi), sp = Math.sin(phi), cp = Math.cos(phi);
-    T += 0.5 * rho * W2 * g.B * c * (co.cl * cp - co.cd * sp) * dr;
-    Q += 0.5 * rho * W2 * g.B * c * (co.cl * sp + co.cd * cp) * r * dr;
-  }
+  for (let i = 0; i < Ns; i++) { const e = bemtElem(g, V, Om, g.Rh + (i + 0.5) * dr, rho, nu); T += e.dT * dr; Q += e.dQ * dr; }
   const D = 2 * R, P = Q * Om;
   return { T, Q, P, CT: T / (rho * n * n * D ** 4), CP: P / (rho * n ** 3 * D ** 5), J: V / (n * D), eta: P > 0 ? T * V / P : 0 };
+}
+// Normalkraft des angeströmten Propellers je rad Anstellwinkel der Propellerachse (Ribner 1945, NACA Rep. 819):
+// Umfangsgeschwindigkeit ändert sich über den Umlauf um V·α·cos ψ, die Umfangskraft F'_t = dQ/r folgt mit
+// ∂F'_t/∂U_t (Element im Gleichgewicht neu gelöst); über ψ gemittelt N = ½·V·α·∫∂F'_t/∂U_t dr (alle Blätter)
+function propNormalDeriv(g, V, n, rho, nu, Ns = 14) {
+  const Om = 2 * Math.PI * n, dr = (g.R - g.Rh) / Ns; let s = 0;
+  for (let i = 0; i < Ns; i++) {
+    const r = g.Rh + (i + 0.5) * dr, d = 0.03 * Om * r;
+    const fp = bemtElem(g, V, Om + d / r, r, rho, nu).dQ / r, fm = bemtElem(g, V, Om - d / r, r, rho, nu).dQ / r;
+    s += (fp - fm) / (2 * d) * dr;
+  }
+  return 0.5 * V * s;
 }
 // Kennlinie C_T(J), C_P(J) einmal je Propeller bei Reiseflug-Reynoldszahl
 const propCache = new Map();
@@ -138,9 +152,10 @@ function climbGlide(C) {
   const P = C.P, W = C.m * G, out = [];
   const v0 = Math.max(C.vs * 1.05, 4), v1 = Math.max(v0 + 2, P.vmax);
   for (let i = 0; i <= 30; i++) {
-    const V = v0 + (v1 - v0) * i / 30, a = aero(C, V, 1, C.rho, C.nu);
-    const Tm = propMaxThrust(C, V, C.rho).T;
-    out.push({ V, D: a.Dtot, roc: fin(Tm) ? (Tm - a.Dtot) * V / W : NaN, sink: a.Dtot * V / W, LD: a.LD, Tmax: Tm });
+    const V = v0 + (v1 - v0) * i / 30, Tm = propMaxThrust(C, V, C.rho).T;
+    // Gleiten ohne Schub (kein Strahl, kein Schubmoment), Steigen mit Vollgas (Trimmung mit Höchstschub)
+    const a0 = aero(C, V, 1, C.rho, C.nu, 0), a1 = fin(Tm) ? aero(C, V, 1, C.rho, C.nu, Tm) : a0;
+    out.push({ V, D: a0.Dtot, Dc: a1.Dtot, roc: fin(Tm) ? (Tm - a1.Dtot) * V / W : NaN, sink: a0.Dtot * V / W, LD: a0.LD, Tmax: Tm, CLhC: a1.CLh, CLhG: a0.CLh });
   }
   const bestC = out.reduce((a, b) => (b.roc > a.roc ? b : a), out[0]), minS = out.reduce((a, b) => (b.sink < a.sink ? b : a), out[0]), bestG = out.reduce((a, b) => (b.LD > a.LD ? b : a), out[0]);
   return { pts: out, bestC, minS, bestG, tClimb: bestC.roc > 0 ? P.hAGL / bestC.roc : Infinity };

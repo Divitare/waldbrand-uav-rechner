@@ -154,10 +154,20 @@ function cfFlat(Re, flow) {
 /* ---------- Aerodynamik eines Flugzustands ----------
    n: Lastvielfaches (Kurvenflug 1/cos φ), Trimmung mit Schwerpunkt im Flügel-Neutralpunkt:
    das Höhenleitwerk gleicht nur das Nullmoment des Profils aus. */
-function aero(C, V, n, rho, nu) {
+// Zwei Durchgänge, wenn Antriebseinflüsse bekannt sind: erst ohne, dann mit Schubmoment bei Schub = Widerstand
+// (oder vorgegebenem Schub T, z. B. Vollgas im Steigflug oder T = 0 im Gleitflug)
+function aero(C, V, n, rho, nu, T) {
+  const r0 = aeroCore(C, V, n, rho, nu, 0, T ?? null);
+  if (!C.pw || !C.bal) return r0;
+  const Tt = T ?? r0.Dtot, dM = thrustMoment(C, Tt, V, rho, r0.CL);
+  const r1 = aeroCore(C, V, n, rho, nu, dM, Tt);
+  if (T == null) { const dM2 = thrustMoment(C, r1.Dtot, V, rho, r1.CL); if (Math.abs(dM2 - dM) > 1e-3) return aeroCore(C, V, n, rho, nu, dM2, r1.Dtot); }
+  return r1;
+}
+function aeroCore(C, V, n, rho, nu, dM, Tin) {
   const P = C.P, pf = C.pf, S = pf.S, q = 0.5 * rho * V * V, W = C.m * G;
   const meta = foilMeta(C.foil, C.mode, V * pf.mac / nu), cmac = meta.cm + (C.ll.Cmb || 0);
-  const Lt = C.bal ? tailLoad(C, n, q, cmac) : q * S * pf.mac * cmac / C.tail.lt;
+  const Lt = C.bal ? tailLoad(C, n, q, cmac, dM) : q * S * pf.mac * cmac / C.tail.lt;
   const CL = (n * W - Lt) / (q * S);
   const lr = llAt(C.ll, CL);
   let cdp = 0, stall = 0, ext = 0, clPeak = 0;
@@ -169,16 +179,21 @@ function aero(C, V, n, rho, nu) {
     const r = cl / foilMeta(C.foil, C.mode, Re).clmax; if (r > clPeak) clPeak = r;
   }
   cdp = cdp * pf.b / S * C.k.prof;
-  // Propellerstrahl über Flügelstreifen (Zugmotoren): höherer Staudruck auf der Strahlbreite
+  // Propellerstrahl: Schub (Vorgabe oder Widerstand des ersten Durchgangs) bestimmt das Staudruckverhältnis
+  const sl = C.slip || null, Ts = Tin ?? (C.lvl ? C.lvl.Dtot * (V / P.v) ** 2 : 0);
+  const qrAt = kx => (sl ? slipQr(C, Ts, V, rho, kx) : 1);
+  // Flügelwurzel im Strahl (Zugpropeller vor dem Flügel): höherer Staudruck auf der Strahlbreite
   let slipW = 0;
-  if (C.slip && C.slip.qr > 1 && C.slip.strips) for (const ys of C.slip.strips) {
-    const s0 = C.ll.st.reduce((a, s) => (Math.abs(s.y - ys) < Math.abs(a.y - ys) ? s : a), C.ll.st[0]), cl = (lr.am * s0.fa + s0.fb) / c2;
-    slipW += (C.slip.qr - 1) * q * profileCd(C.foil, C.mode, V * s0.c / nu, cl) * s0.c * C.slip.width;
+  if (sl && sl.wingW > 0) {
+    const s0 = C.ll.st[0], cl = (lr.am * s0.fa + s0.fb) / c2;
+    slipW = (qrAt(sl.kxW) - 1) * q * profileCd(C.foil, C.mode, V * s0.c / nu, cl) * s0.c * sl.wingW;
   }
   // Höhen- und Seitenleitwerk; Teile im Propellerstrahl mit höherem Staudruck
-  const tg = C.tail, g = C.bal ? C.bal.g : C.g0, CLh = Lt / (q * tg.Sh), Reh = V * tg.ch / nu, sl = C.slip || {};
+  const tg = C.tail, g = C.bal ? C.bal.g : C.g0;
+  const qH = sl ? 1 + sl.fH * (qrAt(sl.kxH) - 1) : 1, qV = sl ? 1 + sl.fV * (qrAt(sl.kxV) - 1) : 1;
+  const CLh = Lt / (q * qH * (P.etaTail / 100) * tg.Sh), Reh = V * tg.ch / nu;
   const cdh = profileCd(C.tfoil, 'free', Reh, Math.abs(CLh), o), cdiH = CLh * CLh / (Math.PI * tg.arH * 0.85);
-  const cdv = profileCd(C.tfoil, 'free', V * tg.cv / nu, 0, o), qH = 1 + (sl.fH || 0) * ((sl.qr || 1) - 1), qV = 1 + (sl.fV || 0) * ((sl.qr || 1) - 1);
+  const cdv = profileCd(C.tfoil, 'free', V * tg.cv / nu, 0, o);
   // Rumpf als Rotationskörper (Raymer: Formfaktor 1 + 60/f³ + f/400 über benetzte Fläche), Träger als Rohre
   const fu = g.fus, Ref = V * fu.L / nu, fr = fu.L / Math.max(0.02, fu.D);
   const fusCdA = cfFlat(Ref, P.fusFlow) * (1 + 60 / fr ** 3 + fr / 400) * fu.Swet;
@@ -187,21 +202,21 @@ function aero(C, V, n, rho, nu) {
   // Motorgondel oben am Seitenleitwerk, Pylon des Druckmotors, Landekufe
   const nac = C.cfg.mot === 'fin' ? cfFlat(V * 0.22 / nu, 'turb') * (1 + 0.35 / 3.7) * 0.85 * Math.PI * 0.07 * 0.22 : 0;
   const pyl = g.pylon > 0 ? cfFlat(V * 0.12 / nu, 'turb') * 1.3 * 2 * 0.12 * g.pylon + cfFlat(V * 0.2 / nu, 'turb') * 1.1 * Math.PI * 0.06 * 0.2 : 0;
-  const fusQ = sl.fF ? 1 + sl.fF * ((sl.qr || 1) - 1) : 1;
+  const fusQ = sl && sl.fF > 0 ? 1 + sl.fF * (qrAt(sl.kxF) - 1) : 1;
   const D = {
     profile: q * S * cdp + slipW,
     induced: q * S * lr.CDi * C.k.ind,
-    tail: q * (tg.Sh * (cdh + cdiH) * qH + tg.Sv * cdv * qV) * kI * kP,
+    tail: q * (tg.Sh * (cdh + cdiH) * qH * P.etaTail / 100 + tg.Sv * cdv * qV) * kI * kP,
     fus: q * fusCdA * kI * kP * fusQ,
     boom: q * boomCdA * kI * kP,
-    comps: q * (C.compCdA + nac * (sl.fN ? sl.qr : 1) + pyl) * kI * kP,
+    comps: q * (C.compCdA + nac * (sl ? qrAt(1.2) : 1) + pyl) * kI * kP,
     gear: q * (C.land ? C.land.cda : 0) * kI * kP
   };
   let sum = 0; for (const k in D) sum += D[k];
   D.reserve = sum * P.kDrag / 100;
   const Dtot = sum + D.reserve;
   const alpha = (lr.am * RAD + meta.a0);
-  return { V, n, q, CL, CDi: lr.CDi, e: lr.e, cdp, D, Dtot, LD: n * W / Dtot, alpha, Lt, CLh, stall, ext, clPeak, rho, nu, cm: meta.cm, cmac };
+  return { V, n, q, CL, CDi: lr.CDi, e: lr.e, cdp, D, Dtot, LD: n * W / Dtot, alpha, Lt, CLh, qH, qV, dM, stall, ext, clPeak, rho, nu, cm: meta.cm, cmac };
 }
 
 /* ---------- Antrieb: Impulstheorie + Wirkungsgradkette ---------- */
@@ -226,15 +241,6 @@ function flightPower(C, V, n, rho, nu) {
   const U = Math.max(1, C.P.nCells * C.P.cellV), I = p.pel / U, wl = C.harness ? wireLoss(C.harness, I) : 0;
   return { ...a, pel: p.pel + wl, eta: p.eta, etaI: p.etaI, op: p.op, wireLoss: wl };
 }
-// Propellerstrahl (Impulstheorie, Fernfeld): Staudruckverhältnis und betroffene Bereiche
-function slipstream(C, T, V, rho) {
-  const P = C.P, mp = C.cfg.mot, R = propRadius(P);
-  const A = Math.PI * R * R, vi = (-V + Math.sqrt(V * V + 2 * T / (rho * A))) / 2, qr = ((V + 2 * vi) / V) ** 2;
-  if (mp === 'nose') return { qr, vi, fF: 1, strips: [0], width: R };
-  if (mp === 'fin') return { qr, vi, fN: 1, fV: 0.5, strips: null };
-  return { qr, vi, strips: null };
-}
-
 /* ---------- Strukturmasse (Bauweisen-Modell, kalibriert an AtlantikSolar) ----------
    Holmgurte auf Biegung (Bruchlast) und Steifigkeit (Durchbiegung bei 1 g), Steg auf Querkraft,
    Rippen, Nasenbeplankung, Bespannung, Endleiste, Leitwerk, Träger, Gondel, Fahrwerk, Kabel. */
@@ -352,26 +358,33 @@ function buildCase(P, comps, k) {
   C.mass = { batt: Math.max(0, P.mBatt), solar: Math.max(0, P.solarArea) * P.solarAreal, solarHT: C.htSolarArea * P.solarAreal, prop: P.mAntrieb, comps: cs.m, byGroup: cs.byGroup, ballast: 0, wire: 0 };
   const mFix = C.mass.batt + C.mass.solar + C.mass.solarHT + C.mass.prop + C.mass.comps;
   let m = mFix + (P.structMode === 'fix' ? P.mZelle : 2), ms = P.mZelle;
-  for (let it = 0; it < 60; it++) {
-    C.m = m;
-    C.land = landingGear(C, m);
-    if (P.structMode === 'fix') { ms = P.mZelle * C.k.struct; C.struct = null; }
-    else { C.struct = structureMass(C, m, true); ms = C.struct.total; }
-    C.mass.struct = ms;
-    C.bal = balance(C);
-    const mn = mFix + ms + C.bal.ballast + C.bal.mWire;
-    if (Math.abs(mn - m) < 1e-6) { m = mn; break; }
-    m = mn;
-  }
-  C.mass.ballast = C.bal.ballast; C.mass.wire = C.bal.mWire; C.m = m; C.harness = C.bal.mi.harness;
-  C.np = C.bal.np;
+  const massLoop = () => {
+    for (let it = 0; it < 60; it++) {
+      C.m = m;
+      C.land = landingGear(C, m);
+      if (P.structMode === 'fix') { ms = P.mZelle * C.k.struct; C.struct = null; }
+      else { C.struct = structureMass(C, m, true); ms = C.struct.total; }
+      C.mass.struct = ms;
+      C.bal = balance(C);
+      const mn = mFix + ms + C.bal.ballast + C.bal.mWire;
+      if (Math.abs(mn - m) < 1e-6) { m = mn; break; }
+      m = mn;
+    }
+    C.mass.ballast = C.bal.ballast; C.mass.wire = C.bal.mWire; C.m = m; C.harness = C.bal.mi.harness;
+    C.np = C.bal.np;
+  };
+  C.pw = null; C.slip = null; C.lvl = null; C.lvl0 = null;
+  massLoop();
+  // Antriebseinflüsse im Reiseflug (Schub = Widerstand), dann Schwerpunkt und Massen mit Strahl und Normalkraft neu
+  C.lvl0 = flightPower(C, P.v, 1, C.rho, C.nu);
+  C.pw = powerEffects(C, C.lvl0.Dtot, P.v, C.rho, 0, C.lvl0.CL); C.slip = C.pw.sg;
+  massLoop();
+  C.npOff = neutralPoint(C, C.bal.g, { off: true });
   C.layout = { g: C.bal.g, wingPoints: [] };
-  // Reiseflug gerade und im Kurvenflug; Propellerstrahl aus dem ersten Durchgang
+  // Reiseflug gerade und im Kurvenflug
   const nT = 1 / Math.cos(clamp(P.bank, 0, 60) * DEG);
-  C.slip = null;
   C.lvl = flightPower(C, P.v, 1, C.rho, C.nu);
-  C.slip = slipstream(C, C.lvl.Dtot, P.v, C.rho);
-  C.lvl = flightPower(C, P.v, 1, C.rho, C.nu);
+  C.pw = powerEffects(C, C.lvl.Dtot, P.v, C.rho, 0, C.lvl.CL); C.slip = C.pw.sg;
   C.turn = flightPower(C, P.v, nT, C.rho, C.nu);
   C.nTurn = nT;
   const f = clamp(P.turnFrac / 100, 0, 1);

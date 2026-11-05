@@ -10,6 +10,7 @@
     "prop.js",
     "aeroel.js",
     "dyn.js",
+    "power.js",
     "sim.js",
     "ext.js",
     "defaults.js"

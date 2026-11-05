@@ -246,6 +246,12 @@ function aircraftSide(C, X, Z, sc, opt = {}) {
   const Dp = 2 * g.R, prop = (x, z) => `<ellipse cx="${f1(X(x))}" cy="${f1(Z(z))}" rx="3" ry="${f1(Dp / 2 * sc)}" fill="var(--c4)" fill-opacity="0.16" stroke="var(--c4)" stroke-dasharray="4 3"/>`;
   const nacelle = (x, z) => `<ellipse cx="${f1(X(x))}" cy="${f1(Z(z))}" rx="${f1(0.1 * sc)}" ry="${f1(Math.max(2.5, 0.032 * sc))}" fill="var(--sunken)" ${stroke}/>`;
   let back = '', body = '', wing = '';
+  // Propellerstrahl als Band: Achse z_s(x) ± Strahlradius R_s(x) im Reiseflug
+  if (opt.slip !== false && C.slip && C.slip.zs) {
+    const sl = C.slip, x1 = Math.max(g.xTail, g.xvTE) + 0.15, N = 40, up = [], lo = [];
+    for (let i = 0; i <= N; i++) { const x = g.xProp + (x1 - g.xProp) * i / N, r = sl.Rs(x), z = sl.zs(x); up.push(`${f1(X(x))} ${f1(Z(z + r))}`); lo.push(`${f1(X(x))} ${f1(Z(z - r))}`); }
+    back += `<path d="M${up.join('L')}L${lo.reverse().join('L')}Z" fill="var(--c4)" fill-opacity="0.09" stroke="var(--c4)" stroke-opacity="0.35" stroke-dasharray="2 3"/>`;
+  }
   // Träger
   if (cf.nBoom) back += `<line x1="${f1(X(g.boom0))}" y1="${f1(Z(g.zB0))}" x2="${f1(X(g.boom1))}" y2="${f1(Z(g.zB1))}" stroke="var(--ink-2)" stroke-width="${f1(Math.max(2, P.boomD * sc))}" stroke-linecap="round"/>`;
   // Rumpf aus der Kontur

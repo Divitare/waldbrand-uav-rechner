@@ -119,20 +119,22 @@ const zWingAt = (g, y) => g.zw + Math.max(0, Math.abs(y) - g.yK) * g.tanG;
    Flügel aus dem Wirbelgitter, Höhenleitwerk mit Auftriebsanstieg nach Helmbold
    und Abwind nach DATCOM (K_A, K_λ, K_H), Rumpf nach Raymer (K_f·W²·L, hier über
    das Integral ∫d²dx gebildet, damit auch die Seglerröhre richtig eingeht). */
-function neutralPoint(C, g) {
+function neutralPoint(C, g, opt) {
   const P = C.P, pf = C.pf, tg = C.tail, ll = C.ll, aw = ll.CLa;
   const ReT = P.v * tg.ch / C.nu, a2t = clamp(foilMeta(C.tfoil, 'free', ReT).slope, 5.0, 6.8);
   const at = Math.PI * tg.arH / (1 + Math.sqrt(1 + (Math.PI * tg.arH / a2t) ** 2));
   const lam = pf.ct / pf.cr, A = pf.AR, KA = 1 / A - 1 / (1 + A ** 1.7), KL = (10 - 3 * lam) / 7, KH = (1 - Math.abs((g.zH - g.zw) / pf.b)) / Math.cbrt(2 * tg.lt / pf.b);
   const deda = clamp(4.44 * Math.pow(KA * KL * KH * Math.sqrt(Math.cos(pf.sweep * DEG)), 1.19), 0, 0.9);
-  const etaT = C.pw && fin(C.pw.etaH) ? C.pw.etaH : P.etaTail / 100;
+  // Staudruck am Höhenleitwerk: Nachlauf (etaTail) und, mit laufendem Motor, Propellerstrahl
+  const pw = opt && opt.off ? null : C.pw, etaT = pw && fin(pw.etaH) ? pw.etaH : P.etaTail / 100;
   // Nachgiebiger Träger: das Leitwerk dreht sich unter seiner eigenen Last zurück (bei Reisefahrt)
   const fx = C.struct && C.struct.tail && C.struct.tail.flex, qC = 0.5 * C.rho * P.v * P.v;
   const kFlex = fx ? 1 / (1 + qC * etaT * tg.Sh / fx.nb * at * fx.H) : 1, VhA = etaT * kFlex * tg.Sh / pf.S * at * (1 - deda);
   const fu = g.fus, rqc = clamp(g.xqc0 / fu.L, 0.1, 0.6), Cmaf = kFus(rqc) * (fu.W2 / 0.8) / (pf.mac * pf.S) * RAD;
-  const dCmP = C.pw && fin(C.pw.dCmaP) ? C.pw.dCmaP : 0;   // Propeller-Normalkraft (destabilisierend vor dem Schwerpunkt)
-  const CLa = aw + VhA, xnp = (aw * g.xacw + VhA * g.xact) / CLa - (Cmaf + dCmP) * pf.mac / CLa;
-  return { xnp, aw, at, a2t, deda, etaT, kFlex, CLa, Cmaf, dCmP, VhA, xacw: g.xacw, xact: g.xact, KH };
+  // Propeller-Normalkraft als Kraft in der Propellerebene (vor dem Schwerpunkt destabilisierend)
+  const NpA = pw && fin(pw.CNaS) ? pw.CNaS : 0;
+  const CLa = aw + VhA + NpA, xnp = (aw * g.xacw + VhA * g.xact + NpA * g.xProp) / CLa - Cmaf * pf.mac / CLa;
+  return { xnp, aw, at, a2t, deda, etaT, kFlex, CLa, Cmaf, NpA, VhA, xacw: g.xacw, xact: g.xact, KH };
 }
 
 /* ---------- Massenliste mit Lage in x, y, z ----------

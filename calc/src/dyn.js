@@ -14,19 +14,25 @@ function derivatives(C, opt = {}) {
   const P = C.P, pf = C.pf, ll = C.ll, tg = C.tail, np = C.np, bal = C.bal, lv = C.lvl;
   const S = pf.S, b = pf.b, cb = pf.mac, V = P.v, rho = C.rho, q = 0.5 * rho * V * V, W = C.m * G;
   const CL = W / (q * S), CD = lv.Dtot / (q * S), CLa = np.CLa, sm = bal.sm, Cma = -CLa * sm;
-  const lt = np.xact - bal.xcg, VH = tg.Sh * lt / (S * cb), at = np.at, eT = np.etaT, deda = np.deda;
+  const lt = np.xact - bal.xcg, VH = tg.Sh * lt / (S * cb), at = np.at, eT = np.etaT * (np.kFlex || 1), deda = np.deda;
   // Flügel-Nickdämpfung um den Schwerpunkt (Wirbelgitter, Überlagerung)
   const xr = bal.xcg - (bal.g.xLE0 + pf.cr / 4), k = 8 / (S * cb * cb);
   const CmqW = -k * (ll.sGqx - xr * ll.sGq - xr * ll.sGax + xr * xr * ll.sGa), CLqW = 4 / S * 2 / cb * (ll.sGq - xr * ll.sGa);
   const CLq = 2 * at * eT * VH + CLqW, Cmq = -2 * at * eT * VH * lt / cb + CmqW;
   const CLad = 2 * at * eT * VH * deda, Cmad = -2 * at * eT * VH * lt / cb * deda;
   const d1 = aero(C, V, 1.05, rho, C.nu), CDa = (d1.Dtot - lv.Dtot) / (q * S) / (0.05 * CL / CLa);
-  // Seitenleitwerk (Helmbold mit Endscheibenwirkung des Höhenleitwerks)
-  const av = helmbold(1.55 * P.arV, 2 * Math.PI * 0.9), lvv = np.xact - bal.xcg, zv = 0.45 * tg.bv + P.zTail;
-  const sw = 0.724 + 3.06 * (tg.Sv / S) / (1 + Math.cos(pf.sweep * DEG)) - 0.4 * 0.5 + 0.009 * pf.AR, ev = 0.9;
+  // Seitenleitwerk: Helmbold mit Endscheibenwirkung des Höhenleitwerks (DATCOM 5.3.1.1: am Fuß 1,55, oben 1,75,
+  // Doppelleitwerk 1,4), Seitenwind-/Staudruckfaktor nach DATCOM (Hochdecker), Propellerstrahl und nachgiebiger Träger
+  const g = bal.g, kAV = C.cfg.fus === 'twin' ? 1.4 : C.cfg.tail === 'T' ? 1.75 : 1.55, av = helmbold(kAV * P.arV, 2 * Math.PI * 0.9);
+  const lvv = g.xvLE + 0.25 * tg.cv + g.vSw * 0.46 * tg.bv - bal.xcg, zv = g.zV0 + 0.46 * tg.bv - bal.zcg;
+  const fx = C.struct && C.struct.tail && C.struct.tail.flex, qv = 0.5 * rho * V * V * (C.pw ? C.pw.etaV : 1), kFlexV = fx ? 1 / (1 + qv * av * tg.Svf * fx.V) : 1;
+  const sw = (0.724 + 3.06 * (tg.Sv / S) / (1 + Math.cos(pf.sweep * DEG)) - 0.4 * (bal.g.zw / P.fusD) + 0.009 * pf.AR) * (C.pw ? C.pw.etaV : 1) * kFlexV, ev = 0.9;
   const CYbV = -av * sw * tg.Sv / S;
-  // Rumpfgondel
-  const volF = 0.6 * Math.PI / 4 * P.fusD ** 2 * P.fusL, CYbF = -2 * (Math.PI * P.fusD ** 2 / 4) / S, CnbF = -1.3 * volF / (S * b);
+  // Rumpf (Raymer: Cn_β = −1,3·Vol/(S·b)), Propeller-Normalkraft in der Seitenbewegung (vor dem Schwerpunkt destabilisierend)
+  const volF = g.fus.Vol, CYbF = -2 * (Math.PI * P.fusD ** 2 / 4) / S, CnbF = -1.3 * volF / (S * b);
+  const Np = C.pw ? C.pw.CNa * C.pw.ps.A / S : 0, CYbP = -Np, CnbP = -Np * (bal.xcg - g.xProp) / b;
+  // Hochdecker: Flügel über der Rumpfachse erhöht die Rollstabilität (DATCOM 5.2.2.1): ΔCl_β = 1,2·√A·(z_w/b)·(2D/b), z_w nach unten positiv
+  const ClbWF = 1.2 * Math.sqrt(pf.AR) * (-bal.g.zw / b) * (2 * P.fusD / b);
   // V-Form: geometrisch (Außenflügel) und aus der Durchbiegung bei 1 g (Γ ≈ 1,2·w_Spitze/(b/2))
   const dTip = C.struct ? C.struct.dTip : 0, gFlex = opt.rigid ? 0 : 1.2 * dTip / (b / 2), gGeo = (P.dihedral || 0) * DEG;
   const wl = wingLateral(ll, lv.CL, lv.cdp, b, S);
@@ -34,10 +40,10 @@ function derivatives(C, opt = {}) {
   const ClpH = -(at / 12) * (tg.Sh / S) * (tg.bh / b) ** 2 * 2;
   const d = {
     CL, CD, CLa, Cma, CLq, Cmq, CLad, Cmad, CDa, sm,
-    CYb: CYbV + CYbF, Clb: ClbW - av * sw * (tg.Sv / S) * (zv / b), Cnb: av * sw * (tg.Sv / S) * (lvv / b) + CnbF,
+    CYb: CYbV + CYbF + CYbP, Clb: ClbW + ClbWF - av * sw * (tg.Sv / S) * (zv / b), Cnb: av * sw * (tg.Sv / S) * (lvv / b) + CnbF + CnbP,
     CYp: 2 * CYbV * zv / b, Clp: ll.Clp + ClpH + 2 * CYbV * (zv / b) ** 2, Cnp: wl.Cnp - 2 / (b * b) * lvv * zv * CYbV,
     CYr: -2 * CYbV * lvv / b * ev, Clr: wl.Clr - 2 * CYbV * (zv / b) * (lvv / b) * ev, Cnr: wl.Cnr + 2 * CYbV * (lvv / b) ** 2 * ev,
-    gFlex, gGeo, ClbSweep: wl.ClbSweep, ClbDih: ll.ClbDih * gGeo, ClbFlex: ll.ClbDihFull * gFlex, CmqW, VH, VV: tg.Sv * lvv / (S * b)
+    gFlex, gGeo, ClbSweep: wl.ClbSweep, ClbDih: ll.ClbDih * gGeo, ClbFlex: ll.ClbDihFull * gFlex, ClbWF, ClbV: -av * sw * (tg.Sv / S) * (zv / b), CnbV: av * sw * (tg.Sv / S) * (lvv / b), CnbF, CnbP, CmqW, VH, VV: tg.Sv * lvv / (S * b), zv, lvv, kFlexV, av
   };
   return d;
 }
@@ -50,11 +56,13 @@ function lonMatrix(x) {
     [0, 0, 1, 0]
   ];
 }
+// Seitenbewegung mit Deviationsmoment I_zx (Etkin & Reid 1996, Gl. 4.9,20): ṗ und ṙ aus [I_x −I_zx; −I_zx I_z]·[ṗ; ṙ] = [L; N]
 function latMatrix(x) {
+  const Ixz = x.Ixz || 0, den = x.Ix * x.Iz - Ixz * Ixz, Lp = (a, b) => (x.Iz * a + Ixz * b) / den, Np = (a, b) => (Ixz * a + x.Ix * b) / den;
   return [
     [x.Yv / x.m, x.Yp / x.m, x.Yr / x.m - x.V, x.g],
-    [x.Lv / x.Ix, x.Lp / x.Ix, x.Lr / x.Ix, 0],
-    [x.Nv / x.Iz, x.Np / x.Iz, x.Nr / x.Iz, 0],
+    [Lp(x.Lv, x.Nv), Lp(x.Lp, x.Np), Lp(x.Lr, x.Nr), 0],
+    [Np(x.Lv, x.Nv), Np(x.Lp, x.Np), Np(x.Lr, x.Nr), 0],
     [0, 1, 0, 0]
   ];
 }
@@ -88,7 +96,7 @@ function flightDynamics(C, opt = {}) {
   const P = C.P, d = derivatives(C, opt), pf = C.pf, S = pf.S, b = pf.b, cb = pf.mac, V = P.v, rho = C.rho, q = 0.5 * rho * V * V, m = C.m, g = G, mi = C.bal.mi;
   const D = C.lvl.Dtot;
   const x = {
-    m, V, g, Iy: mi.Iyy, Ix: mi.Ixx, Iz: mi.Izz,
+    m, V, g, Iy: mi.Iyy, Ix: mi.Ixx, Iz: mi.Izz, Ixz: mi.Ixz,
     Xu: -3 * D / V, Xw: q * S / V * (d.CL - d.CDa), Zu: -2 * m * g / V, Zw: -q * S / V * (d.CLa + d.CD), Zq: -q * S * cb / (2 * V) * d.CLq, Zwd: -q * S * cb / (2 * V * V) * d.CLad,
     Mu: 0, Mw: q * S * cb / V * d.Cma, Mwd: q * S * cb * cb / (2 * V * V) * d.Cmad, Mq: q * S * cb * cb / (2 * V) * d.Cmq,
     Yv: q * S / V * d.CYb, Yp: q * S * b / (2 * V) * d.CYp, Yr: q * S * b / (2 * V) * d.CYr,

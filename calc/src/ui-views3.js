@@ -466,6 +466,7 @@ RENDER.antrieb = (R) => {
   $('#op-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   $('#map-sub').textContent = `Akkuleistung bis Schubleistung: Propeller (Blattelementmethode mit Prandtl-Verlusten) × Motor (Ersatzschaltbild nach Drela) × Regler × Getriebe${C.motor.eta < 1 ? ' × Einbauverlust' : ''}. Leer: mit diesem Motor nicht erreichbar.`;
   propHeatSVG($('#svg-pmap'), C, pd, R.pc);
+  renderSlip(R);
   const pts = cg.pts, yr = niceRange([...pts.map(p => p.roc), ...pts.map(p => -p.sink), 0], 0.08);
   $('#climb-sub').textContent = `Steigrate mit Höchstschub und Sinkrate mit gefaltetem Propeller über der Fluggeschwindigkeit, ${nf(C.m, 2)} kg.`;
   lineChart($('#ch-climb'), { h: 230, x: { min: pts[0].V, max: pts[pts.length - 1].V, fmt: v => nf(v, 0), tipFmt: v => nf(v, 1) + ' m/s', title: 'Fluggeschwindigkeit (m/s)' }, y: { min: yr[0], max: yr[1], fmt: v => nf(v, 1) + ' m/s' },
@@ -567,8 +568,8 @@ RENDER.flugdynamik = (R) => {
     tr('C_L,α', d.CLa, 3, 'Auftriebsanstieg Flugzeug: Flügel aus Wirbelgitter, Leitwerk mit Abwind (DATCOM)') + tr('C_m,α', d.Cma, 3, '= −C_L,α · Stabilitätsmaß; negativ heißt längsstabil') +
     tr('C_m,q', d.Cmq, 2, `Nickdämpfung: Leitwerk ${nf(d.Cmq - d.CmqW, 2)}, Flügel ${nf(d.CmqW, 2)} (Wirbelgitter)`) + tr('C_m,α̇', d.Cmad, 2, 'Abwindverzug am Leitwerk') + tr('C_L,q', d.CLq, 2, 'Auftrieb durch Nickdrehung') +
     tr('C_Y,β', d.CYb, 3, 'Seitenkraft: Seitenleitwerk (Helmbold, Endscheibe Höhenleitwerk) und Gondel') +
-    tr('Cl_β', d.Clb, 4, `Rollmoment: V-Form ${nf(d.ClbDih, 4)}, Biegung ${nf(d.ClbFlex, 4)}, Pfeilung ${nf(d.ClbSweep, 4)}, Seitenleitwerk ${nf(d.Clb - d.ClbDih - d.ClbFlex - d.ClbSweep, 4)}`) +
-    tr('Cn_β', d.Cnb, 4, 'Windfahnenstabilität: Seitenleitwerk minus Gondel (Raymer)') + tr('Cl_p', d.Clp, 3, 'Rolldämpfung (Wirbelgitter, antimetrische Lösung)') + tr('Cn_p', d.Cnp, 4, 'negatives Wendemoment beim Rollen') +
+    tr('Cl_β', d.Clb, 4, `Rollmoment: V-Form ${nf(d.ClbDih, 4)}, Biegung ${nf(d.ClbFlex, 4)}, Pfeilung ${nf(d.ClbSweep, 4)}, Hochdecker ${nf(d.ClbWF, 4)} (DATCOM), Seitenleitwerk ${nf(d.ClbV, 4)} (${nf(d.zv * 100, 0)} cm über dem Schwerpunkt)`) +
+    tr('Cn_β', d.Cnb, 4, `Windfahnenstabilität: Seitenleitwerk ${nf(d.CnbV, 4)} (Strahl ×${nf(C.pw ? C.pw.etaV : 1, 2)}, Träger elastisch ×${nf(d.kFlexV, 2)}), Rumpf ${nf(d.CnbF, 4)} (Raymer), Propeller ${nf(d.CnbP, 4)} (Normalkraft)`) + tr('Cl_p', d.Clp, 3, 'Rolldämpfung (Wirbelgitter, antimetrische Lösung)') + tr('Cn_p', d.Cnp, 4, 'negatives Wendemoment beim Rollen') +
     tr('Cl_r', d.Clr, 3, 'Rollmoment beim Gieren (Außenflügel schneller)') + tr('Cn_r', d.Cnr, 4, 'Gierdämpfung: Seitenleitwerk, Profilwiderstand') + '</tbody>';
 };
 $('#dyn-tabs').addEventListener('click', e => { const b = e.target.closest('[data-dt]'); if (!b) return; UI.dynTab = b.dataset.dt; renderView(true); });
@@ -606,4 +607,28 @@ function renderKern() {
   lineChart($('#ch-apc2'), { h: 200, title: 'APC 10x7E: Schubbeiwert', x: { min: 0.1, max: 0.8, fmt: v => nf(v, 1), title: 'Fortschrittsgrad J' }, y: { min: 0, max: 0.14, fmt: v => nf(v, 2) },
     series: [{ name: 'Messung', c: 3, pts: APC_MEAS.CT, dots: true, dash: true, fmt: v => nf(v, 4) }, { name: 'Rechner (QPROP-Profil)', c: 1, pts: k.apc.map(r => [r.J, r.CT]), fmt: v => nf(v, 4) }, { name: 'Clark Y aus der Datenbank', c: 2, pts: k.apcC.map(r => [r.J, r.CT]), dash: true, fmt: v => nf(v, 4) }],
     tipExtra: x => `<div class="row"><span>Abweichung QPROP</span><b>${nfs((ip(k.apc.map(r => [r.J, r.CT]), x) / ip(APC_MEAS.CT, x) - 1) * 100, 0)} %</b></div>` });
+}
+
+/* ---------- Propellerstrahl, Drall und Schublinie ---------- */
+function renderSlip(R) {
+  const { C, P } = R, pw = C.pw, g = C.bal.g, sg = pw.sg, st = cached('pwstates', () => powerStates(C));
+  const el = $('#svg-slip'); el._cfg = C; el._fn = e => { e.innerHTML = sideThumbSVG(currentR().C, cw(e), 260); }; el._fn(el);
+  $('#slip-sub').textContent = `Strahl nach der Strahltheorie im Reiseflug (Schub ${nf(pw.T, 2)} N, induzierte Geschwindigkeit ${nf(pw.ps.vi, 2)} m/s, im Fernfeld ${nf(2 * pw.ps.vi, 2)} m/s). Band: Strahlrand, hinter dem Flügel um den Abwind ${nf(sg.eps * RAD, 1)}° abgelenkt, ohne Vermischung (obere Abschätzung).`;
+  const cr = st.rows.find(r => r.k === 'climb'), gl = st.rows.find(r => r.k === 'glide'), cu = st.rows.find(r => r.k === 'cruise');
+  const msg = [];
+  if (Math.abs(cr.CLh) > 0.75) msg.push(pill('crit', `Vollgas braucht c_A,H ${nf(cr.CLh, 2)} am Höhenleitwerk: nahe am Abriss. Schublinie tiefer, Leitwerk größer oder Gas begrenzen.`));
+  else if (Math.abs(cr.CLh - gl.CLh) > 0.3) msg.push(pill('warn', `Gas geben verstellt die Trimmung deutlich (c_A,H ${nfs(gl.CLh, 2)} → ${nfs(cr.CLh, 2)})`));
+  else msg.push(pill('good', `Trimmänderung mit Gas gering (c_A,H ${nfs(gl.CLh, 2)} → ${nfs(cr.CLh, 2)})`));
+  if (gl.sm < 0.05) msg.push(pill('warn', `Ohne Motor nur ${nf(gl.sm * 100, 1)} % Stabilitätsmaß (mit Motor ${nf(cu.sm * 100, 1)} %)`));
+  if (Math.abs(pw.swV) > 1.5 * DEG) msg.push(pill('info', `Drall trifft das Seitenleitwerk mit ${nf(Math.abs(pw.swV) * RAD, 1)}° Schräganströmung: Seitenruder trimmen (Richtung je nach Drehsinn)`));
+  $('#slip-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
+  $('#kpis-slip').innerHTML = [
+    kpi('Höhenleitwerk im Strahl', nf(sg.fH * 100, 0), '%', `der Spannweite · Staudruck ×${nf(pw.qrH, 2)} → η_H ${nf(pw.etaH, 2)}`),
+    kpi('Seitenleitwerk im Strahl', nf(sg.fV * 100, 0), '%', `der Höhe · Staudruck ×${nf(pw.qrV, 2)} · Drall ${nf(Math.abs(pw.swV) * RAD, 1)}°`),
+    kpi('Schublinie', nfs(pw.dzT * 100, 0), 'cm', `über dem Schwerpunkt · Moment im Reiseflug ${nfs(pw.MT, 2)} N·m`),
+    kpi('Propeller-Normalkraft', nf(pw.CNa, 3), '1/rad', `auf die Kreisfläche bezogen · verschiebt den Neutralpunkt um ${nfs((C.np.xnp - C.npOff.xnp) * 100, 1)} cm (mit Strahl)`)
+  ].join('');
+  $('#tbl-slip').innerHTML = `<thead><tr><th>Flugzustand</th><th class="n">Fahrt</th><th class="n">Schub</th><th class="n">Schubmoment</th><th class="n">Strahl am HLW</th><th class="n">c_A,H nötig</th><th class="n">Neutralpunkt</th><th class="n">Stabilitätsmaß</th></tr></thead><tbody>` +
+    st.rows.map(r => `<tr><td>${esc(r.name)}</td><td class="n">${nf(r.V, 1)} m/s</td><td class="n">${nf(r.T, 1)} N</td><td class="n">${nfs(r.MT, 2)} N·m</td><td class="n">${r.T > 0 && r.fH > 0 ? '×' + nf(r.qrH, 2) + ' auf ' + nf(r.fH * 100, 0) + ' %' : '–'}</td><td class="n ${Math.abs(r.CLh) > 0.75 ? 'crit' : ''}">${nfs(r.CLh, 3)}</td><td class="n">${nf(r.xnp, 3)} m</td><td class="n ${r.sm < 0.05 ? 'warn' : ''}">${nf(r.sm * 100, 1)} %</td></tr>`).join('') +
+    `</tbody><caption>Schubmoment: Schub mal Abstand der Schublinie vom Schwerpunkt (positiv: Nase hoch) plus Propeller-Normalkraft. c_A,H: Auftriebsbeiwert, den das Höhenleitwerk zum Trimmen liefern muss (negativ: Abtrieb). Der Schwerpunkt ist auf den Reiseflug mit Motor eingestellt.</caption>`;
 }
