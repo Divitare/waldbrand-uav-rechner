@@ -27,6 +27,7 @@ function readData(id) { const el = document.getElementById(id); return el ? JSON
 const SEL = {
   planform: [['rect', 'Rechteck'], ['taper', 'Trapez'], ['rect_taper', 'Rechteck innen, Trapez außen'], ['ellip', 'Elliptisch (Referenz)']],
   transition: [['free', 'frei (glatte Oberfläche)'], ['trip', 'Umschlag an der Zellkante (x/c 10 %)']],
+  turbLevel: [['light', 'leicht (W₂₀ = 15 kn)'], ['moderate', 'mittel (W₂₀ = 30 kn)'], ['severe', 'stark (W₂₀ = 45 kn)'], ['wind', 'aus dem mittleren Wind am Einsatzort']],
   fusFlow: [['turb', 'turbulent (vorsichtig)'], ['mixed', 'teilweise laminar']],
   powerModel: [['physik', 'Physik (Polaren, Traglinie)'], ['mess', 'Messpunkt (ETH-Skalierung)'], ['fit', 'Ausgleichskurve eigener Flugdaten']],
   propModel: [['model', 'Impulstheorie + Wirkungsgradkette'], ['bemt', 'Propeller-Kennfeld (Blattelemente) + Motormodell'], ['eta', 'fester Gesamtwirkungsgrad']],
@@ -149,6 +150,10 @@ const PM = {};
   ['wind10', 'Mittlerer Wind in 10 m', 'm/s', 0.5, 0, 25], ['hellmann', 'Hellmann-Exponent', '', 0.01, 0.05, 0.5, null, 'Offenes Land 0,14–0,2, Wald und Hügel 0,25–0,35.'], ['weibullK', 'Weibull-Formfaktor', '', 0.1, 1.1, 4],
   // Einsatz
   ['tStart', 'Start', '', 0, 0, 0, 'time'], ['tEnd', 'Landung', '', 0, 0, 0, 'time'], ['tExcReq', 'Geforderte Excess Time', 'h', 0.1, 0, 12, null, 'ETH-Robustheitsmaß: Restflugzeit am Morgen. AtlantikSolar forderte rund 7 h für Dauerflug mit Schlechtwetterreserve.'],
+  ['turbLevel', 'Turbulenz (MIL-F-8785C)', '', 0, 0, 0, 'turbLevel'],
+  ['apBand', 'Bandbreite des Autopiloten', 'rad/s', 0.1, 0.1, 10, null, 'Lage und Bahn hält der Autopilot unterhalb dieser Kreisfrequenz; darüber wirkt die Turbulenz ungeregelt auf die Kamera. Kleine Flugzeuge 1–3 rad/s.'],
+  ['irTau', 'Wärmebild Zeitkonstante', 'ms', 0.5, 0.5, 50, null, 'Thermische Zeitkonstante des Mikrobolometers, typisch 8–12 ms. Wirkt für die Bewegungsunschärfe wie eine Belichtungszeit.'],
+  ['rgbExp', 'RGB Belichtungszeit', 'ms', 0.05, 0.02, 50, null, 'Bei Tag 0,5–2 ms, in der Dämmerung deutlich länger.'],
   ['irHFOV', 'Wärmebild Bildwinkel horizontal', '°', 1, 5, 120], ['irRes', 'Wärmebild Pixel horizontal', 'px', 1, 80, 2000], ['irResV', 'Wärmebild Pixel vertikal', 'px', 1, 60, 2000], ['irNETD', 'Wärmebild NETD', 'mK', 5, 10, 200],
   ['rgbHFOV', 'RGB Bildwinkel horizontal', '°', 1, 5, 120], ['rgbRes', 'RGB Pixel horizontal', 'px', 10, 320, 12000], ['rgbResV', 'RGB Pixel vertikal', 'px', 10, 240, 9000],
   ['overlap', 'Seitliche Überlappung', '%', 5, 0, 80], ['areaKm2', 'Zu überwachende Fläche', 'km²', 1, 0.1, 5000], ['legKm', 'Länge der Suchbahnen', 'km', 0.5, 0.2, 50],
@@ -187,7 +192,8 @@ const FORMS = {
   wx: ['weather', 'genYears', 'genSeed'],
   wind: ['wind10', 'hellmann', 'weibullK'],
   mission: ['tStart', 'tEnd', 'tExcReq', 'hAGL', 'v', 'areaKm2', 'legKm', 'overlap'],
-  sensor: ['irHFOV', 'irRes', 'irResV', 'irNETD', 'rgbHFOV', 'rgbRes', 'rgbResV'],
+  sensor: ['irHFOV', 'irRes', 'irResV', 'irNETD', 'irTau', 'rgbHFOV', 'rgbRes', 'rgbResV', 'rgbExp'],
+  turb: ['turbLevel', 'apBand', 'wind10', 'hellmann'],
   fire: ['fireT', 'bgT', 'clutterDT', 'fireRef'],
   sora: ['density', 'm1a', 'm1b', 'm1c', 'm2', 'aec', 'arcStrat', 'vmax', 'opsRadius'],
   fit: ['fitM', 'fitRho']

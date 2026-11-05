@@ -36,7 +36,7 @@ const DEFAULT_PARAMS = {
   mpptEff: 97, laminateLoss: 3, wiringLoss: 2, soiling: 1, tempCoef: 0.32, cellHeat: 0.02, albedo: 0.15,
   // Umgebung
   date: '2026-06-21', lat: 47.5, lon: 14.5, tz: 'auto', tMax: 25, tMin: 12, sky: 100, weather: 'clear', genYears: 20, genSeed: 7,
-  wind10: 3, hellmann: 0.2, weibullK: 2,
+  wind10: 3, hellmann: 0.2, weibullK: 2, turbLevel: 'light', apBand: 1.5, irTau: 10, rgbExp: 1,
   // Einsatz
   tStart: '08:00', tEnd: '20:00', tExcReq: 6.9,
   irHFOV: 50, irRes: 640, irResV: 512, irNETD: 50, rgbHFOV: 70, rgbRes: 4000, rgbResV: 3000, overlap: 20, areaKm2: 50, legKm: 5,

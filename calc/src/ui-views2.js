@@ -300,6 +300,7 @@ RENDER.einsatz = (R) => {
   const hs = []; for (let h = 30; h <= 1000; h += 10) hs.push(h);
   const fa = T => hs.map(h => { const g = footprint(h, P.irHFOV, P.irRes, P.irResV).gsd; return [h, fireDetection(P, g, T).Amin * 1e4]; });
   lineChart($('#ch-fire'), { h: 200, x: { min: 30, max: 1000, fmt: v => nf(v, 0), tipFmt: v => nf(v, 0) + ' m', title: 'Flughöhe über Grund (m)' }, y: { min: 0, max: niceRange(fa(600).map(p => p[1]), 0.05, true)[1], fmt: v => nf(v, 0) + ' cm²' }, series: [{ name: 'Schwelbrand 600 K', c: 2, pts: fa(600), fmt: v => nf(v, 1) + ' cm²' }, { name: `${nf(P.fireT, 0)} K`, c: 1, pts: fa(P.fireT), fmt: v => nf(v, 1) + ' cm²' }, { name: 'Flamme 1000 K', c: 3, pts: fa(1000), fmt: v => nf(v, 1) + ' cm²' }], vlines: [{ x: P.hAGL, label: 'aktuell' }] });
+  renderImg(R);
   $('#fire-sub').textContent = `Mischpixel-Ansatz im Band 8–14 µm: das Pixel muss ${nf(P.clutterDT, 0)} K über dem Hintergrund von ${nf(P.bgT - 273.15, 0)} °C liegen. Das Sensorrauschen (5 × NETD) wäre erst bei ${nf(mp.fire.AminNoise * 1e4, 2)} cm² die Grenze, die Störquellen am Boden begrenzen.`;
   // Flughöhen-Tabelle
   const alts = [60, 90, 120, 150, 200, 300, 500, 1000];
@@ -523,4 +524,34 @@ function renderBattV(R) {
     lineChart($('#ch-bv-day'), { h: 210, title: UI.dayTab === 'periodic' ? 'Zellspannung im Dauerflug' : 'Zellspannung im Einsatz', x: { min: x0, max: x1, ticks: xt, fmt: fmtT }, y: { min: Math.min(cut - 0.2, 2.8), max: 4.3, fmt: v => nf(v, 1) + ' V' },
       series: [{ name: 'an den Klemmen', c: 2, pts: vv.map(p => [p[0], p[1]]), fmt: v => nf(v, 3) + ' V' }, { name: 'Ruhespannung', c: 1, pts: vv.map(p => [p[0], p[2]]), dash: true, fmt: v => nf(v, 3) + ' V' }], hlines: [{ y: cut, label: `Abschaltung ${nf(cut, 1)} V` }] });
   } else $('#ch-bv-day').innerHTML = '';
+}
+
+/* ---------- Bildruhe in Turbulenz ---------- */
+function renderImg(R) {
+  const { C, P } = R, im = cached('img', () => imageStability(C, { fd: dynData(C).flex })), tr = im.tr, r = tr.rms, tp = tr.tp, D = RAD;
+  const lvl = (SEL.turbLevel.find(s => s[0] === P.turbLevel) || ['', ''])[1];
+  $('#img-sub').textContent = `Dryden-Turbulenz nach MIL-F-8785C, ${lvl}: σ_w ${nf(tp.sw, 2)} m/s, σ_u = σ_v ${nf(tp.su, 2)} m/s, Maßstäbe ${nf(tp.Lw, 0)} m bzw. ${nf(tp.Lu, 0)} m${tp.capped ? ' (Modell bis 300 m über Grund)' : ''}. Starres Flugzeug mit den Ableitungen der Flugdynamik; der Autopilot glättet alles unter ${nf(tr.wAP, 1)} rad/s. Kamera ${nf(tr.xb * 100, 0)} cm ${tr.xb >= 0 ? 'vor' : 'hinter'} dem Schwerpunkt.`;
+  const ir = im.ir, rgb = im.rgb, tot = c => 3 * c.blurE + c.blurV;
+  $('#kpis-img').innerHTML = [
+    kpi('Drehraten', nf(r.p * D, 1), '°/s', `Rollen (Effektivwert) · Nicken ${nf(r.q * D, 1)} °/s · Gieren ${nf(r.r * D, 1)} °/s`),
+    kpi('Unschärfe Wärmebild', nf(3 * ir.blurE, 2), 'px', `3σ aus Turbulenz bei ${nf(ir.t * 1000, 0)} ms · Vorwärtsflug ${nf(ir.blurV, 2)} px`, tot(ir) > 1 ? 'bad' : ''),
+    kpi('Unschärfe RGB', nf(3 * rgb.blurE, 2), 'px', `3σ bei ${nf(rgb.t * 1000, 2)} ms · Vorwärtsflug ${nf(rgb.blurV, 2)} px`, tot(rgb) > 1 ? 'bad' : ''),
+    kpi('Bildversatz', nf(ir.footprint, 1), 'm', `Effektivwert am Boden aus ${nf(im.h, 0)} m · Roll- ${nf(r.phi * D, 2)}°, Nickwinkel ${nf(r.theta * D, 2)}° · Kamera ${nf(r.az / G, 2)} g senkrecht`)
+  ].join('');
+  const msg = [];
+  for (const c of [ir, rgb]) {
+    const t3 = tot(c);
+    if (t3 > 1) msg.push(pill('warn', `${c.name}: bis ${nf(t3, 1)} px Bewegungsunschärfe (3σ Turbulenz plus Vorwärtsflug). Abhilfe: stabilisierte Aufhängung, ${c.name === 'Wärmebild' ? 'Kamera mit kürzerer Zeitkonstante' : 'kürzere Belichtung'}, höher oder langsamer fliegen`));
+    else msg.push(pill('good', `${c.name}: Unschärfe unter einem Pixel (${nf(t3, 2)} px mit 3σ Turbulenz)`));
+  }
+  const ovl = ir.gsd * P.irRes * P.overlap / 100;
+  msg.push(pill(3 * ir.footprint > ovl / 2 ? 'warn' : 'info', 3 * ir.footprint > ovl / 2 ? `Bildversatz 3σ ${nf(3 * ir.footprint, 1)} m größer als die halbe Überlappung der Suchbahnen (${nf(ovl / 2, 1)} m): Lücken möglich, Überlappung erhöhen` : `Bildversatz 3σ ${nf(3 * ir.footprint, 1)} m bleibt innerhalb der halben Überlappung (${nf(ovl / 2, 1)} m)`));
+  $('#img-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
+  // kumulierter Effektivwert der Drehraten über der Frequenz
+  const fmax = 6, cum = k => { const out = []; let s2 = 0; for (let i = 1; i < tr.ws.length; i++) { const w = tr.ws[i]; if (w <= tr.wAP) continue; const a = Math.max(tr.ws[i - 1], tr.wAP); s2 += 0.5 * (tr.S[k][i] + tr.S[k][i - 1]) * (w - a); const f = w / (2 * Math.PI); if (f > fmax) break; out.push([f, Math.sqrt(s2) * D]); } return out; };
+  lineChart($('#ch-img-rate'), { h: 220, title: 'Drehraten bis zur Frequenz (kumulierter Effektivwert)', x: { min: 0, max: fmax, fmt: v => nf(v, 0) + ' Hz', tipFmt: v => nf(v, 2) + ' Hz' }, y: { min: 0, max: niceRange([r.p, r.q, r.r].map(v => v * D), 0.08, true)[1], fmt: v => nf(v, 1) + ' °/s' },
+    series: [{ name: 'Rollen', c: 1, pts: cum('p'), fmt: v => nf(v, 2) + ' °/s' }, { name: 'Nicken', c: 2, pts: cum('q'), fmt: v => nf(v, 2) + ' °/s' }, { name: 'Gieren', c: 3, pts: cum('r'), fmt: v => nf(v, 2) + ' °/s' }] });
+  const row = c => `<tr><td>${esc(c.name)}<div class="small muted">IFOV ${nf(c.ifov * 1000, 2)} mrad · GSD ${nf(c.gsd * 100, 1)} cm</div></td><td class="n">${nf(c.t * 1000, c.t < 0.005 ? 2 : 0)} ms</td><td class="n">${nf(c.blurC, 2)} px</td><td class="n">${nf(c.blurE, 2)} px</td><td class="n">${nf(c.blurV, 2)} px</td><td class="n ${tot(c) > 1 ? 'warn' : ''}">${nf(tot(c), 2)} px</td></tr>`;
+  $('#tbl-img').innerHTML = `<thead><tr><th>Kamera</th><th class="n">Zeit</th><th class="n">Mitte 1σ</th><th class="n">Ecke 1σ</th><th class="n">Vorwärts</th><th class="n">3σ + vorwärts</th></tr></thead><tbody>${row(ir)}${row(rgb)}</tbody>` +
+    `<caption>Unschärfe = Drehrate × Zeit / IFOV; in der Bildecke kommt das Gieren dazu (Drehung um die Bildmitte). Vorwärtsflug: V × Zeit / GSD bei senkrechtem Blick. Fest eingebaute Kamera; Flügelschwingungen nicht enthalten.</caption>`;
 }
