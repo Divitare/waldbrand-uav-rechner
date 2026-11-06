@@ -149,10 +149,14 @@ $('#study-tabs').addEventListener('click', e => { const t = e.target.closest('[d
 
 /* ---------- Wetter ---------- */
 const WX = { sites: {}, upload: null, result: null, resultKey: null, running: false };
-const UPLOAD_KEY = 'waldbrand-uav-v5-upload';
-try { const u = localStorage.getItem(UPLOAD_KEY); if (u) WX.uploadRaw = JSON.parse(u); } catch (e) { /* ignorieren */ }
+
 function siteData(key) { if (!WX.sites[key]) { const s = DATA.weather.sites.find(x => x.key === key); if (s) WX.sites[key] = decodeSite(s); } return WX.sites[key] || null; }
-function uploadData() { if (!WX.upload && WX.uploadRaw) { try { WX.upload = decodeSite(WX.uploadRaw); } catch (e) { WX.uploadRaw = null; } } return WX.upload; }
+// eigene Wetterdatei steht im Zustand (S.wx), entschlüsselt wird sie einmal je Fassung
+function uploadData() {
+  if (!S.wx) return null;
+  if (!WX.upload || WX.uploadFrom !== S.wx) { try { WX.upload = decodeSite(S.wx); WX.uploadFrom = S.wx; } catch (e) { WX.upload = null; WX.uploadFrom = null; } }
+  return WX.upload;
+}
 function genMonths() {
   if (!S.gen) { const W = siteData('piemont'); S.gen = { src: 'Piemont (PVGIS-TMY)', months: monthlyStats(W).map(m => ({ kt: m.kt, T: m.T, amp: m.amp, ws: m.ws })) }; }
   return S.gen.months;
@@ -205,9 +209,8 @@ function parseWeatherFile(text, name) {
 }
 function handleWeatherText(text, name) {
   const r = parseWeatherFile(text, name);
-  WX.uploadRaw = encodeSite(r.site, r.g, r.d, r.T, r.w); WX.upload = null;
-  try { localStorage.setItem(UPLOAD_KEY, JSON.stringify(WX.uploadRaw)); } catch (e) { /* zu groß oder gesperrt */ }
-  S.params.weather = 'upload'; fillForms(); WX.result = null; renderWxSide(); if (VIEW === 'wetter') runWeather();
+  S.wx = encodeSite(r.site, r.g, r.d, r.T, r.w); WX.upload = null;
+  S.params.weather = 'upload'; schedule(); fillForms(); WX.result = null; renderWxSide(); if (VIEW === 'wetter') runWeather();
   const msg = $('#wx-up-msg'); if (msg) msg.textContent = `Geladen: ${r.site.name}.`;
   return r;
 }
@@ -260,7 +263,7 @@ function onWeatherChange() { WX.result = null; renderWxSide(); }
 let wxTimer = null;
 function schedWx() { clearTimeout(wxTimer); wxTimer = setTimeout(() => { if (VIEW === 'wetter') runWeather(); }, 400); }
 async function runWeather() {
-  const P = S.params, W = currentWeather(), key = keyOf(P.weather, S.gen, WX.uploadRaw ? WX.uploadRaw.name : '');
+  const P = S.params, W = currentWeather(), key = keyOf(P.weather, S.gen, S.wx ? S.wx.name + S.wx.data.length : '');
   if (!W) { WX.result = null; drawWeather(); return; }
   if (WX.running) { WX.pending = true; return; }
   if (WX.result && WX.resultKey === key) { drawWeather(); return; }
@@ -479,19 +482,7 @@ const SOURCES = [
   ['McCrink, Gregory (2017): Blade Element Momentum Modeling of Low-Reynolds Electric Propulsion Systems, J. Aircraft 54 – APC-10x7E-Messung', 'https://typeset.io/pdf/blade-element-momentum-modeling-of-low-re-small-uas-electric-5apq3vvgli.pdf']
 ];
 
-/* ---------- Teilen, Zurücksetzen, Vorlagen ---------- */
-const dlg = $('#share-dlg');
-$('#btn-share').addEventListener('click', () => { $('#share-text').value = JSON.stringify({ v: 5, params: S.params, comps: S.comps, gen: S.gen }); $('#share-msg').textContent = ''; try { dlg.showModal(); } catch (e) { dlg.setAttribute('open', ''); } });
-$('#share-close').addEventListener('click', () => { try { dlg.close(); } catch (e) { dlg.removeAttribute('open'); } });
-$('#share-copy').addEventListener('click', () => {
-  const t = $('#share-text');
-  const fall = () => { t.focus(); t.select(); $('#share-msg').textContent = 'Markiert – mit Strg+C kopieren.'; };
-  try { navigator.clipboard.writeText(t.value).then(() => { $('#share-msg').textContent = 'Kopiert.'; }, fall); } catch (e) { fall(); }
-});
-$('#share-load').addEventListener('click', () => {
-  try { const o = JSON.parse($('#share-text').value); S = sanitize(o); buildForms(); renderCompTable(); onWeatherChange(); schedule(true); $('#share-msg').textContent = 'Übernommen.'; }
-  catch (e) { $('#share-msg').textContent = 'Kein gültiger Konfigurationstext.'; }
-});
+/* ---------- Zurücksetzen, Vorlagen (Datei-Dialog: ui-doc.js) ---------- */
 let resetArmed = false;
 $('#btn-reset').addEventListener('click', e => {
   const b = e.currentTarget;

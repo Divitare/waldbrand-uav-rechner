@@ -282,6 +282,11 @@ table.mat.small { min-width: 0; }
 footer { color: var(--muted); font-size: 12.5px; max-width: 110ch; }
 .drop { border: 1.5px dashed var(--line); border-radius: 6px; padding: 10px; text-align: center; font-size: 13px; color: var(--ink-2); }
 .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+dialog.dlg { max-width: min(980px, 94vw); width: 100%; border: 1px solid var(--line); color: var(--ink); background: var(--panel); padding: 18px; }
+dialog.dlg::backdrop { background: rgba(10, 14, 20, 0.45); }
+.imp-card { margin-top: 10px; border: 1px solid var(--line-2); border-radius: 6px; padding: 10px 12px; background: var(--sunken); font-size: 13.5px; }
+.imp-card dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 6px 0 0; }
+.imp-card dt { color: var(--ink-2); } .imp-card dd { margin: 0; overflow-wrap: anywhere; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 

@@ -299,7 +299,44 @@ document.addEventListener('change', e => { const el = e.target; if (el.dataset &
 /* ---------- Zustand ---------- */
 const STORE_KEY = 'waldbrand-uav-v5', OLD_KEY = 'waldbrand-uav-budget-v1', VIEW_KEY = 'waldbrand-uav-v5-view';
 let S = null;
-function defaultState() { return { v: 8, params: { ...DEFAULT_PARAMS }, comps: DEFAULT_COMPS.map(c => ({ ...c })), gen: null, preset: 'design' }; }
+// Zustand (Dokument): Eingaben, Komponenten, Wettergenerator, eigene Wetterdatei, Anforderungen, Kommentare, Angaben zum Modell
+function defaultState() { return { v: 8, params: { ...DEFAULT_PARAMS }, comps: DEFAULT_COMPS.map(c => ({ ...c })), gen: null, wx: null, req: {}, notes: {}, meta: { name: '', knapp: 5 }, preset: 'design' }; }
+const TXT = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+const REQ_KEY = /^(p|m):[A-Za-z0-9_]{1,40}$/, NOTE_KEY = /^((p|m|c):[A-Za-z0-9_-]{1,60}|model)$/;
+function sanitizeReq(raw) {
+  const out = {}; if (!raw || typeof raw !== 'object') return out;
+  for (const [k, r] of Object.entries(raw)) {
+    if (!REQ_KEY.test(k) || !r || typeof r !== 'object') continue;
+    const [kind, key] = k.split(':');
+    if (kind === 'p' && !(key in DEFAULT_PARAMS)) continue;
+    if (kind === 'm' && !KENN_BY[key]) continue;
+    const num = x => (x === null || x === undefined || x === '' || !fin(Number(x)) ? null : Number(x));
+    const o = { min: num(r.min), max: num(r.max), by: TXT(r.by, 60), ts: fin(Number(r.ts)) ? Number(r.ts) : 0 };
+    if (kind === 'p') {
+      o.fix = !!r.fix;
+      if (o.fix) { const d = DEFAULT_PARAMS[key]; o.val = typeof d === 'number' ? num(r.val) : typeof d === 'boolean' ? !!r.val : r.val == null ? null : String(r.val).slice(0, 80); }
+      o.allow = Array.isArray(r.allow) ? r.allow.slice(0, 50).map(x => String(x).slice(0, 80)) : null;
+      if (!o.fix && o.min === null && o.max === null && !(o.allow && o.allow.length)) continue;
+    } else if (o.min === null && o.max === null) continue;
+    out[k] = o;
+  }
+  return out;
+}
+function sanitizeNotes(raw) {
+  const out = {}; if (!raw || typeof raw !== 'object') return out;
+  for (const [k, list] of Object.entries(raw)) {
+    if (!NOTE_KEY.test(k) || !Array.isArray(list)) continue;
+    const l = list.filter(n => n && typeof n === 'object' && typeof n.text === 'string' && n.text.trim()).slice(-200)
+      .map(n => ({ id: TXT(String(n.id || ''), 40) || Math.random().toString(36).slice(2, 10), text: n.text.slice(0, 2000), by: TXT(n.by, 60), ts: fin(Number(n.ts)) ? Number(n.ts) : 0 }));
+    if (l.length) out[k] = l;
+  }
+  return out;
+}
+function sanitizeWx(w) {
+  if (!w || typeof w !== 'object' || typeof w.data !== 'string' || w.data.length < 1000 || w.data.length > 200000 || !/^[A-Za-z0-9+/=]+$/.test(w.data)) return null;
+  const n = x => (fin(Number(x)) ? Number(x) : 0);
+  return { key: 'upload', name: TXT(w.name, 160) || 'Eigene Datei', lat: n(w.lat), lon: n(w.lon), elev: n(w.elev), utc: n(w.utc), tc: fin(Number(w.tc)) ? Number(w.tc) : 0.5, src: TXT(w.src, 160), data: w.data };
+}
 // Ältere Stände (bis Version 6): vier Motoranordnungen und Trägerzahl auf die neuen Varianten abbilden
 function migrateParams(p) {
   const o = { ...p };
@@ -329,6 +366,8 @@ function sanitize(raw) {
       x: fin(Number(c.x)) ? clamp(Number(c.x), -0.5, 6) : compX(c.id), y: fin(Number(c.y)) ? Number(c.y) : 0, z: fin(Number(c.z)) ? clamp(Number(c.z), -0.5, 1) : compZ(c.id)
     }));
   }
+  s.wx = sanitizeWx(raw.wx); s.req = sanitizeReq(raw.req); s.notes = sanitizeNotes(raw.notes);
+  if (raw.meta && typeof raw.meta === 'object') s.meta = { name: TXT(raw.meta.name, 120), knapp: fin(Number(raw.meta.knapp)) ? clamp(Number(raw.meta.knapp), 0.5, 50) : 5 };
   if (raw.gen && Array.isArray(raw.gen.months) && raw.gen.months.length === 12) s.gen = { src: String(raw.gen.src || ''), months: raw.gen.months.map(m => ({ kt: clamp(Number(m.kt) || 0.4, 0.05, 0.8), T: Number(m.T) || 10, amp: Number(m.amp) || 8, ws: Number(m.ws) || 2 })) };
   // Stände bis Version 7 hatten eine frei eingegebene Zellfläche: so lassen, damit sich ihre Ergebnisse nicht ändern
   if (!(Number(raw.v) >= 8) && p.solarMode === undefined) s.params.solarMode = 'area';
@@ -354,7 +393,15 @@ function migrateOld(o) {
   return sanitize(s);
 }
 function loadState() {
-  try { const raw = localStorage.getItem(STORE_KEY); if (raw) return sanitize(JSON.parse(raw)); } catch (e) { /* ignorieren */ }
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const s = sanitize(JSON.parse(raw));
+      // eigene Wetterdatei lag bis Version 7 getrennt im Browser
+      if (!s.wx) { try { s.wx = sanitizeWx(JSON.parse(localStorage.getItem('waldbrand-uav-v5-upload') || 'null')); } catch (e) { /* ignorieren */ } }
+      return s;
+    }
+  } catch (e) { /* ignorieren */ }
   try { const old = localStorage.getItem(OLD_KEY); if (old) return migrateOld(JSON.parse(old)); } catch (e) { /* ignorieren */ }
   return defaultState();
 }
@@ -365,9 +412,13 @@ function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { 
 function applyPreset(key) {
   const st = defaultState();
   if (key !== 'design' && REFS[key]) { st.params = { ...DEFAULT_PARAMS, ...REFS[key].params }; st.comps = REFS[key].comps.map(c => ({ ...c })); }
-  st.gen = S ? S.gen : null; st.preset = key;
-  S = st; buildForms(); renderCompTable(); invalidateAll(); schedule(true); save();
+  if (S) { st.gen = S.gen; st.wx = S.wx; st.req = S.req; st.notes = S.notes; st.meta = S.meta; }
+  for (const [k, r] of Object.entries(st.req)) if (r.fix && k.startsWith('p:') && r.val !== null && r.val !== undefined) st.params[k.slice(2)] = r.val;
+  st.preset = key;
+  S = st; refreshAll();
 }
+// nach dem Austausch des ganzen Zustands (Vorlage, Import, Teammodell): Formulare, Tabellen und Rechnung erneuern
+function refreshAll() { buildForms(); renderCompTable(); onWeatherChange(); invalidateAll(); schedule(true); if (typeof reqRefresh === 'function') reqRefresh(); }
 function markPreset() { S.preset = ''; const el = $('#preset-sel'); if (el) el.value = ''; }
 
 /* ---------- Ansichten ---------- */

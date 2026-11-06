@@ -13,20 +13,30 @@
         <option value="atlantik">AtlantikSolar AS-2 (Referenz)</option>
         <option value="skysailor">Sky-Sailor (Referenz)</option>
       </select>
-      <button class="btn" type="button" id="btn-share">Teilen / Sichern</button>
+      <button class="btn" type="button" id="btn-share">Datei</button>
       <button class="btn" type="button" id="btn-reset">Zurücksetzen</button>
     </div>
   </header>
 
-  <dialog id="share-dlg" class="panel" style="max-width:min(760px,92vw);border:1px solid var(--line);color:var(--ink)">
-    <div class="panel-head"><div><h2>Konfiguration teilen oder sichern</h2><p>Der Text enthält alle Eingaben und die Komponentenliste. Zum Laden einfügen und übernehmen.</p></div></div>
-    <textarea id="share-text" rows="9" aria-label="Konfiguration als Text"></textarea>
-    <div class="table-actions">
-      <button class="btn primary" type="button" id="share-copy">Kopieren</button>
-      <button class="btn" type="button" id="share-load">Eingefügten Text übernehmen</button>
-      <button class="btn" type="button" id="share-close">Schließen</button>
-      <span class="status-msg" id="share-msg" role="status"></span>
+  <dialog id="share-dlg" class="panel dlg" aria-labelledby="dlg-file-h">
+    <div class="panel-head"><div><h2 id="dlg-file-h">Modell als Datei speichern oder laden</h2><p>Die Datei enthält alles: Eingaben, Komponenten, Wettergenerator und eigene Wetterdatei, Anforderungen, Kommentare und den Namen des Modells.</p></div>
+      <button class="btn sm" type="button" id="share-close">Schließen</button></div>
+    <div class="two">
+      <div>
+        <h3 class="first">Exportieren</h3>
+        <div class="pgrid"><div class="field wide"><label for="exp-name">Name des Modells</label><input type="text" id="exp-name" maxlength="120" placeholder="z. B. Entwurf 6 m, SD7032"></div></div>
+        <div class="table-actions"><button class="btn primary" type="button" id="exp-file">Datei herunterladen</button><button class="btn" type="button" id="exp-copy">Als Text kopieren</button></div>
+        <p class="note" id="exp-info"></p>
+      </div>
+      <div>
+        <h3 class="first">Importieren</h3>
+        <div class="drop" id="imp-drop">Datei (.json) hier ablegen oder <label class="linkbtn" for="imp-file" style="cursor:pointer">Datei wählen</label><input type="file" id="imp-file" accept=".json,application/json,text/plain" hidden></div>
+        <textarea id="imp-text" rows="3" aria-label="Modell als Text einfügen" placeholder="… oder exportierten Text hier einfügen" style="margin-top:8px"></textarea>
+        <div id="imp-preview"></div>
+        <div class="table-actions" id="imp-actions"><button class="btn primary" type="button" id="imp-apply" disabled>Übernehmen</button><button class="btn" type="button" id="imp-undo" hidden>Stand vor dem Import wiederherstellen</button></div>
+      </div>
     </div>
+    <p class="status-msg" id="share-msg" role="status"></p>
   </dialog>
 
   <div class="nav">
