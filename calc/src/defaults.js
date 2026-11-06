@@ -9,7 +9,7 @@ const DEFAULT_PARAMS = {
   fusL: 1.3, fusD: 0.16, boomD: 0.03, fusFlow: 'turb', kInt: 10, kDrag: 5, zTail: 0.15, etaTail: 90,
   // Anordnung: Rumpf, Leitwerk, Motor; Längsaufteilung und Trimmung
   fusType: 'pod', tailType: 'cross', motorPos: 'nose', coneD: 0.05, wCone: 0.45,
-  xWingLE: 0.5, trimMode: 'battery', smTarget: 10, xBatt: 0.45, zBatt: 0, htSolar: 0,
+  xWingLE: 0.5, trimMode: 'battery', smTarget: 10, xBatt: 0.45, zBatt: 0, htSolar: 0, payloadExtra: 0,
   // Verkabelung
   wireModel: 'model', mWireFix: 0.3, wireExtra: 15, wireDropSol: 1.5,
   // Ruder

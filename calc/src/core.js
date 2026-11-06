@@ -331,7 +331,15 @@ function compSummary(comps) {
   for (const c of comps) if (c.on) { m += c.m / 1000; cda += (c.cda || 0) / 1e4; byGroup[c.group] = (byGroup[c.group] || 0) + c.m / 1000; }
   return { m, cda, byGroup };
 }
+// Zusätzliche Nutzlast (Reserve für Sensorik): gedachte Komponente im Schwerpunkt der eingeschalteten Sensorik
+function withExtraPayload(P, comps) {
+  const m = Math.max(0, P.payloadExtra || 0); if (!(m > 0)) return comps;
+  const sens = comps.filter(c => c.on && c.group === 'sens' && c.m > 0), ms = sens.reduce((s, c) => s + c.m, 0);
+  const x = ms > 0 ? sens.reduce((s, c) => s + c.m * (c.x ?? 0.5), 0) / ms : 0.4 * P.fusL, z = ms > 0 ? sens.reduce((s, c) => s + c.m * (c.z || 0), 0) / ms : 0;
+  return comps.concat([{ id: 'payloadExtra', name: 'Zusätzliche Nutzlast', group: 'sens', m: m * 1000, p: 0, d: 100, on: true, sched: 'always', cda: 0, x, y: 0, z }]);
+}
 function buildCase(P, comps, k) {
+  comps = withExtraPayload(P, comps);
   const C = { P, comps, k: { ...ONE, ...(k || {}) } };
   C.pf = planform(P);
   C.foil = foilByKey(P.airfoil); C.mode = P.transition === 'trip' ? 'trip' : 'free';

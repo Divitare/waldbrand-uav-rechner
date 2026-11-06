@@ -18,6 +18,7 @@
     "turb.js",
     "sim.js",
     "ext.js",
+    "kenn.js",
     "defaults.js",
     "formulas.js"
   ],

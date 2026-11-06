@@ -86,6 +86,7 @@ const PM = {};
   ['coneD', 'Rumpfröhre am Leitwerk Durchmesser', 'm', 0.005, 0.015, 0.3], ['wCone', 'Rumpfröhre Mindest-Flächengewicht', 'kg/m²', 0.01, 0.1, 3, null, 'Schale aus CFK-Gewebe mit Harz. Wird auf Festigkeit und Beulen nachgerechnet und bei Bedarf verstärkt.'],
   ['zBatt', 'Akku Höhe über Rumpfachse', 'm', 0.01, -0.3, 0.3],
   ['trimMode', 'Schwerpunkt einstellen über', '', 0, 0, 0, 'trimMode'], ['smTarget', 'Ziel-Stabilitätsmaß', '% MAC', 1, 2, 30, null, 'Abstand Schwerpunkt vor Neutralpunkt. Segler und Solarflugzeuge: 8–15 %. Weniger spart Trimmwiderstand, mehr macht ruhiger.'],
+  ['payloadExtra', 'Zusätzliche Nutzlast', 'kg', 0.05, 0, 20, null, 'Reserve für weitere Sensorik. Sitzt im Schwerpunkt der eingeschalteten Sensorik und braucht keinen Strom. Die Entwurfsvorschläge können sie maximieren.'],
   ['xWingLE', 'Flügelvorderkante an der Wurzel', 'm ab Bug', 0.01, 0, 3], ['xBatt', 'Akku-Schwerpunkt', 'm ab Bug', 0.01, 0, 3],
   ['wireModel', 'Verkabelung', '', 0, 0, 0, 'wireModel'], ['mWireFix', 'Kabel und Stecker gesamt', 'kg', 0.01, 0, 3],
   ['wireExtra', 'Zuschlag Kabelbaum', '%', 1, 0, 100, null, 'Kabelbinder, Schutzschlauch, Halter, Lötstellen. Leitungen und Stecker selbst sind einzeln gerechnet.'],
@@ -189,7 +190,7 @@ const FORMS = {
   wing: ['span', 'area', 'planform', 'taper', 'centerFrac', 'washout', 'dihedral', 'sweep', 'airfoil', 'transition'],
   tail: ['tailAirfoil', 'tailArm', 'vH', 'vV', 'arH', 'arV', 'zTail', 'etaTail', 'fusL', 'fusD', 'boomD', 'fusFlow', 'kInt', 'kDrag'],
   config: ['fusType', 'motorPos', 'tailType', 'zTail', 'fusL', 'fusD', 'coneD', 'boomD', 'tailArm'],
-  layout: ['trimMode', 'smTarget', 'xWingLE', 'xBatt', 'zBatt', 'battInWing', 'mAntrieb'],
+  layout: ['trimMode', 'smTarget', 'xWingLE', 'xBatt', 'zBatt', 'battInWing', 'mAntrieb', 'payloadExtra'],
   layout2: ['htSolar', 'zTail', 'etaTail', 'tailArm', 'vH', 'fusL'],
   wire: ['wireModel', 'mWireFix', 'wireExtra', 'wireDropSol', 'nAilSeg', 'ailEta0', 'ailEta1'],
   ctrl: ['ailEta0', 'ailEta1', 'ailCf', 'ailMax', 'nAilSeg', 'elevCf', 'elevPivot', 'elevMax', 'rudCf', 'rudMax', 'vCross', 'cgTol', 'nCtrl', 'vH', 'vV'],
@@ -391,16 +392,7 @@ function schedule(now) {
   invalidateAll();
   recTimer = setTimeout(() => { recompute(); save(); }, now ? 0 : 140);
 }
-function computeBase() {
-  const P = S.params, comps = S.comps;
-  const C = buildCase(P, comps), n = dayOfYear(P.date), y = yearOf(P.date);
-  const e = envClear(P, n, y), ser = daySeries(C, e);
-  const mis = mission(C, ser, ser, true), per = periodic(C, ser, true), margin = missionMargin(C, ser);
-  const pc = powerCurve(C), so = sora(P, C.m), mp = missionPerf(C);
-  let eSol = 0, eCons = 0, eNight = 0, peak = 0, cold = 0;
-  for (let i = 0; i < NSTEP; i++) { eSol += ser.ps[i] * DT; eCons += ser.pc[i] * DT; if (ser.ps[i] < ser.pc[i]) eNight += (ser.pc[i] - ser.ps[i]) * DT; peak = Math.max(peak, ser.ps[i]); cold += ser.cold[i]; }
-  return { P, comps, C, n, y, e, ser, mis, per, margin, pc, so, mp, eSol, eCons, eNight, peak, cold: cold * DT };
-}
+const computeBase = () => baseResult(S.params, S.comps);
 function recompute() {
   try { R = computeBase(); }
   catch (err) { console.error(err); $('#strip').innerHTML = `<div style="grid-column:1/-1">${pill('crit', 'Rechenfehler: ' + err.message)}</div>`; return; }

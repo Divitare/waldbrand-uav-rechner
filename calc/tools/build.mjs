@@ -32,7 +32,9 @@ function build(team) {
   const data = `<script type="application/json" id="d-airfoils">${jsJson(JSON.parse(read(DATA, 'airfoils.json')))}</script>\n`
     + `<script type="application/json" id="d-weather">${jsJson(JSON.parse(read(DATA, 'weather.json')))}</script>\n`
     + `<script type="application/json" id="d-info">${jsJson(JSON.parse(read(DATA, 'comp_info.json')))}</script>\n`;
-  const script = `<script>\n'use strict';\n(function () {\n${model}\n${ui}\n})();\n</script>\n`;
+  // Rechenkern als eigenes Skript mit globalen Namen: die Oberfläche nutzt sie direkt, und Web Worker
+  // (Entwurfsvorschläge) laden denselben Text noch einmal (document.getElementById('uav-model').textContent)
+  const script = `<script id="uav-model">\n'use strict';\n${model}\n</script>\n<script>\n'use strict';\n(function () {\n${ui}\n})();\n</script>\n`;
   if (!team) return head + html + '\n' + data + script;
   return '<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
     + head.replace('<meta name="claude:viewport-fit-sides" content="cover">\n', '').replace('<style>\n', '<style>\nhtml { -webkit-text-size-adjust: 100%; }\n')
