@@ -151,7 +151,7 @@ function htStudy(P, comps) {
   });
 }
 // Hinweis für Komponenten, die nicht mehr am Flügel liegen (vib.js · wingCompOff)
-const wingCompMsg = o => `${o.name} bei y = ${nf(o.y, 2)} m ${o.beyond ? 'liegt außerhalb der Spannweite' : `liegt bei x = ${nf(o.x, 2)} m, der Flügel dort von ${nf(o.xLE, 2)} bis ${nf(o.xTE, 2)} m`}: Lage anpassen (Massen, Schwerpunkt und Flattern rechnen mit der eingegebenen Lage)`;
+const wingCompMsg = o => `${o.name} (y = ${nf(o.y, 2)} m): ${o.beyond ? 'außerhalb der Spannweite' : `Längslage x = ${nf(o.x, 2)} m, der Flügel reicht dort von ${nf(o.xLE, 2)} bis ${nf(o.xTE, 2)} m`}. Lage anpassen; Massen, Schwerpunkt und Flattern rechnen mit der eingegebenen Lage.`;
 RENDER.schwerpunkt = (R) => {
   const { C, P } = R, bal = C.bal, ti = trimInfo(C), pf = C.pf, mac = pf.mac, mi = bal.mi;
   sideViewSVG($('#svg-side'), C);
@@ -601,6 +601,7 @@ function renderKern() {
     row('Typischer Profilschnitt', 'U_F/(b·ω_θ) (Hodges & Pierce)', '2,17', nf(k.sc.vf, 3), k.sc.vf, 2.17) +
     row('', 'mit steifer, ausgeglichener Klappe', nf(k.sc.vf, 3) + ' (ohne Klappe)', nf(k.sc.vfFlap, 3), k.sc.vfFlap, k.sc.vf) +
     row('Freies Flugzeug', 'Anstellwinkelschwingung ω (Standardentwurf)', nf(k.sp.dyn.wn, 2) + ' rad/s (Flugdynamik)', nf(k.sp.free.wn, 2) + ' rad/s', k.sp.free.wn, k.sp.dyn.wn) +
+    row('', 'Anstellwinkelschwingung ζ', nf(k.sp.dyn.zeta, 3) + ' (Flugdynamik)', nf(k.sp.free.zeta, 3), k.sp.free.zeta, k.sp.dyn.zeta) +
     row('Navion (Nelson)', 'Anstellwinkelschwingung', '−2,51 ± 2,59i', z(n.lon.sp), n.lon.sp.re, -2.51) +
     row('', 'Phygoide', '−0,017 ± 0,213i', z(n.lon.ph), n.lon.ph.im, 0.213) +
     row('', 'Taumelschwingung', '−0,49 ± 2,33i', z(n.lat.dr), n.lat.dr.im, 2.33) +

@@ -13,7 +13,8 @@
        q_g = −(s/V)/(1 + 4b s/(πV))·w_g,  r_g = +(s/V)/(1 + 3b s/(πV))·v_g
    - Flugzeug: lineare Längs- und Seitenbewegung (dyn.js); Böen wirken als
      Relativgeschwindigkeit in den Luftkraftableitungen: B = −∂(Luftkraft)/∂x,
-     auch über ẇ_g = s·w_g (Abwindverzug, Ableitungen Z_ẇ, M_ẇ; McRuer et al. 1973).
+     auch über ẇ_g = s·w_g (Abwindverzug, Ableitungen Z_ẇ, M_ẇ; Etkin 1972, Kap. 13;
+     Wright & Cooper 2015, Kap. 14).
      Frequenzgang Y(jω) = C·(jωI − A)⁻¹·B·g(jω), Leistungsdichten addiert über
      die unabhängigen Quellen u, v, w, p.
    - Der Autopilot hält Lage und Bahn unterhalb seiner Bandbreite ω_AP; gezählt

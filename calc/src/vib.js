@@ -157,7 +157,7 @@ function bodyFreedom(C, fm, opt = {}) {
   const b1 = fm.sym.find(m => !m.rigid), sym1 = b1 ? b1.omega : NaN;
   // Art der Instabilität: deutlich unter der 1. symmetrischen Biegung heißt Body-Freedom, sonst Flügelform im freien Flugzeug
   const type = fl.vf ? (fl.wf && fl.wf < 0.8 * sym1 ? 'bff' : 'wing') : null;
-  return { vf: fl.vf, wf: fl.wf, kind: fl.kind, type, spRigid, ratio: spRigid ? sym1 / spRigid.wn : NaN, lt, track: fl.track };
+  return { vf: fl.vf, wf: fl.wf, kind: fl.kind, atMin: fl.atMin, type, spRigid, ratio: spRigid ? sym1 / spRigid.wn : NaN, lt, track: fl.track };
 }
 // Ruder je Meter Spannweite: Masse, statisches Moment und Trägheit um die Drehachse; Ausgleichsmasse 0,25·c_R vor der Achse
 function ctrlProps(P, cF, bal) {
@@ -182,7 +182,7 @@ function balancePoints(cp, y0, y1, dxAt, n = 3) {
 // make(bal) liefert { bm, modes, cs(fb) } für einen Ausgleichsgrad; sV: Geschwindigkeitsfaktor im Propellerstrahl
 function ctrlCase(make, fNom, rho, vD, vMax, sV = 1, opt = {}) {
   const P0 = make(opt.bal), vReq = 1.2 * vD, o = { vMin: (opt.vMin || 0) * sV };
-  const search = (M, fb) => { const r = flutterSearch(M.bm, M.modes, rho, vMax * sV, VIB_ZETA, opt.nStep || 24, [M.cs(fb)], o); return { vf: r.vf ? r.vf / sV : null, wf: r.wf, fb, kind: r.kind }; };
+  const search = (M, fb) => { const r = flutterSearch(M.bm, M.modes, rho, vMax * sV, VIB_ZETA, opt.nStep || 24, [M.cs(fb)], o); return { vf: r.vf ? r.vf / sV : null, wf: r.wf, fb, kind: r.kind, atMin: r.atMin }; };
   let op = { vf: null, fb: NaN };
   for (const k of CTRL_FB) { const r = search(P0, k * fNom); if (r.vf && (!op.vf || r.vf < op.vf)) op = r; }
   const free = search(P0, 0);
@@ -195,7 +195,7 @@ function ctrlCase(make, fNom, rho, vD, vMax, sV = 1, opt = {}) {
   const needOp = need(CTRL_FB.map(k => k * fNom), vReq), needFree = need([0], vD);
   // Halter des Ausgleichsgewichts: 1,5 × höchste beteiligte Frequenz (Flatterfrequenzen und die zwei tiefsten Formen)
   const fMax = Math.max(...P0.modes.slice(0, 2).map(m => m.f), (free.wf || 0) / (2 * Math.PI), (op.wf || 0) / (2 * Math.PI));
-  return { vf: op.vf, wf: op.wf, kindF: op.kind, fbCrit: op.fb, free, needOp, needFree, need: Math.max(needOp, needFree), cp: P0.cp, fMax, sV, modes: P0.modes, okOp: !(op.vf && op.vf < vReq), okFree: !(free.vf && free.vf < vD) };
+  return { vf: op.vf, wf: op.wf, kindF: op.kind, atMin: op.atMin, fbCrit: op.fb, free, needOp, needFree, need: Math.max(needOp, needFree), cp: P0.cp, fMax, sV, modes: P0.modes, okOp: !(op.vf && op.vf < vReq), okFree: !(free.vf && free.vf < vD) };
 }
 // Querruder am eingespannten Flügel
 function aileronCase(C, k, vD, vMax) {
@@ -313,11 +313,11 @@ function tailCase(C, which, kB, vD, vMax, sV) {
   const o = { vMin: vMinOf(C) * sV };
   if (base.twinAll) {
     const r = flutterSearch(base.bm, modes0, C.rho, vMax * sV, VIB_ZETA, 24, [], o), vf = r.vf ? r.vf / sV : null;
-    return { vf, wf: r.wf, kindF: r.kind, need: 0, needOp: 0, needFree: 0, all: true, note: 'Pendelhöhenruder am Doppelträger: Servo-Drehfeder nicht modelliert, Fläche fest gerechnet', modes: base.modes, M: base, sV, fMax: Math.max(...modes0.map(m => m.f)), okOp: !(vf && vf < 1.2 * vD), okFree: true, free: { vf: null } };
+    return { vf, wf: r.wf, kindF: r.kind, atMin: r.atMin, need: 0, needOp: 0, needFree: 0, all: true, note: 'Pendelhöhenruder am Doppelträger: Servo-Drehfeder nicht modelliert, Fläche fest gerechnet', modes: base.modes, M: base, sV, fMax: Math.max(...modes0.map(m => m.f)), okOp: !(vf && vf < 1.2 * vD), okFree: true, free: { vf: null } };
   }
   if (E >= 0.999) {   // Pendelruder: Fläche dreht am Servo, keine Ruderkoordinate
     const r = flutterSearch(base.bm, modes0, C.rho, vMax * sV, VIB_ZETA, 24, [], o), vf = r.vf ? r.vf / sV : null;
-    return { vf, wf: r.wf, kindF: r.kind, need: 0, needOp: 0, needFree: 0, all: true, modes: base.modes, M: base, sV, fMax: Math.max(...modes0.map(m => m.f)), okOp: !(vf && vf < 1.2 * vD), okFree: true, free: { vf: null } };
+    return { vf, wf: r.wf, kindF: r.kind, atMin: r.atMin, need: 0, needOp: 0, needFree: 0, all: true, modes: base.modes, M: base, sV, fMax: Math.max(...modes0.map(m => m.f)), okOp: !(vf && vf < 1.2 * vD), okFree: true, free: { vf: null } };
   }
   const span = isFin ? tg.bv : tg.bh / 2, cMean = isFin ? 0.81 * tg.cv : tg.ch, cF = E * cMean, fea = base.fea;
   const chord = y => (isFin ? tg.cv * (1 - 0.38 * y / span) : tg.ch);
@@ -365,11 +365,11 @@ function vibAnalysis(C) {
   out.ht = tailCase(C, 'ht', kV, P.vmax, vMax, sl.H);
   // Zusammenfassung
   const cases = [
-    { k: 'wing', name: 'Flügel (Biegung–Torsion)', vf: out.wing.vf, kind: out.wing.kind },
-    { k: 'bff', name: out.bff.type === 'bff' ? 'Freies Flugzeug (Body-Freedom)' : 'Freies Flugzeug (symmetrisch)', vf: out.bff.vf, kind: out.bff.kind },
-    { k: 'ail', name: 'Querruder', vf: out.ail.vf, kind: out.ail.kindF, free: out.ail.free.vf, kindFree: out.ail.free.kind },
-    { k: 'fin', name: 'Seitenleitwerk mit Seitenruder', vf: out.fin.vf, kind: out.fin.kindF, free: out.fin.free.vf, kindFree: out.fin.free.kind },
-    { k: 'ht', name: out.ht.all ? 'Höhenleitwerk (Pendelruder)' : 'Höhenleitwerk mit Höhenruder', vf: out.ht.vf, kind: out.ht.kindF, free: out.ht.free.vf, kindFree: out.ht.free.kind }
+    { k: 'wing', name: 'Flügel (Biegung–Torsion)', vf: out.wing.vf, kind: out.wing.kind, atMin: out.wing.atMin },
+    { k: 'bff', name: out.bff.type === 'bff' ? 'Freies Flugzeug (Body-Freedom)' : 'Freies Flugzeug (symmetrisch)', vf: out.bff.vf, kind: out.bff.kind, atMin: out.bff.atMin },
+    { k: 'ail', name: 'Querruder', vf: out.ail.vf, kind: out.ail.kindF, atMin: out.ail.atMin, free: out.ail.free.vf, kindFree: out.ail.free.kind },
+    { k: 'fin', name: 'Seitenleitwerk mit Seitenruder', vf: out.fin.vf, kind: out.fin.kindF, atMin: out.fin.atMin, free: out.fin.free.vf, kindFree: out.fin.free.kind },
+    { k: 'ht', name: out.ht.all ? 'Höhenleitwerk (Pendelruder)' : 'Höhenleitwerk mit Höhenruder', vf: out.ht.vf, kind: out.ht.kindF, atMin: out.ht.atMin, free: out.ht.free.vf, kindFree: out.ht.free.kind }
   ];
   cases.forEach(c => { c.ok = !(c.vf && c.vf < vReq); c.okFree = !(c.free && c.free < P.vmax); });
   out.cases = cases; out.vfMin = cases.reduce((a, c) => (c.vf && (!a || c.vf < a) ? c.vf : a), null);

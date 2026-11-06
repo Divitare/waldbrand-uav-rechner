@@ -273,18 +273,18 @@ function flutterSearch(bm, modes, rho, vMax, zeta = 0.02, nStep = 50, cs = [], o
   const track = [], v0 = Math.max(0, Math.min(opt.vMin || 0, 0.9 * vMax));
   let vf = null, wf = null;
   const crit = V => { const r = flutterRoots(bm, modes, V, rho, zeta, cs, opt), go = r.length ? Math.max(...r.map(z => z.re)) : -1; return { r, g: Math.max(go, r.maxReal), div: r.maxReal > 0 && r.maxReal >= go }; };
-  let prev = null, kind = null;
+  let prev = null, kind = null, atMin = false;
   for (let i = v0 > 0 ? 0 : 1; i <= nStep; i++) {
     const V = v0 + (vMax - v0) * i / nStep, c = crit(V); track.push({ V, roots: c.r });
     if (vf === null && c.g > 0) {
-      let hi = V;
+      let hi = V; atMin = !prev && v0 > 0;
       if (prev || v0 === 0) { let lo = prev ? prev.V : 0; for (let k = 0; k < 22; k++) { const m = (lo + hi) / 2; if (crit(m).g > 0) hi = m; else lo = m; } }
       vf = hi; const ch = crit(hi), rr = ch.r; kind = ch.div ? 'div' : 'flutter';
       const z = rr.reduce((a, b) => (b.re > a.re ? b : a), rr[0]); wf = ch.div ? 0 : z ? z.im : null;
     }
     prev = { V };
   }
-  return { vf, wf, kind, track, vMin: v0 };
+  return { vf, wf, kind, track, vMin: v0, atMin };
 }
 // Flatterfrei bis vReq? Prüfung auf einem Geschwindigkeitsraster ab opt.vMin (für Parameterstudien, ohne Eingrenzung)
 function flutterFreeTo(bm, modes, rho, vReq, zeta, cs = [], opt = {}, n = 14) {
