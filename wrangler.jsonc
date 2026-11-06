@@ -9,6 +9,7 @@
     "directory": "./public",
     "binding": "ASSETS"
   },
+  // Liste der Teammodelle (Tabelle models; der Worker legt sie bei Bedarf selbst an)
   "d1_databases": [
     {
       "binding": "DB",
@@ -16,5 +17,13 @@
       "database_id": "c0b9cedc-0844-48e0-839f-a9de39cd6cce"
     }
   ],
+  // Jedes Teammodell ist ein Durable Object mit eigener SQLite-Datenbank (Dokument, Verlauf, Stände)
+  // und den WebSocket-Verbindungen aller, die es offen haben.
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "ModelRoom" }]
+  },
+  // Klasse einmalig mit SQLite-Speicher anlegen (im Free-Plan nur so möglich). Einträge hier nie ändern oder
+  // löschen, sondern für spätere Änderungen neue Einträge mit neuem tag anhängen.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ModelRoom"] }],
   "observability": { "enabled": true }
 }

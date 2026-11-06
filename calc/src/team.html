@@ -1,25 +1,44 @@
-  <!-- Team -->
+  <!-- Teamarbeit -->
   <section class="view" id="v-team" data-view="team" hidden>
-    <div class="panel" id="team">
-      <div class="panel-head">
-        <div>
-          <h2>Team-Varianten</h2>
-          <p>Gemeinsam gespeicherte Stände für alle mit diesem Link. Laden ersetzt eure aktuellen Werte. Speichern, Überschreiben und Löschen brauchen das Team-Passwort.</p>
-        </div>
-        <span id="team-state"></span>
+    <div class="cols">
+      <div class="side">
+        <div class="panel" id="tm-login-panel"><h3 class="first">Anmelden</h3>
+          <form class="pgrid" id="tm-login" autocomplete="on">
+            <div class="field wide"><label for="tm-name">Dein Name</label><input type="text" id="tm-name" maxlength="60" autocomplete="name" required></div>
+            <div class="field wide"><label for="tm-key">Team-Passwort</label><input type="password" id="tm-key" autocomplete="current-password" required></div>
+            <div class="field wide"><button class="btn primary" type="submit" id="tm-login-btn">Anmelden</button></div>
+          </form>
+          <p class="note">Ein gemeinsames Passwort für das ganze Team, keine eigenen Konten. Der Name zeigt den anderen, wer gerade wo arbeitet und wer was geändert hat. Das Passwort bleibt in diesem Browser gespeichert, bis ihr euch abmeldet.</p>
+          <p class="status-msg" id="tm-login-msg" role="status"></p></div>
+        <div class="panel" id="tm-me-panel" hidden><h3 class="first">Angemeldet</h3>
+          <p class="tm-me">als <b id="tm-me-name"></b> <button type="button" class="linkbtn small" id="tm-rename-me">Name ändern</button></p>
+          <div class="table-actions"><button class="btn sm" type="button" id="tm-logout">Abmelden</button></div></div>
+        <div class="panel" id="tm-now-panel" hidden><h3 class="first">Offenes Modell</h3>
+          <div class="tm-now-name"><b id="tm-now-name"></b><span id="tm-now-state"></span></div>
+          <div class="tm-users" id="tm-users"></div>
+          <div class="table-actions">
+            <button class="btn sm" type="button" id="tm-copylink">Link kopieren</button>
+            <button class="btn sm" type="button" id="tm-close">Schließen und lokal weiterarbeiten</button>
+          </div>
+          <p class="note" id="tm-now-note"></p></div>
+        <div class="panel" id="tm-vers-panel" hidden><h3 class="first">Gespeicherte Stände</h3>
+          <div class="tm-vsave"><input type="text" id="tm-vname" maxlength="120" placeholder="z. B. vor dem Windkanaltest" aria-label="Name des Stands"><button class="btn sm primary" type="button" id="tm-vsave">Stand speichern</button></div>
+          <ul class="tm-vlist" id="tm-vlist"></ul>
+          <p class="note">Wiederherstellen setzt das Modell für alle auf den gespeicherten Stand zurück. Der jetzige Stand wird vorher automatisch gesichert, und im Verlauf lässt sich auch das rückgängig machen.</p></div>
       </div>
-      <p class="note" id="t-loaded" hidden></p>
-      <ul class="vlist" id="t-list" aria-label="Gespeicherte Varianten"><li class="empty">Lade Varianten …</li></ul>
-      <form class="pgrid" id="t-form" autocomplete="on" style="margin-top:14px">
-        <div class="field wide"><label for="t-name">Name der Variante</label><input type="text" id="t-name" maxlength="80" placeholder="z. B. 6 m, SD7037, 3,5 kg Akku"></div>
-        <div class="field"><label for="t-author">Dein Name</label><input type="text" id="t-author" maxlength="60" autocomplete="name"></div>
-        <div class="field"><label for="t-key">Team-Passwort</label><input type="password" id="t-key" autocomplete="current-password"></div>
-      </form>
-      <div class="table-actions">
-        <button class="btn primary" type="button" id="t-save-new">Als neue Variante speichern</button>
-        <button class="btn" type="button" id="t-save-over" disabled>Geladene Variante überschreiben</button>
-        <button class="btn" type="button" id="t-refresh">Liste aktualisieren</button>
-        <span class="status-msg" id="t-msg" role="status"></span>
+      <div class="main">
+        <div class="panel" id="tm-models-panel"><div class="panel-head"><div><h2>Modelle des Teams</h2><p id="tm-models-sub">Gemeinsame Modelle: Wer eins öffnet, sieht Änderungen der anderen sofort. Ändern zwei verschiedene Stellen, gelten beide; ändern sie dieselbe, gilt die spätere.</p></div></div>
+          <div id="tm-models"></div>
+          <div class="tm-new" id="tm-new" hidden>
+            <input type="text" id="tm-new-name" maxlength="120" placeholder="Name, z. B. Entwurf 6 m mit SD7032" aria-label="Name des neuen Modells">
+            <button class="btn primary" type="button" id="tm-new-btn">Jetzigen Stand als neues Teammodell</button>
+          </div>
+          <p class="note" id="tm-new-note" hidden>Eine Datei wird über „Datei“ oben eingelesen und lässt sich dort direkt als neues Teammodell anlegen.</p>
+          <details class="tm-trash" id="tm-trash-wrap" hidden><summary>Papierkorb</summary><div id="tm-trash"></div></details>
+          <p class="status-msg" id="tm-msg" role="status"></p></div>
+        <div class="panel" id="tm-hist-panel" hidden><div class="panel-head"><div><h2>Verlauf</h2><p>Alle Änderungen am offenen Modell, gebündelt je Person und Arbeitsgang. „Rückgängig“ setzt die betroffenen Stellen auf den Wert davor – als neue Änderung, die sich selbst wieder zurücknehmen lässt.</p></div></div>
+          <ol class="tm-hist" id="tm-hist"></ol>
+          <div class="table-actions"><button class="btn sm" type="button" id="tm-hist-more" hidden>Ältere Änderungen laden</button></div></div>
       </div>
     </div>
   </section>

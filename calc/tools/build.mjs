@@ -1,6 +1,6 @@
 // Baut den Rechner als je eine HTML-Datei:
 //   dist/uav-budget.html  – Einzelseite ohne Team-Speicher (für claude.ai-Artefakt oder lokal im Browser)
-//   public/index.html     – Seite für den Cloudflare-Worker mit Team-Varianten
+//   public/index.html     – Seite für den Cloudflare-Worker mit Teamarbeit (gemeinsame Modelle, live)
 // Aufruf: node calc/tools/build.mjs   (keine Abhängigkeiten außer Node.js)
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -20,7 +20,8 @@ function build(team) {
   let ui = UI.map(f => read(SRC, f)).join('\n');
   if (team) {
     css += '\n' + read(SRC, 'team.css');
-    html = html.replace('<!--TEAM-NAV-->', '<a href="#team" data-v="team">Team</a>').replace('<!--TEAM-VIEW-->', read(SRC, 'team.html'));
+    html = html.replace('<!--TEAM-NAV-->', '<a href="#team" data-v="team">Team</a>').replace('<!--TEAM-VIEW-->', read(SRC, 'team.html'))
+      .replace('<!--TEAM-BAR-->', '<div class="tm-bar" id="tm-bar" hidden></div>');
     if (!ui.includes('init();\n')) throw new Error('init(); fehlt in den Oberflächen-Dateien');
     ui = ui.replace('init();\n', '') + '\n' + read(SRC, 'team.js') + '\ninit();\nteamInit();\n';
   }

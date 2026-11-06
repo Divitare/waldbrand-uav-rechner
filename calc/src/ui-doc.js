@@ -41,7 +41,7 @@ const IMP = { cur: null };
 function impPreview() {
   const box = $('#imp-preview'), x = IMP.cur;
   $('#imp-apply').disabled = !x;
-  if (!x) { box.innerHTML = ''; return; }
+  if (!x) { box.innerHTML = ''; impHooks(); return; }
   const d = sanitize(x.doc), nReq = Object.keys(d.req).length, nNotes = Object.values(d.notes).reduce((s, l) => s + l.length, 0), sm = x.summary;
   const when = x.exported ? new Date(x.exported) : null;
   const rows = [
@@ -50,6 +50,18 @@ function impPreview() {
     ...(sm && fin(sm.mass_kg) ? [['Stand beim Export', `${nf(sm.mass_kg, 2)} kg, ${nf(sm.power_w, 0)} W${sm.verdict ? ' · ' + sm.verdict : ''}`]] : [])
   ];
   box.innerHTML = `<div class="imp-card"><b>Bereit zum Übernehmen</b>${x.version > FILE_VERSION ? ' ' + pill('warn', 'aus einer neueren Version des Rechners') : ''}<dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>`;
+  impHooks();
+}
+// weitere Wege für eine gelesene Datei (Teamarbeit: als neues Teammodell anlegen)
+function impHooks() {
+  $$('#imp-actions .imp-hook').forEach(b => b.remove());
+  if (!IMP.cur) return;
+  for (const h of IMPORT_HOOKS) {
+    if (!h.show()) continue;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn imp-hook'; b.textContent = h.label;
+    b.addEventListener('click', () => { const x = IMP.cur; if (x) h.run(x); });
+    $('#imp-actions').insertBefore(b, $('#imp-undo'));
+  }
 }
 function impLoadText(text, src) {
   const msg = $('#share-msg');
