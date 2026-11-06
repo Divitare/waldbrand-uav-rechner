@@ -50,6 +50,9 @@ const SEL = {
   sparType: [['caps', 'Gurte mit Steg'], ['tube', 'Rohrholm']],
   solarGeom: [['profil', 'aus Profilkontur (Wölbung, Einfallswinkel)'], ['flach', 'waagerecht mit Pauschalfaktor (ETH)']],
   stringLayout: [['span', 'Strings in Spannweitenrichtung'], ['chord', 'Strings in Tiefenrichtung']],
+  solarMode: [['fill', 'Ganze Zellen, so viele wie passen'], ['count', 'Ganze Zellen, feste Anzahl'], ['area', 'Zellfläche frei eingeben (ohne Zellraster)']],
+  cellType: Object.entries(CELL_TYPES).map(([k, t]) => [k, t.name]),
+  cellOrient: [['auto', 'Beste je Spalte'], ['span', 'Lange Kante in Spannweitenrichtung'], ['chord', 'Lange Kante in Flugrichtung']],
   tz: [['auto', 'MEZ/MESZ automatisch'], ['0', 'UTC'], ['1', 'UTC+1'], ['2', 'UTC+2'], ['3', 'UTC+3'], ['-3', 'UTC−3'], ['-5', 'UTC−5'], ['-7', 'UTC−7'], ['-8', 'UTC−8']],
   weather: [['clear', 'Klarer Himmel (Modell)'], ['piemont', 'Piemont, PVGIS-TMY (echt)'], ['amsterdam', 'Amsterdam, IWEC (echt)'], ['upload', 'Eigene Datei (PVGIS, EPW)'], ['gen', 'Wettergenerator (Monatswerte)']],
   arcStrat: [[0, 'keine'], [-1, 'eine Klasse (Nachweis geringer Verkehrsdichte)']]
@@ -144,6 +147,15 @@ const PM = {};
   ['hStore', 'Energie in der Höhe speichern bis', 'm über Einsatzhöhe', 10, 0, 2000, null, 'Solarüberschuss, den der Akku nicht mehr aufnimmt, hebt das Flugzeug; abends gleitet es zurück, bevor der Akku entladen wird. 0 heißt aus. Höhengrenze der Betriebsgenehmigung beachten.'],
   ['chargeC', 'Max. Laderate', 'C', 0.05, 0.1, 3], ['noColdCharge', 'Nicht unter 0 °C laden', '', 0, 0, 0, 'bool'],
   // Solar
+  ['solarMode', 'Zellbelegung', '', 0, 0, 0, 'solarMode', 'Ganze Zellen: so viele, wie zwischen den gewählten Tiefen und Freiräumen auf Flügel passen (Rechteckraster). Feste Anzahl: von der Wurzel nach außen. Fläche frei: wie bis Version 7, ohne Prüfung auf ganze Zellen.'],
+  ['cellType', 'Zellformat', '', 0, 0, 0, 'cellType', 'SunPower C60: 125 × 125 mm, Ecken vom 160-mm-Ingot abgeschnitten (153,3 cm²), 21,8–22,5 %. Halbe und Viertelzellen haben die gleiche Spannung und anteilig weniger Strom. AZUR SPACE 3G30C: Dreifachzelle 80 × 40 mm, 30,18 cm², 29,5 % (AM0).'],
+  ['cellA', 'Zellkante a', 'mm', 0.5, 5, 600], ['cellB', 'Zellkante b', 'mm', 0.5, 5, 600], ['cellVmp', 'Zellspannung im MPP', 'V', 0.01, 0.1, 5],
+  ['cellOrient', 'Ausrichtung der Zellen', '', 0, 0, 0, 'cellOrient'],
+  ['nCellsWing', 'Zellen auf dem Flügel (gesamt)', '', 2, 0, 4000, null, 'Beide Hälften zusammen, von der Wurzel nach außen belegt.'],
+  ['cellGap', 'Zellabstand', 'mm', 0.5, 0, 20, null, 'Platz für Verbinder und Wärmedehnung, laminiert meist 1–3 mm.'],
+  ['cellRootGap', 'Freiraum an der Wurzel', 'm ab Rumpfmitte', 0.01, 0, 1, null, 'Rumpf, Flügelauflage und Steckung. Gondel mit 16 cm Durchmesser: etwa 0,1 m.'],
+  ['cellTipGap', 'Freiraum an der Spitze', 'm', 0.01, 0, 1], ['cellJointGap', 'Freiraum an der Außenteilung', 'm', 0.005, 0, 0.3, null, 'Breite der zellfreien Zone um die äußere Flügelteilung (Endrippen, Steckung, Stecker).'],
+  ['cellsOnCtrl', 'Zellen auch auf Quer- und Höhenruder', '', 0, 0, 0, 'bool'],
   ['solarArea', 'Zellfläche Flügel', 'm²', 0.01, 0, 6], ['cellEff', 'Zellwirkungsgrad', '%', 0.1, 5, 35], ['solarAreal', 'Flächengewicht Modul', 'kg/m²', 0.01, 0.1, 3, null, 'Zellen mit Einbettung. AtlantikSolar: 0,62 kg/m².'],
   ['solarGeom', 'Einstrahlungsmodell', '', 0, 0, 0, 'solarGeom'], ['camberEta', 'Pauschaler Wölbungsfaktor', '%', 0.5, 50, 100],
   ['cellX0', 'Zellen ab Flügeltiefe', '%', 1, 0, 60], ['cellX1', 'Zellen bis Flügeltiefe', '%', 1, 30, 100], ['stringLayout', 'Verschaltung', '', 0, 0, 0, 'stringLayout', 'In Tiefenrichtung verschaltete Strings begrenzt die schlechtest beschienene Zelle.'],
@@ -173,7 +185,7 @@ const PM = {};
 ].forEach(([k, l, u, step, min, max, sel, help]) => { PM[k] = { k, l, u, step, min, max, sel, help }; });
 
 const FORMS = {
-  quick: ['span', 'area', 'airfoil', 'v', 'mBatt', 'solarArea', 'date', 'lat', 'tStart', 'tEnd', 'tMax', 'tMin'],
+  quick: ['span', 'area', 'airfoil', 'v', 'mBatt', 'cellType', 'solarArea', 'date', 'lat', 'tStart', 'tEnd', 'tMax', 'tMin'],
   wing: ['span', 'area', 'planform', 'taper', 'centerFrac', 'washout', 'dihedral', 'sweep', 'airfoil', 'transition'],
   tail: ['tailAirfoil', 'tailArm', 'vH', 'vV', 'arH', 'arV', 'zTail', 'etaTail', 'fusL', 'fusD', 'boomD', 'fusFlow', 'kInt', 'kDrag'],
   config: ['fusType', 'motorPos', 'tailType', 'zTail', 'fusL', 'fusD', 'coneD', 'boomD', 'tailArm'],
@@ -194,7 +206,7 @@ const FORMS = {
   vib: ['wCtrl', 'ctrlXcg', 'ctrlBal', 'kServo', 'gvtAil', 'gvtElev', 'gvtRud', 'gvtB1', 'gvtT1', 'gvtFin', 'gvtHT'],
   env: ['date', 'tz', 'lat', 'lon', 'alt', 'hAGL', 'tMax', 'tMin', 'sky'],
   batt: ['mBatt', 'battSpec', 'reserve', 'battHealth', 'etaCharge', 'etaDischarge', 'battTempCoef', 'battHeat', 'chargeC', 'noColdCharge', 'nCells', 'cellV', 'battRAh', 'hStore'],
-  solar: ['solarArea', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'cellX0', 'cellX1', 'stringLayout'],
+  solar: ['solarMode', 'cellType', 'cellA', 'cellB', 'cellVmp', 'cellOrient', 'nCellsWing', 'solarArea', 'cellX0', 'cellX1', 'cellGap', 'cellRootGap', 'cellTipGap', 'cellJointGap', 'cellsOnCtrl', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'stringLayout'],
   solar2: ['mpptEff', 'laminateLoss', 'wiringLoss', 'soiling', 'tempCoef', 'cellHeat', 'albedo'],
   wx: ['weather', 'genYears', 'genSeed'],
   wind: ['wind10', 'hellmann', 'weibullK'],
@@ -211,7 +223,12 @@ const SHOW_IF = {
   pMeas: P => P.powerModel === 'mess', mMeas: P => P.powerModel === 'mess', rhoMeas: P => P.powerModel === 'mess',
   etaTotal: P => P.propModel === 'eta', propD: P => P.propModel !== 'eta' && P.propGeom !== 'apc10x7', nProp: P => P.propModel === 'model', etaProfile: P => P.propModel === 'model', etaMotor: P => P.propModel === 'model', etaEsc: P => P.propModel !== 'eta', etaGear: P => P.propModel !== 'eta',
   mZelle: P => P.structMode === 'fix', rugged: P => P.structMode !== 'fix', nLimit: P => P.structMode !== 'fix', safety: P => P.structMode !== 'fix', vGust: P => P.structMode !== 'fix', gustU: P => P.structMode !== 'fix', deflMax: P => P.structMode !== 'fix', battInWing: P => P.structMode !== 'fix',
-  camberEta: P => P.solarGeom === 'flach', cellX0: P => P.solarGeom !== 'flach', cellX1: P => P.solarGeom !== 'flach', stringLayout: P => P.solarGeom !== 'flach',
+  camberEta: P => P.solarGeom === 'flach', stringLayout: P => P.solarGeom !== 'flach',
+  cellX0: P => P.solarGeom !== 'flach' || P.solarMode !== 'area', cellX1: P => P.solarGeom !== 'flach' || P.solarMode !== 'area',
+  solarArea: P => P.solarMode === 'area', nCellsWing: P => P.solarMode === 'count',
+  cellA: P => P.cellType === 'custom', cellB: P => P.cellType === 'custom', cellVmp: P => P.cellType === 'custom',
+  cellOrient: P => P.solarMode !== 'area', cellGap: P => P.solarMode !== 'area', cellRootGap: P => P.solarMode !== 'area', cellTipGap: P => P.solarMode !== 'area',
+  cellJointGap: P => P.solarMode !== 'area' && (P.splits === 'outer' || P.splits === 'both'), cellsOnCtrl: P => P.solarMode !== 'area',
   genYears: P => P.weather === 'gen', genSeed: P => P.weather === 'gen',
   coneD: P => P.fusType === 'glider', wCone: P => P.fusType === 'glider', boomD: P => P.fusType !== 'glider', boomLin: P => P.fusType !== 'glider',
   mWireFix: P => P.wireModel === 'fix', wireExtra: P => P.wireModel !== 'fix', wireDropSol: P => P.wireModel !== 'fix',
@@ -238,7 +255,7 @@ function fieldHTML(k, form) {
   const m = PM[k]; if (!m) return '';
   const id = `f-${form}-${k}`, help = m.help ? `<span class="help">${esc(m.help)}</span>` : '';
   const lab = `${esc(m.l)}${m.u ? ` <span class="u">${esc(m.u)}</span>` : ''}`;
-  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
+  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'solarMode', 'cellType', 'cellOrient', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
   if (m.sel === 'bool') return `<div class="field chk wide" data-fk="${k}"><input type="checkbox" id="${id}" data-k="${k}"><label for="${id}">${lab}</label>${help}</div>`;
   if (m.sel === 'date') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label><input type="date" id="${id}" data-k="${k}"></div>`;
   if (m.sel === 'time') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label><input type="time" id="${id}" data-k="${k}"></div>`;
@@ -272,7 +289,7 @@ document.addEventListener('input', e => {
   S.params[el.dataset.k] = v;
   // gleiche Größe in anderen Formularen nachziehen
   $$(`[data-k="${el.dataset.k}"]`).forEach(o => { if (o !== el) { if (o.type === 'checkbox') o.checked = !!v; else o.value = String(v); } });
-  if (['planform', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'weather', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'battInWing', 'splits', 'propGeom'].includes(el.dataset.k)) fillForms();
+  if (['planform', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'weather', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'battInWing', 'splits', 'propGeom', 'solarMode', 'cellType'].includes(el.dataset.k)) fillForms();
   if (el.dataset.k === 'weather') onWeatherChange();
   markPreset(); schedule();
 });
@@ -281,7 +298,7 @@ document.addEventListener('change', e => { const el = e.target; if (el.dataset &
 /* ---------- Zustand ---------- */
 const STORE_KEY = 'waldbrand-uav-v5', OLD_KEY = 'waldbrand-uav-budget-v1', VIEW_KEY = 'waldbrand-uav-v5-view';
 let S = null;
-function defaultState() { return { v: 7, params: { ...DEFAULT_PARAMS }, comps: DEFAULT_COMPS.map(c => ({ ...c })), gen: null, preset: 'design' }; }
+function defaultState() { return { v: 8, params: { ...DEFAULT_PARAMS }, comps: DEFAULT_COMPS.map(c => ({ ...c })), gen: null, preset: 'design' }; }
 // Ältere Stände (bis Version 6): vier Motoranordnungen und Trägerzahl auf die neuen Varianten abbilden
 function migrateParams(p) {
   const o = { ...p };
@@ -312,6 +329,8 @@ function sanitize(raw) {
     }));
   }
   if (raw.gen && Array.isArray(raw.gen.months) && raw.gen.months.length === 12) s.gen = { src: String(raw.gen.src || ''), months: raw.gen.months.map(m => ({ kt: clamp(Number(m.kt) || 0.4, 0.05, 0.8), T: Number(m.T) || 10, amp: Number(m.amp) || 8, ws: Number(m.ws) || 2 })) };
+  // Stände bis Version 7 hatten eine frei eingegebene Zellfläche: so lassen, damit sich ihre Ergebnisse nicht ändern
+  if (!(Number(raw.v) >= 8) && p.solarMode === undefined) s.params.solarMode = 'area';
   if (!AF.map.has(s.params.airfoil)) s.params.airfoil = DEFAULT_PARAMS.airfoil;
   if (!AF.map.has(s.params.tailAirfoil)) s.params.tailAirfoil = DEFAULT_PARAMS.tailAirfoil;
   s.preset = typeof raw.preset === 'string' ? raw.preset : '';

@@ -32,6 +32,8 @@ const DEFAULT_PARAMS = {
   // Akku
   mBatt: 3.0, battSpec: 230, reserve: 20, etaCharge: 95, etaDischarge: 97, battHealth: 100, battTempCoef: 0.6, battHeat: 8, chargeC: 0.5, noColdCharge: true, battRAh: 0.15, hStore: 0,
   // Solar
+  solarMode: 'fill', cellType: 'c60h', cellA: 125, cellB: 62.5, cellVmp: 0.58, cellOrient: 'auto', nCellsWing: 100, cellGap: 2,
+  cellRootGap: 0.1, cellTipGap: 0.03, cellJointGap: 0.04, cellsOnCtrl: false,
   solarArea: 1.0, cellEff: 23, solarAreal: 0.7, solarGeom: 'profil', cellX0: 8, cellX1: 85, stringLayout: 'span', camberEta: 95,
   mpptEff: 97, laminateLoss: 3, wiringLoss: 2, soiling: 1, tempCoef: 0.32, cellHeat: 0.02, albedo: 0.15,
   // Umgebung
@@ -91,7 +93,7 @@ const REFS = {
       structMode: 'model', mZelle: 1.54, rugged: 0, splits: 'outer', splitEta: 0.42, mFusFix: 0.05, fusType: 'pod', tailType: 'cross', motorPos: 'nose', trimMode: 'wing', xWingLE: 0.3, xBatt: 0.3,
       landGear: 'belly', wBelly: 0, launch: 'hand', vHand: 8, wireModel: 'fix', mWireFix: 0.628, nAilSeg: 1,
       mBatt: 2.92, battSpec: 251, reserve: 0, battHealth: 100, battHeat: 30, battTempCoef: 0,
-      solarArea: 1.35, cellEff: 23.7, solarAreal: 0.622, solarGeom: 'flach', camberEta: 95, mpptEff: 97, laminateLoss: 0, wiringLoss: 0, soiling: 0, cellHeat: 0, tempCoef: 0.3,
+      solarMode: 'area', solarArea: 1.35, cellEff: 23.7, solarAreal: 0.622, solarGeom: 'flach', camberEta: 95, mpptEff: 97, laminateLoss: 0, wiringLoss: 0, soiling: 0, cellHeat: 0, tempCoef: 0.3,
       date: '2015-06-21', lat: 47.6, lon: 8.53, tz: 'auto', tMax: 25, tMin: 25, sky: 100, turbDay: 0, weather: 'clear', tStart: '08:00', tEnd: '20:00'
     },
     comps: [
@@ -112,7 +114,7 @@ const REFS = {
       structMode: 'model', rugged: 0, splits: 'center', mJoint: 0.03, mFusFix: 0.03, fusType: 'pod', tailType: 'cross', motorPos: 'nose', trimMode: 'wing', xWingLE: 0.2, xBatt: 0.2,
       landGear: 'belly', wBelly: 0, launch: 'hand', vHand: 7, nAilSeg: 1,
       mBatt: 1.2, battSpec: 173, reserve: 0, battHeat: 30, battTempCoef: 0,
-      solarArea: 0.512, cellEff: 17, solarAreal: 0.4, solarGeom: 'flach', camberEta: 95, mpptEff: 97, laminateLoss: 0, wiringLoss: 0, soiling: 0, cellHeat: 0,
+      solarMode: 'area', solarArea: 0.512, cellEff: 17, solarAreal: 0.4, solarGeom: 'flach', camberEta: 95, mpptEff: 97, laminateLoss: 0, wiringLoss: 0, soiling: 0, cellHeat: 0,
       date: '2008-06-21', lat: 47.4, lon: 8.5, tMax: 25, tMin: 15
     },
     comps: [{ id: 'ss-av', name: 'Avionik, MPPT, Nutzlast Sky-Sailor', group: 'av', m: 250, p: 2, d: 100, on: true, sched: 'always', cda: 0 }],

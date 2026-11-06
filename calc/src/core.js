@@ -287,7 +287,7 @@ function structureMass(C, m, detail) {
   let stiffF = 1;
   if (dTip > dMax) { stiffF = dTip / dMax; A = A.map(a => a * stiffF); }
   // Massen je Meter Spannweite (eine Flügelhälfte)
-  const wetWing = 2.04 * pf.S, cover = Math.max(0, wetWing - (P.solarArea || 0)), ts = (web.ts || 30) * 1000;
+  const wetWing = 2.04 * pf.S, cover = Math.max(0, wetWing - (C.solar ? C.solar.aMod : P.solarArea || 0)), ts = (web.ts || 30) * 1000;
   const sd = { y, c, h, A, M, Q, mCap: [], mWeb: [], mLE: [], mRib: [], mSkin: [], mTE: [] };
   for (let k = 0; k < K; k++) {
     sd.mCap.push(A[k] * rhoC / cosL * 1.12);                       // + Holmstummel, Verklebung
@@ -350,12 +350,11 @@ function buildCase(P, comps, k) {
   C.compCdA = cs.cda;
   C.motor = MOTOR_POS[C.cfg.mot];
   C.g0 = geomPositions(C, 0);
-  // Spannweitenanteil der Zellen (von der Wurzel aus)
-  { let aNeed = Math.max(0, P.solarArea) / 2, eta = 0; const dE = 0.002, x0 = P.cellX0 / 100, x1 = P.cellX1 / 100;
-    while (aNeed > 0 && eta < 1) { aNeed -= C.pf.chordAt(eta) * (x1 - x0) * 1.02 * dE * C.pf.b / 2; eta += dE; }
-    C.solarEta = Math.min(1, eta); C.solarSpan = Math.max(0.05, C.solarEta * C.pf.b); C.solarFits = aNeed <= 1e-6; }
-  C.htSolarArea = clamp(P.htSolar / 100, 0, 0.95) * C.tail.Sh;
-  C.mass = { batt: Math.max(0, P.mBatt), solar: Math.max(0, P.solarArea) * P.solarAreal, solarHT: C.htSolarArea * P.solarAreal, prop: P.mAntrieb, comps: cs.m, byGroup: cs.byGroup, ballast: 0, wire: 0 };
+  // Solarzellen als ganze Rechteckzellen auf Flügel und Höhenleitwerk (solar.js)
+  C.solar = solarLayout(P, C);
+  C.solarEta = C.solar.eta; C.solarSpan = Math.max(0.05, C.solarEta * C.pf.b); C.solarFits = C.solar.fits;
+  C.htSolarArea = C.solar.ht.a;
+  C.mass = { batt: Math.max(0, P.mBatt), solar: C.solar.aMod * P.solarAreal, solarHT: C.solar.ht.aMod * P.solarAreal, prop: P.mAntrieb, comps: cs.m, byGroup: cs.byGroup, ballast: 0, wire: 0 };
   const mFix = C.mass.batt + C.mass.solar + C.mass.solarHT + C.mass.prop + C.mass.comps;
   let m = mFix + (P.structMode === 'fix' ? P.mZelle : 2), ms = P.mZelle;
   const massLoop = () => {
@@ -405,7 +404,7 @@ function buildCase(P, comps, k) {
   C.fBattT = clamp(1 - P.battTempCoef / 100 * Math.max(0, 20 - tBatt), 0.3, 1);
   C.cap = Math.max(0, P.mBatt * P.battSpec * P.battHealth / 100 * C.fBattT * C.k.batt);
   // Solar: Wirkungsgradkette ohne Geometrie und Temperatur
-  C.solK = Math.max(0, P.solarArea) * P.cellEff / 100 * C.k.solar *
+  C.solK = C.solar.a * P.cellEff / 100 * C.k.solar *
     (P.solarGeom === 'flach' ? P.camberEta / 100 : 1) * P.mpptEff / 100 * (1 - P.laminateLoss / 100) * (1 - P.wiringLoss / 100) * (1 - P.soiling / 100);
   C.sol = solarGeometry(P, C);
   C.solKW = C.solK; C.solKH = 0;

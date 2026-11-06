@@ -83,17 +83,18 @@ RENDER.energie = (R) => {
   const flat = cached('flat', () => { const Q = { ...P, solarGeom: 'flach', camberEta: 100, laminateLoss: P.laminateLoss }; const C2 = buildCase(Q, S.comps); const s2 = daySeries(C2, envClear(Q, R.n, R.y)); let e = 0; for (let i = 0; i < NSTEP; i++) e += s2.ps[i] * DT; return e; });
   let tc = 0, tw = 0; for (let i = 0; i < NSTEP; i++) if (R.ser.ps[i] > 0) { const g = R.ser.ps[i] / C.solK; tc += (R.e.T[i] + P.cellHeat * g) * R.ser.ps[i]; tw += R.ser.ps[i]; }
   $('#kpis-energy').innerHTML = [
-    kpi('Solarertrag', nf(R.eSol, 0), 'Wh', `Spitze ${nf(R.peak, 0)} W · ${nf(R.eSol / Math.max(0.01, P.solarArea), 0)} Wh/m² Zellen`),
+    kpi('Solarertrag', nf(R.eSol, 0), 'Wh', `Spitze ${nf(R.peak, 0)} W · ${nf(R.eSol / Math.max(0.01, C.solar.a + C.solar.ht.a), 0)} Wh/m² Zellen`),
     kpi('Verbrauch 24 h', nf(R.eCons, 0), 'Wh', `Mittel ${nf(R.eCons / 24, 1)} W`),
     kpi('Defizit aus dem Akku', nf(R.eNight, 0), 'Wh', `Nacht ${fin(night) ? fmtDur(night) : '–'} · Akku ${nf(C.cap, 0)} Wh`, R.eNight > C.cap ? 'bad' : ''),
     kpi('Akku voll', per.reason === 'ok' && per.tCm > 0 ? fmtT(per.tFc) : '–', '', per.reason === 'ok' ? `Charge Margin ${nf(per.tCm, 1)} h` : 'im Dauerflug nicht erreicht'),
     kpi('Wölbung und Einfallswinkel', P.solarGeom === 'flach' ? nf(P.camberEta, 1) : nf(R.eSol / Math.max(1e-6, flat) * 100, 1), '%', P.solarGeom === 'flach' ? 'Pauschalwert' : 'Tagesertrag relativ zu waagerechten Zellen'),
     kpi('Zelltemperatur', tw ? nf(tc / tw, 0) : '–', '°C', `ertragsgewichtet · ${nf(P.tempCoef, 2)} %/K`),
     kpi('Akkutemperatur min.', nf(C.tBattMin, 0), '°C', `Kapazität ${nf(C.fBattT * 100, 0)} % · Alterung ${nf(P.battHealth, 0)} %`, C.tBattMin < 0 ? 'bad' : ''),
-    kpi('Wirkungsgradkette Solar', nf(C.solK / Math.max(1e-9, P.solarArea) * 100, 1), '%', 'Zelle × MPPT × Laminat × Leitung × Schmutz')
+    kpi('Wirkungsgradkette Solar', nf(C.solK / Math.max(1e-9, C.solar.a + C.solar.ht.a) * 100, 1), '%', 'Zelle × MPPT × Laminat × Leitung × Schmutz')
   ].join('');
   $('#eb-sub').textContent = `${fmtDoy(R.n, R.y)} bei ${nf(P.lat, 1)}° N, ${nf(P.lon, 1)}° O, klarer Himmel × ${nf(P.sky, 0)} %, Luft ${nf(P.tMin, 0)}–${nf(P.tMax, 0)} °C am Boden.`;
   renderBattV(R);
+  renderCells(R);
   // Jahresverlauf
   const sw = cached('season', () => seasonSweep(C, 5)), win = seasonWindow(sw, P.tExcReq);
   const tx = sw.map(([n, r]) => [n, fin(r.tExc) ? r.tExc : r.tExc === Infinity ? 24 : NaN]), en = sw.map(([n, , m]) => [n, m ? (m.endur ?? 48) : NaN]);
@@ -111,17 +112,38 @@ RENDER.energie = (R) => {
   lineChart($('#ch-solgeo'), { h: 200, title: 'Direktstrahlung auf die Zellen je W/m² senkrechter Einstrahlung', x: { min: 0, max: 90, fmt: v => nf(v, 0) + '°', title: 'Sonnenhöhe' }, y: { min: 0, max: 1, fmt: v => nf(v, 1) }, series: ser });
   $('#sol-sub').textContent = sg.flat ? 'Pauschaler Wölbungsfaktor wie im ETH-Werkzeug.' : `Mittel über alle Kurse zur Sonne. Anstellwinkel ${nf(sg.pitch, 1)}°, Zellen ${nf(P.cellX0, 0)}–${nf(P.cellX1, 0)} % der Tiefe auf ${C.foil.name}. Diffus ${nf(sg.Fd * 100, 1)} %, Bodenreflexion ${nf(sg.Fg * 100, 1)} % der jeweiligen Strahlung.`;
 };
+// Zellbelegung: ganze Rechteckzellen auf Flügel und Höhenleitwerk (solar.js)
+function renderCells(R) {
+  const { C, P } = R, so = C.solar, sp = so.spec, pf = C.pf, area = so.mode === 'area';
+  const uFull = Math.max(1, Math.round(P.nCells)) * cellOCV(P, 1);
+  $('#cells-sub').textContent = area ? `Fläche frei eingegeben. Zum Vergleich das Raster mit ${sp.name}.` : `${sp.name}, ${nf(P.cellGap, 1)} mm Abstand, ${nf(P.cellX0, 0)}–${nf(P.cellX1, 0)} % der Tiefe${P.cellsOnCtrl ? ', auch auf den Rudern' : ', vor den Ruderachsen'}. Spalten in Flugrichtung, je Spalte ${P.cellOrient === 'auto' ? 'die günstigere Ausrichtung' : 'feste Ausrichtung'}.`;
+  $('#kpis-cells').innerHTML = [
+    kpi('Zellen Flügel', (area ? '≈ ' : '') + nf(so.n, 0), '', area ? `aus ${nf(so.a, 2)} m² und ${nf(sp.A * 1e4, 1)} cm² je Zelle` : `${nf(so.nHalf, 0)} je Hälfte · ${nf(sp.A * 1e4, 1)} cm² je Zelle`, !so.fits ? 'bad' : ''),
+    kpi('Aktive Zellfläche', nf(so.a, 3), 'm²', `${pct(so.a / pf.S)} der Flügelfläche · Modul mit Fugen ${nf(so.aMod, 3)} m²`),
+    kpi('Größtmöglich', nf(so.max.n, 0), 'Zellen', `${nf(so.max.a, 3)} m² mit diesem Format und den Freiräumen`),
+    kpi('Je Hälfte in Reihe', nf(so.nHalf * sp.vmp, 1), 'V', `im MPP bei 25 °C · Akku voll ${nf(uFull, 1)} V`),
+    ...(so.ht.want > 0 ? [kpi('Höhenleitwerk', nf(so.ht.a, 3), 'm²', `höchstens ${nf(so.ht.max, 3)} m² ganze Zellen`, so.ht.fits ? '' : 'bad')] : [])
+  ].join('');
+  const msg = [];
+  if (so.mode === 'count' && !so.fits) msg.push(pillF('warn', `Es passen nur ${nf(so.n, 0)} von ${nf(so.want, 0)} Zellen`, 'sol-pack'));
+  if (area && !so.fits) msg.push(pillF('crit', 'Die Zellfläche passt nicht zwischen die gewählten Tiefen', 'sol-pack'));
+  else if (area && so.overMax) msg.push(pillF('info', `Mit ganzen Zellen (${sp.name}) passen höchstens ${nf(so.max.a, 2)} m²; die eingegebene Fläche ist zu optimistisch`, 'sol-pack'));
+  if (so.ht.want > 0 && !so.ht.fits) msg.push(pillF('info', `Auf dem Höhenleitwerk passen höchstens ${nf(so.ht.max, 3)} m² ganze Zellen; gerechnet wird damit`, 'sol-pack'));
+  if (!area && so.nHalf * sp.vmp < uFull * 1.05) msg.push(pillF('info', `Eine Flügelhälfte in Reihe liefert ${nf(so.nHalf * sp.vmp, 1)} V, der volle Akku ${nf(uFull, 1)} V: ein Abwärtswandler-MPPT braucht mehr Spannung, also Aufwärtswandler oder beide Hälften in Reihe`, 'sol-pack'));
+  $('#cells-msg').innerHTML = msg.join('');
+  cellsSVG($('#svg-cells'), C);
+}
 function renderStudy(R) {
   const P = S.params, tabs = $('#study-tabs');
   if (!tabs.children.length) tabs.innerHTML = Object.entries(SWEEPS).map(([k, s]) => `<button class="tab" role="tab" type="button" data-st="${k}">${esc(s.label.replace(/ \(.*\)/, k === 'spanAR' ? ' (Streckung fest)' : ''))}</button>`).join('');
   $$('#study-tabs .tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.st === UI.studyTab)));
   const sw = SWEEPS[UI.studyTab], res = cached('study-' + UI.studyTab, () => sweep(P, S.comps, sw.vals(P), sw.map));
-  const x0 = res[0].x, x1 = res[res.length - 1].x, cur = UI.studyTab === 'chord' ? P.area / P.span : P[UI.studyTab === 'spanAR' ? 'span' : UI.studyTab];
+  const x0 = res[0].x, x1 = res[res.length - 1].x, cur = UI.studyTab === 'chord' ? P.area / P.span : UI.studyTab === 'solarArea' ? R.C.solar.a : P[UI.studyTab === 'spanAR' ? 'span' : UI.studyTab];
   const tx = res.map(r => [r.x, fin(r.tExc) ? r.tExc : NaN]), en = res.map(r => [r.x, r.endur ?? 48]), pt = res.map(r => [r.x, r.pTot]), ms = res.map(r => [r.x, r.m]);
   const bestT = res.filter(r => fin(r.tExc)).reduce((a, b) => (b.tExc > (a ? a.tExc : -1e9) ? b : a), null);
   lineChart($('#ch-study'), { h: 210, title: `Excess Time über ${sw.label}`, x: { min: x0, max: x1, fmt: v => nf(v, x1 - x0 < 3 ? 2 : 1), tipFmt: v => nf(v, 2) + ' ' + sw.unit, title: `${sw.label} (${sw.unit})` }, y: { min: Math.min(-12, ...tx.map(p => p[1]).filter(fin)), max: Math.max(8, ...tx.map(p => p[1]).filter(fin)), fmt: v => nf(v, 0) + ' h' }, series: [{ name: 'Excess Time', c: 1, pts: tx, fmt: v => nfs(v, 1) + ' h' }], hlines: [{ y: P.tExcReq, label: 'gefordert' }], vlines: [{ x: cur, label: 'aktuell' }], marks: bestT ? [{ x: bestT.x, y: bestT.tExc, c: 1, label: 'Optimum' }] : [], tipExtra: x => { const r = res.reduce((a, b) => (Math.abs(b.x - x) < Math.abs(a.x - x) ? b : a)); return `<div class="row"><span>Abflugmasse</span><b>${nf(r.m, 2)} kg</b></div><div class="row"><span>Leistung Tag</span><b>${nf(r.pTot, 1)} W</b></div><div class="row"><span>Struktur</span><b>${nf(r.mStruct, 2)} kg</b></div>`; } });
   lineChart($('#ch-study2'), { h: 180, title: `Ausdauer ab ${P.tStart} mit vollem Akku`, x: { min: x0, max: x1, fmt: v => nf(v, x1 - x0 < 3 ? 2 : 1), tipFmt: v => nf(v, 2) + ' ' + sw.unit }, y: { min: 0, max: 48, ticks: [0, 12, 24, 36, 48], fmt: v => nf(v, 0) + ' h' }, series: [{ name: 'Ausdauer', c: 3, pts: en, fmt: v => (v >= 48 ? '≥ 48' : nf(v, 1)) + ' h' }], vlines: [{ x: cur, label: 'aktuell' }] });
-  $('#study-sub').textContent = `Eine Größe verändert, alles andere fest. Strukturmasse, Zellfläche und Polaren werden jeweils neu gerechnet${UI.studyTab === 'span' || UI.studyTab === 'spanAR' || UI.studyTab === 'chord' ? ' (Zellfläche wächst mit der Flügelfläche)' : ''}. Auslegungstag ${fmtDoy(R.n, R.y)}.`;
+  $('#study-sub').textContent = `Eine Größe verändert, alles andere fest. Strukturmasse, Zellfläche und Polaren werden jeweils neu gerechnet${UI.studyTab === 'span' || UI.studyTab === 'spanAR' || UI.studyTab === 'chord' ? (P.solarMode === 'fill' ? ' (so viele ganze Zellen, wie jeweils passen)' : P.solarMode === 'count' ? ' (feste Zellzahl)' : ' (Zellfläche wächst mit der Flügelfläche)') : UI.studyTab === 'solarArea' ? ' (Zellfläche frei vorgegeben, ohne Zellraster)' : ''}. Auslegungstag ${fmtDoy(R.n, R.y)}.`;
 }
 $('#study-tabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; UI.studyTab = t.dataset.st; saveUI(); renderStudy(R); });
 

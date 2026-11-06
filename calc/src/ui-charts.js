@@ -174,11 +174,18 @@ function planformSVG(el, C) {
   const N = 60, up = [], lo = [];
   for (let i = 0; i <= N; i++) { const eta = i / N, y = eta * b / 2; up.push([y, xLE(eta)]); lo.push([y, xLE(eta) + pf.chordAt(eta)]); }
   const half = sgn => 'M' + up.map(([y, x]) => `${X(sgn * y).toFixed(1)} ${Y(x).toFixed(1)}`).join('L') + 'L' + lo.slice().reverse().map(([y, x]) => `${X(sgn * y).toFixed(1)} ${Y(x).toFixed(1)}`).join('L') + 'Z';
-  const x0c = P.cellX0 / 100, x1c = P.cellX1 / 100, arc = C.sol.arc || 1.01;
-  let aNeed = P.solarArea / 2, etaC = 0; const dE = 0.002;
-  while (aNeed > 0 && etaC < 1) { aNeed -= pf.chordAt(etaC) * (x1c - x0c) * arc * dE * b / 2; etaC += dE; }
-  const full = aNeed > 1e-6;
+  const x0c = P.cellX0 / 100, x1c = P.cellX1 / 100, so = C.solar, full = !so.fits;
+  // frei eingegebene Fläche: Zellzone von der Wurzel bis etaC; ganze Zellen: jede Zelle als Rechteck
+  const etaC = so.eta, dE = 0.002;
   const cell = sgn => { const pts = []; for (let e = 0; e <= etaC + 1e-9; e += Math.max(dE, etaC / 40)) pts.push(e); pts.push(Math.min(1, etaC)); return 'M' + pts.map(e => `${X(sgn * e * b / 2).toFixed(1)} ${Y(xLE(e) + x0c * pf.chordAt(e)).toFixed(1)}`).join('L') + 'L' + pts.slice().reverse().map(e => `${X(sgn * e * b / 2).toFixed(1)} ${Y(xLE(e) + x1c * pf.chordAt(e)).toFixed(1)}`).join('L') + 'Z'; };
+  const cellsSVG = () => {
+    let r = '';
+    for (const c of so.colsHalf) for (let i = 0; i < c.n; i++) {
+      const xa = c.x0 + i * (c.l + so.g) / so.arc, hgt = c.l / so.arc;
+      for (const sgn of [1, -1]) { const ya = sgn > 0 ? c.y0 : -c.y1; r += `<rect x="${X(ya).toFixed(1)}" y="${Y(xa).toFixed(1)}" width="${Math.max(0.6, c.w * sc).toFixed(1)}" height="${Math.max(0.6, hgt * sc).toFixed(1)}" fill="var(--c2)" fill-opacity="0.45" stroke="var(--c2)" stroke-width="0.6"/>`; }
+    }
+    return r;
+  };
   // Rumpf von oben aus der Kontur (Breite = Durchmesser), Träger, Leitwerk, Propeller
   const fsh = g ? g.fus : null, cfg = C.cfg;
   const fus = fsh ? `<path d="M${fsh.st.map(p => `${X(p.d / 2).toFixed(1)} ${Y(rel(p.x)).toFixed(1)}`).join('L')}L${fsh.st.slice().reverse().map(p => `${X(-p.d / 2).toFixed(1)} ${Y(rel(p.x)).toFixed(1)}`).join('L')}Z" fill="var(--sunken)" stroke="var(--ink-2)" stroke-width="1.2"/>`
@@ -197,7 +204,7 @@ function planformSVG(el, C) {
   const lab = (x, y, t, a = 'middle') => `<text class="tick" x="${x}" y="${y}" text-anchor="${a}">${esc(t)}</text>`;
   let s = `<svg class="viz" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Grundriss des Flugzeugs von oben">`;
   s += `<path d="${half(1)}" fill="var(--panel)" stroke="var(--ink-2)" stroke-width="1.4"/><path d="${half(-1)}" fill="var(--panel)" stroke="var(--ink-2)" stroke-width="1.4"/>`;
-  s += `<path d="${cell(1)}" fill="var(--c2)" fill-opacity="0.22" stroke="var(--c2)" stroke-width="1"/><path d="${cell(-1)}" fill="var(--c2)" fill-opacity="0.22" stroke="var(--c2)" stroke-width="1"/>`;
+  s += so.mode === 'area' ? `<path d="${cell(1)}" fill="var(--c2)" fill-opacity="0.22" stroke="var(--c2)" stroke-width="1"/><path d="${cell(-1)}" fill="var(--c2)" fill-opacity="0.22" stroke="var(--c2)" stroke-width="1"/>` : cellsSVG();
   // t/4-Linie
   s += `<path d="M${X(-b / 2)} ${Y(xLE(1) + pf.ct / 4)}L${X(0)} ${Y(pf.cr / 4)}L${X(b / 2)} ${Y(xLE(1) + pf.ct / 4)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 4"/>`;
   // Ruder: Querruder an der Flügelhinterkante, Höhenruder am Höhenleitwerk
@@ -218,10 +225,45 @@ function planformSVG(el, C) {
   }
   s += lab(cx, H - 22, `Spannweite ${nf(b, 2)} m · Streckung ${nf(pf.AR, 1)}${pf.sweep ? ` · Pfeilung ${nfs(pf.sweep, 0)}°` : ''}`) + lab(cx, H - 7, `HLW ${nf(tg.Sh, 2)} m² · SLW ${nf(tg.Sv, 2)} m² · Hebelarm ${nf(tg.lt, 2)} m`);
   s += lab(X(-b / 4), Y(Math.max(pf.cr, xLE(0.5) + pf.chordAt(0.5))) + 14, `Wurzeltiefe ${nf(pf.cr * 100, 0)} cm`) + lab(X(b / 2) - 4, Y(xLE(1) + pf.ct) + 14, `Spitze ${nf(pf.ct * 100, 0)} cm`, 'end');
-  s += lab(X(b / 4), Y(Math.min(0, xLE(0.5))) - 6, `Zellen ${nf(P.solarArea, 2)} m²${full ? ' – passen nicht!' : ''}`);
+  s += lab(X(b / 4), Y(Math.min(0, xLE(0.5))) - 6, so.mode === 'area' ? `Zellen ${nf(so.a, 2)} m²${full ? ' – passen nicht!' : ''}` : `${nf(so.n, 0)} Zellen · ${nf(so.a, 2)} m²${full ? ` (${nf(so.want, 0)} gewünscht)` : ''}`);
   s += '</svg>';
   el.innerHTML = s;
   return { etaC, full };
+}
+
+/* ---------- Zellbelegung einer Flügelhälfte (Draufsicht, Wurzel links) ---------- */
+function cellsSVG(el, C) {
+  el._cfg = C; el._fn = cellsSVG;
+  const P = C.P, pf = C.pf, so = C.solar, h = pf.b / 2, W = cw(el), N = 80;
+  const xmin = Math.min(0, pf.xLE(1)) - 0.01, xmax = Math.max(pf.cr, pf.xLE(1) + pf.ct) + 0.01;
+  const sc = Math.min((W - 30) / h, 900), H = (xmax - xmin) * sc + 44;
+  const X = y => 14 + y * sc, Y = x => 10 + (x - xmin) * sc, f1 = v => v.toFixed(1);
+  const edge = (fx, a = 0, b = 1) => { const p = []; for (let i = 0; i <= N; i++) { const e = a + (b - a) * i / N; p.push([e * h, pf.xLE(e) + fx(e) * pf.chordAt(e)]); } return p; };
+  const poly = (top, bot) => 'M' + top.map(([y, x]) => `${f1(X(y))} ${f1(Y(x))}`).join('L') + 'L' + bot.slice().reverse().map(([y, x]) => `${f1(X(y))} ${f1(Y(x))}`).join('L') + 'Z';
+  let s = `<svg class="viz" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Zellbelegung einer Flügelhälfte von oben">`;
+  s += `<path d="${poly(edge(() => 0), edge(() => 1))}" fill="var(--panel)" stroke="var(--ink-2)" stroke-width="1.3"/>`;
+  // Querruder
+  const a0 = clamp(P.ailEta0, 0.1, 0.95), a1 = clamp(P.ailEta1, a0 + 0.02, 1), cfA = clamp(P.ailCf, 0.05, 0.6);
+  s += `<path d="${poly(edge(() => 1 - cfA, a0, a1), edge(() => 1, a0, a1))}" fill="var(--c5)" fill-opacity="0.18" stroke="var(--c5)" stroke-width="1"/>`;
+  // Zellzone (Grenzen in Tiefe)
+  s += `<path d="M${edge(() => so.x0).map(([y, x]) => `${f1(X(y))} ${f1(Y(x))}`).join('L')}" fill="none" stroke="var(--muted)" stroke-dasharray="3 4"/>`;
+  s += `<path d="M${edge(() => so.x1).map(([y, x]) => `${f1(X(y))} ${f1(Y(x))}`).join('L')}" fill="none" stroke="var(--muted)" stroke-dasharray="3 4"/>`;
+  if (so.mode === 'area') s += `<path d="${poly(edge(() => so.x0, 0, Math.min(1, so.eta)), edge(() => so.x1, 0, Math.min(1, so.eta)))}" fill="var(--c2)" fill-opacity="0.3" stroke="var(--c2)"/>`;
+  else for (const c of so.colsHalf) for (let i = 0; i < c.n; i++) {
+    const xa = c.x0 + i * (c.l + so.g) / so.arc;
+    s += `<rect x="${f1(X(c.y0))}" y="${f1(Y(xa))}" width="${f1(Math.max(0.8, c.w * sc))}" height="${f1(Math.max(0.8, c.l / so.arc * sc))}" fill="var(--c2)" fill-opacity="0.5" stroke="var(--c2)" stroke-width="0.8"/>`;
+  }
+  // Freiräume: Wurzel, Spitze, Außenteilung
+  const yR = so.mode === 'area' ? 0 : clamp(P.cellRootGap, 0, h), yT = h - clamp(P.cellTipGap, 0, h);
+  const vline = (y, t, a = 'start') => `<line x1="${f1(X(y))}" x2="${f1(X(y))}" y1="${f1(Y(xmin) - 2)}" y2="${f1(Y(xmax) + 4)}" stroke="var(--muted)" stroke-dasharray="2 3"/><text class="tick" x="${f1(X(y) + (a === 'end' ? -3 : 3))}" y="${f1(H - 18)}" text-anchor="${a}">${esc(t)}</text>`;
+  if (so.mode !== 'area') {
+    s += vline(yR, `frei bis ${nf(yR, 2)} m`) + vline(yT, `Spitze −${nf(h - yT, 2)} m`, 'end');
+    if (P.splits === 'outer' || P.splits === 'both') { const ys = clamp(P.splitEta, 0.05, 0.95) * h; s += vline(ys, 'Teilung'); }
+  }
+  s += `<text class="tick" x="${f1(X(0))}" y="${f1(H - 4)}">Rumpfmitte</text><text class="tick" x="${f1(X(h))}" y="${f1(H - 4)}" text-anchor="end">${nf(h, 2)} m</text>`;
+  s += `<text class="tick" x="${f1(X(h * (a0 + a1) / 2))}" y="${f1(Y(pf.xLE((a0 + a1) / 2) + pf.chordAt((a0 + a1) / 2)) + 12)}" text-anchor="middle">Querruder</text>`;
+  s += '</svg>';
+  el.innerHTML = s;
 }
 
 /* ---------- Profilkonturen ---------- */

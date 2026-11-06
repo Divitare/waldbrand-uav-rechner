@@ -198,7 +198,7 @@ const SWEEPS = {
   chord: { label: 'Mittlere Flügeltiefe (gleiche Spannweite)', unit: 'm', vals: P => range(0.15, 0.45, 20), map: (P, c) => ({ ...P, area: c * P.span, solarArea: P.solarArea * c * P.span / P.area }) },
   mBatt: { label: 'Akkumasse', unit: 'kg', vals: P => range(0.5, Math.max(6, P.mBatt * 2), 22), map: (P, x) => ({ ...P, mBatt: x }) },
   v: { label: 'Reisegeschwindigkeit', unit: 'm/s', vals: P => range(8, Math.max(20, P.v + 6), 24), map: (P, x) => ({ ...P, v: x }) },
-  solarArea: { label: 'Zellfläche', unit: 'm²', vals: P => range(0.2, Math.max(1.6, P.area * 0.95), 20), map: (P, x) => ({ ...P, solarArea: x }) },
+  solarArea: { label: 'Zellfläche', unit: 'm²', vals: P => range(0.2, Math.max(1.6, P.area * 0.95), 20), map: (P, x) => ({ ...P, solarMode: 'area', solarArea: x }) },
   hAGL: { label: 'Flughöhe über Grund', unit: 'm', vals: () => range(50, 1500, 20), map: (P, x) => ({ ...P, hAGL: x }) }
 };
 function compareAirfoils(P, comps) {

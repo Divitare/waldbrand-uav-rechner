@@ -65,8 +65,9 @@ function harness(C, g, xb) {
   const tailJoint = cf.mot === 'fin'; // abnehmbares Leitwerk: Stecker in der Antriebsleitung
   // 2) Solarleitungen je Flügelhälfte: Rückleiter von der äußersten Zelle, Anschluss Wurzel → MPPT
   const Ustr = 1.15 * U, dropS = Math.max(0.3, P.wireDropSol) / 100, etaC = C.solarEta || 0;
-  if (P.solarArea > 0) {
-    const Ih = P.solarArea / 2 * 1000 * P.cellEff / 100 / Ustr, yE = etaC * h, Lroot = Math.abs(xM - xRoot) + 0.15, Lt = yE + 2 * Lroot;
+  const aSol = C.solar ? C.solar.a : Math.max(0, P.solarArea);
+  if (aSol > 0) {
+    const Ih = aSol / 2 * 1000 * P.cellEff / 100 / Ustr, yE = etaC * h, Lroot = Math.abs(xM - xRoot) + 0.15, Lt = yE + 2 * Lroot;
     const a = Math.max(CU.rhoE * Lt * Ih / (dropS * Ustr) * 1e6, Ih / 10, 0.128), w = awgFor(a), lin1 = wireLinA(w.a);
     for (const sg of [1, -1]) {
       run('wsol', 'Solarleitungen Flügel', lin1, [[xRoot, sg * yE, zWingAt(g, yE), 'wing'], [xRoot, 0, zR, 'wing']], { I: Ih, size: { ...w, by: 'Spannungsfall' } });

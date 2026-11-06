@@ -149,7 +149,7 @@ function spanStations(C, a) {
 RENDER.flugzeug = (R) => {
   const { C, P, pc } = R, pf = C.pf;
   const pl = planformSVG($('#svg-planform'), C);
-  $('#pf-sub').textContent = `Wurzeltiefe ${nf(pf.cr * 100, 1)} cm, Spitze ${nf(pf.ct * 100, 1)} cm, mittlere aerodynamische Tiefe ${nf(pf.mac * 100, 1)} cm. Reynoldszahl ${nf(P.v * pf.cr / C.nu / 1000, 0)}–${nf(P.v * pf.ct / C.nu / 1000, 0)} Tsd.` + (pl.full ? ' Achtung: die Zellfläche passt nicht zwischen die gewählten Tiefen.' : '');
+  $('#pf-sub').textContent = `Wurzeltiefe ${nf(pf.cr * 100, 1)} cm, Spitze ${nf(pf.ct * 100, 1)} cm, mittlere aerodynamische Tiefe ${nf(pf.mac * 100, 1)} cm. Reynoldszahl ${nf(P.v * pf.cr / C.nu / 1000, 0)}–${nf(P.v * pf.ct / C.nu / 1000, 0)} Tsd.` + (C.solar.mode === 'count' && !C.solar.fits ? ` Achtung: es passen nur ${nf(C.solar.n, 0)} von ${nf(C.solar.want, 0)} Zellen.` : pl.full ? ' Achtung: die Zellfläche passt nicht zwischen die gewählten Tiefen.' : '');
   const a = spanStations(C, C.lvl), t = spanStations(C, C.turn), sv = flightPower(C, C.vs * 1.2, 1, C.rho, C.nu), s12 = spanStations(C, sv);
   lineChart($('#ch-span'), {
     h: 190, title: 'Ausnutzung des Profil-Höchstauftriebs entlang der Halbspannweite', x: { min: 0, max: pf.b / 2, fmt: v => nf(v, 1) + ' m', title: 'Abstand von der Rumpfmitte' }, y: { min: 0, max: 1.1, ticks: [0, 0.25, 0.5, 0.75, 1], fmt: v => nf(v * 100, 0) + ' %' },

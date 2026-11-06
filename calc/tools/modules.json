@@ -4,6 +4,7 @@
     "core.js",
     "vlm.js",
     "layout.js",
+    "solar.js",
     "harness.js",
     "ground.js",
     "tail.js",
