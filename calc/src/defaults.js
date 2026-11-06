@@ -14,7 +14,7 @@ const DEFAULT_PARAMS = {
   wireModel: 'model', mWireFix: 0.3, wireExtra: 15, wireDropSol: 1.5,
   // Ruder
   nAilSeg: 2, ailEta0: 0.5, ailEta1: 0.95, ailCf: 0.25, ailMax: 20, elevCf: 0.35, elevMax: 25, rudCf: 0.4, rudMax: 25, vCross: 2, cgTol: 2, nCtrl: 1.5,
-  wCtrl: 0.5, ctrlXcg: 40, ctrlBal: 0, kServo: 10, gvtAil: 0, gvtElev: 0, gvtRud: 0, gvtB1: 0, gvtT1: 0, gvtFin: 0, gvtHT: 0,
+  wCtrl: 0.5, ctrlXcg: 40, ctrlBal: 0, kServo: 10, elevPivot: 23, gvtAil: 0, gvtElev: 0, gvtRud: 0, gvtB1: 0, gvtT1: 0, gvtFin: 0, gvtHT: 0,
   // Start und Landung (kein Fahrwerk)
   landGear: 'skid', vSink: 1.5, skidStroke: 0.04, bellyStroke: 0.015, skidCdA: 4, wBelly: 0.6, landPitch: 5,
   launch: 'catapult', launchRail: 2.5, launchAngle: 10, vHand: 7, vLaunchK: 1.2, nLaunchMax: 8,

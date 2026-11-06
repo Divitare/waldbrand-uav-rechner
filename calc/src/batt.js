@@ -54,16 +54,17 @@ function climbAtSoc(C, z, V, pk) {
   for (let it = 0; it < 3; it++) {
     mt = propMaxThrust(C, V, rho, U);
     try { op = propOperate(C, mt.T * 0.999, V, rho); } catch (e) { op = null; }
-    const Pb = op && fin(op.Pbat) ? op.Pbat : 0;
+    const Pb = (op && fin(op.Pbat) ? op.Pbat : 0) + C.comp.always + C.comp.mission;   // Antrieb plus Bordsysteme und Nutzlast
     st = battAt(C, z, Pb, pk); U = st.U;
   }
   const a = aero(C, V, 1, rho, C.nu, mt.T);
-  return { z, V, T: mt.T, rpm: mt.rpm, Pbat: op ? op.Pbat : NaN, I: st.I, U: st.U, Ucell: st.Ucell, ok: st.ok && st.Ucell >= pk.uCut, roc: (mt.T - a.Dtot) * V / W };
+  return { z, V, T: mt.T, rpm: mt.rpm, Pbat: op ? op.Pbat + C.comp.always + C.comp.mission : NaN, I: st.I, U: st.U, Ucell: st.Ucell, ok: st.ok && st.Ucell >= pk.uCut, roc: (mt.T - a.Dtot) * V / W };
 }
 // Übersicht für die Ansicht Energie
 function battReport(C) {
   const P = C.P, pk = battPack(C), zRes = clamp(P.reserve / 100, 0, 1), cg = climbGlide(C), Vc = cg.bestC.V;
-  const pCruise = (C.pProp + C.comp.always + C.comp.mission) / (P.etaDischarge / 100);
+  // Leistung an den Klemmen; die Verluste im Akku (I²R) rechnet battAt selbst
+  const pCruise = C.pProp + C.comp.always + C.comp.mission;
   const curve = []; for (let i = 0; i <= 50; i++) { const z = i / 50, a = battAt(C, z, pCruise, pk); curve.push({ z, U0: a.Ucell0, Uc: a.Ucell }); }
   const climbFull = climbAtSoc(C, 1, Vc, pk), climbRes = climbAtSoc(C, Math.max(zRes, 0.02), Vc, pk), climbNom = climbAtSoc(C, 0.5, Vc, pk);
   for (const p of curve) { const a = battAt(C, p.z, climbRes.Pbat, pk); p.Ufull = a.ok ? a.Ucell : NaN; }

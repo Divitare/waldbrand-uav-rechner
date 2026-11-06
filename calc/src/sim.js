@@ -297,7 +297,8 @@ function stepE(C, E, ps, pc, cold) {
    Strategie nach Gao et al. (2013, Energy Conversion and Management 70, 20–30) und Klesh & Kabamba
    (2009, J. Guidance Control Dynamics 32(4)): Solarüberschuss lädt zuerst den Akku; was der Akku nicht
    aufnimmt (voll oder Ladebegrenzung), hebt das Flugzeug bis zur Höchsthöhe h_max über der Einsatzhöhe:
-   dh/dt = P_rest·η_Antrieb/(m·g). Bei Fehlbetrag zuerst gleiten (Höhe abbauen), dann den Akku entladen.
+   dh/dt = P_rest·η_Antrieb/(m·g). Bei Fehlbetrag ersetzt Gleiten (Höhe abbauen) die Antriebsleistung, höchstens
+   P_Antrieb(h); Bordsysteme und der Rest kommen aus dem Akku.
    Antriebsleistung in der Höhe ∝ ρ^(−1/2) bei gleichem Auftriebsbeiwert, ρ ∝ e^(−h/H), H = R_L·T/g. */
 function stepEH(C, st, ps, pc, pp, cold) {
   const P = C.P, hMax = Math.max(0, P.hStore), eta = clamp(C.lvl.eta || 0.6, 0.2, 0.95), mg = C.m * G, H = 29.27 * (C.tFly + 273.15);
@@ -307,9 +308,11 @@ function stepEH(C, st, ps, pc, pp, cold) {
     const used = (E1 - st.E) / DT / (P.etaCharge / 100); st.E = E1;
     const rest = net - used; if (rest > 0 && st.h < hMax) st.h = Math.min(hMax, st.h + rest * eta * DT * 3600 / mg);
   } else {
-    const need = -net, dh = need * eta * DT * 3600 / mg;
-    if (st.h >= dh) st.h -= dh;
-    else { const f = st.h / dh; st.h = 0; st.E -= need * (1 - f) / (P.etaDischarge / 100) * DT; }
+    // Gleiten ersetzt nur die Antriebsleistung; Bordsysteme und Nutzlast laufen weiter aus dem Akku
+    const need = -net, ppH = pp * Math.exp(st.h / (2 * H)), g0 = st.h > 0 ? Math.min(need, ppH) : 0, dh = g0 * eta * DT * 3600 / mg;
+    const fromH = dh > 0 ? Math.min(1, st.h / dh) * g0 : 0;
+    st.h = Math.max(0, st.h - dh);
+    st.E -= (need - fromH) / (P.etaDischarge / 100) * DT;
   }
 }
 // Gespeicherte Höhenenergie als gleichwertige Akkuenergie (Wh): m·g·h/(η·3600)

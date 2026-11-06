@@ -12,7 +12,8 @@
        H_p = σ_w·√(0,8/V)·(π/(4b))^(1/6)/(L_w^(1/3)·(1 + 4b s/(πV)))
        q_g = −(s/V)/(1 + 4b s/(πV))·w_g,  r_g = +(s/V)/(1 + 3b s/(πV))·v_g
    - Flugzeug: lineare Längs- und Seitenbewegung (dyn.js); Böen wirken als
-     Relativgeschwindigkeit in den Luftkraftableitungen: B = −∂(Luftkraft)/∂x.
+     Relativgeschwindigkeit in den Luftkraftableitungen: B = −∂(Luftkraft)/∂x,
+     auch über ẇ_g = s·w_g (Abwindverzug, Ableitungen Z_ẇ, M_ẇ; McRuer et al. 1973).
      Frequenzgang Y(jω) = C·(jωI − A)⁻¹·B·g(jω), Leistungsdichten addiert über
      die unabhängigen Quellen u, v, w, p.
    - Der Autopilot hält Lage und Bahn unterhalb seiner Bandbreite ω_AP; gezählt
@@ -51,9 +52,10 @@ function turbResponse(C, opt = {}) {
   const P = C.P, fd = opt.fd || flightDynamics(C), x = fd.x, V = x.V, b = C.pf.b, tp = drydenParams(P);
   const Alon = lonMatrix(x), Alat = latMatrix(x), md = x.m - x.Zwd;
   const Ixz = x.Ixz || 0, den = x.Ix * x.Iz - Ixz * Ixz, Lp = (a, c) => (x.Iz * a + Ixz * c) / den, Np = (a, c) => (Ixz * a + x.Ix * c) / den;
-  // Böen-Eingänge (Spalten): Längs [u_g, w_g, q_g], Seite [v_g, p_g, r_g]
-  const Blon = [[-x.Xu / x.m, -x.Xw / x.m, 0], [-x.Zu / md, -x.Zw / md, -x.Zq / md],
-    [-(x.Mu + x.Mwd * x.Zu / md) / x.Iy, -(x.Mw + x.Mwd * x.Zw / md) / x.Iy, -(x.Mq + x.Mwd * x.Zq / md) / x.Iy], [0, 0, 0]];
+  // Böen-Eingänge (Spalten): Längs [u_g, w_g, q_g, ẇ_g], Seite [v_g, p_g, r_g]. Die Luftkräfte hängen von den Relativgrößen
+  // w − w_g, ẇ − ẇ_g (Abwindverzug am Leitwerk) und q − q_g ab; ẇ aus der Z-Gleichung eingesetzt (m_d = m − Z_ẇ).
+  const Blon = [[-x.Xu / x.m, -x.Xw / x.m, 0, 0], [-x.Zu / md, -x.Zw / md, -x.Zq / md, -x.Zwd / md],
+    [-(x.Mu + x.Mwd * x.Zu / md) / x.Iy, -(x.Mw + x.Mwd * x.Zw / md) / x.Iy, -(x.Mq + x.Mwd * x.Zq / md) / x.Iy, -x.Mwd * x.m / (md * x.Iy)], [0, 0, 0, 0]];
   const Blat = [[-x.Yv / x.m, -x.Yp / x.m, -x.Yr / x.m], [-Lp(x.Lv, x.Nv), -Lp(x.Lp, x.Np), -Lp(x.Lr, x.Nr)], [-Np(x.Lv, x.Nv), -Np(x.Lp, x.Np), -Np(x.Lr, x.Nr)], [0, 0, 0]];
   // Kameralage relativ zum Schwerpunkt (Körperachsen: x vorn, z unten)
   const cam = C.comps.find(c => c.on && c.id === (opt.cam || 'ir')) || C.comps.find(c => c.on && c.group === 'sens') || { x: C.bal.xcg, z: C.bal.zcg };
@@ -70,7 +72,7 @@ function turbResponse(C, opt = {}) {
     const Hp = cDiv(cx(tp.sw * Math.sqrt(0.8 / V) * Math.pow(Math.PI / (4 * b), 1 / 6) / Math.pow(tp.Lw, 1 / 3)), cAdd(cx(1), cMul(cx(4 * b / (Math.PI * V)), s)));
     const Hq = cMul(cDiv(cMul(cx(-1 / V), s), cAdd(cx(1), cMul(cx(4 * b / (Math.PI * V)), s))), Hw);
     const Hr = cMul(cDiv(cMul(cx(1 / V), s), cAdd(cx(1), cMul(cx(3 * b / (Math.PI * V)), s))), Hv);
-    const lonSrc = [[Hu, cx(0), cx(0)], [cx(0), Hw, Hq]], latSrc = [[Hv, cx(0), Hr], [cx(0), Hp, cx(0)]];
+    const lonSrc = [[Hu, cx(0), cx(0), cx(0)], [cx(0), Hw, Hq, cMul(s, Hw)]], latSrc = [[Hv, cx(0), Hr], [cx(0), Hp, cx(0)]];
     const acc = { p: 0, q: 0, r: 0, phi: 0, theta: 0, az: 0, ay: 0 };
     for (const g of lonSrc) {
       const bv = Blon.map(row => row.reduce((a, c, k) => cAdd(a, cMul(cx(c), g[k])), cx(0))), X = cSolve(Alon, w, bv);

@@ -1,6 +1,6 @@
 /* ===================================================================
    Antriebseinflüsse auf Trimmung, Stabilität und Widerstand
-   - Strahl nach der Strahltheorie (McCormick 1995, Kap. 6; Glauert 1935):
+   - Strahl nach der Strahltheorie (McCormick 1995, Kap. 6; Glauert 1926, Kap. 15):
      Zusatzgeschwindigkeit auf der Achse v(ξ) = v_i·(1 + ξ/√(ξ² + R²)),
      Einschnürung aus der Kontinuität R_s = R·√((V + v_i)/(V + v(ξ))),
      Staudruckverhältnis q_s/q = ((V + v)/V)². Keine Vermischung mit der

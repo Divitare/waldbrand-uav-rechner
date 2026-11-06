@@ -35,8 +35,15 @@ const t0 = Date.now();
   const fm = U.freeModes(C), bf = U.bodyFreedom(C, fm, { nStep: 6 });
   const nR = fm.sym.filter(m => m.rigid).length * 10 + fm.anti.filter(m => m.rigid).length;
   chk('Freies Flugzeug Starrkörperformen (sym·10 + anti)', nR, 21, 0);
-  chk('Anstellwinkelschwingung frei / Flugdynamik', bf.spRigid.wn / fd.lon.sp.wn, 1, 0.15);
+  chk('Anstellwinkelschwingung ω frei / Flugdynamik', bf.spRigid.wn / fd.lon.sp.wn, 1, 0.03);
+  chk('Anstellwinkelschwingung ζ frei / Flugdynamik', bf.spRigid.zeta / fd.lon.sp.zeta, 1, 0.03);
   if (!(Number.isFinite(C.m) && Number.isFinite(C.lvl.pel) && A.modes.length && fd.crit.length)) { bad++; console.log('FEHLER Standardentwurf liefert keine vollständigen Ergebnisse'); }
+}
+// Gepfeilter Flügel: Wurzel über Zwangsbedingungen an den Flugzeugachsen, Gegenprobe zur Flugdynamik (Wirbelgitter)
+{
+  const C = U.buildCase({ ...U.DEFAULT_PARAMS, sweep: 10 }, U.DEFAULT_COMPS.map(c => ({ ...c }))), fd = U.flightDynamics(C), bf = U.bodyFreedom(C, U.freeModes(C), { nStep: 4 });
+  chk('Pfeilung 10°: ω frei / Flugdynamik', bf.spRigid.wn / fd.lon.sp.wn, 1, 0.05);
+  chk('Pfeilung 10°: ζ frei / Flugdynamik', bf.spRigid.zeta / fd.lon.sp.zeta, 1, 0.05);
 }
 // Fertige Seiten vorhanden
 for (const f of ['dist/uav-budget.html', 'public/index.html']) {

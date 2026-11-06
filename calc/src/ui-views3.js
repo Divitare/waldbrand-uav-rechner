@@ -150,6 +150,8 @@ function htStudy(P, comps) {
     return { h, lab, C, area: C.htSolarArea, mSol: C.mass.solarHT, eS, dE: eS - e0, shade: g0 > 0 ? 1 - g1 / g0 : 0, ballast: C.bal.ballast, xBatt: C.bal.xBatt, m: C.m, per, mis };
   });
 }
+// Hinweis für Komponenten, die nicht mehr am Flügel liegen (vib.js · wingCompOff)
+const wingCompMsg = o => `${o.name} bei y = ${nf(o.y, 2)} m ${o.beyond ? 'liegt außerhalb der Spannweite' : `liegt bei x = ${nf(o.x, 2)} m, der Flügel dort von ${nf(o.xLE, 2)} bis ${nf(o.xTE, 2)} m`}: Lage anpassen (Massen, Schwerpunkt und Flattern rechnen mit der eingegebenen Lage)`;
 RENDER.schwerpunkt = (R) => {
   const { C, P } = R, bal = C.bal, ti = trimInfo(C), pf = C.pf, mac = pf.mac, mi = bal.mi;
   sideViewSVG($('#svg-side'), C);
@@ -160,6 +162,7 @@ RENDER.schwerpunkt = (R) => {
   if (sm < 3) msg.push(pillF('crit', `Stabilitätsmaß nur ${nf(sm, 1)} %: kaum noch längsstabil`, 'mass-np', 'sm')); else if (sm > 25) msg.push(pillF('warn', `Stabilitätsmaß ${nf(sm, 1)} %: sehr kopflastig, hoher Trimmaufwand`, 'mass-np', 'sm'));
   if (!msg.length) msg.push(pillF('good', `Schwerpunkt ${nf(sm, 1)} % MAC vor dem Neutralpunkt${bal.ballast > 0 ? '' : ', ohne Ballast'}`, 'mass-np', 'sm'));
   for (const n of C.cfg.notes) msg.push(pill('warn', n.t));
+  for (const o of wingCompOff(C)) msg.push(pill('warn', wingCompMsg(o)));
   if (bal.g.boomClear < 0) msg.push(pill('crit', `Rohrträger läuft ${nf(-bal.g.boomClear * 100, 0)} cm tief durch den Propellerkreis: so nicht baubar. Zwei Träger oder Seglerrumpf mit Pylon wählen.`));
   if (C.cfg.mot !== 'nose') msg.push(pill('info', `Motor ${nf(bal.g.xMot - bal.xcg, 2)} m hinter und ${nf((bal.g.zP - bal.zcg) * 100, 0)} cm über dem Schwerpunkt · Antriebsleitung ${nf((C.harness.byKey.wmot || 0) * 1000, 0)} g`));
   $('#cg-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;

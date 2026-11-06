@@ -519,7 +519,12 @@ function renderBattV(R) {
     hlines: [{ y: cut, label: `Abschaltung ${nf(cut, 1)} V` }], vlines: P.reserve > 0 ? [{ x: b.zRes, label: 'Reserve' }] : [] });
   const pts = (UI.dayTab === 'periodic' && per.pts ? per.pts : mis ? mis.pts : []).filter(p => fin(p[1]));
   if (pts.length) {
-    const vv = pts.map(p => { const z = p[3] / 100, Pw = (p[2] - p[1]) / (Math.max(0, p[2] - p[1]) > 0 ? P.etaDischarge / 100 : 1 / (P.etaCharge / 100)); const a = battAt(C, z, Pw, pk); return [p[0], a.Ucell, a.Ucell0]; });
+    // Leistung an den Klemmen aus der Änderung des Ladezustands (erfasst Ladebegrenzung, Höhenspeicher und Gleiten):
+    // Entladen P = −dE/dt·η_E, Laden P = −dE/dt (gespeicherte Leistung)
+    const vv = pts.map((p, i) => {
+      const q = pts[i + 1] || p, o = pts[i + 1] ? p : pts[i - 1] || p, dt = q[0] - o[0], dE = dt > 0 && fin(q[3]) && fin(o[3]) ? (q[3] - o[3]) / 100 * C.cap / dt : NaN;
+      const Pw = fin(dE) ? (dE < 0 ? -dE * P.etaDischarge / 100 : -dE) : p[2] - p[1], a = battAt(C, p[3] / 100, Pw, pk); return [p[0], a.Ucell, a.Ucell0];
+    });
     const x0 = pts[0][0], x1 = pts[pts.length - 1][0], step = x1 - x0 > 30 ? 6 : x1 - x0 > 14 ? 3 : 2, xt = []; for (let t = Math.ceil(x0 / step) * step; t <= x1 + 1e-9; t += step) xt.push(t);
     lineChart($('#ch-bv-day'), { h: 210, title: UI.dayTab === 'periodic' ? 'Zellspannung im Dauerflug' : 'Zellspannung im Einsatz', x: { min: x0, max: x1, ticks: xt, fmt: fmtT }, y: { min: Math.min(cut - 0.2, 2.8), max: 4.3, fmt: v => nf(v, 1) + ' V' },
       series: [{ name: 'an den Klemmen', c: 2, pts: vv.map(p => [p[0], p[1]]), fmt: v => nf(v, 3) + ' V' }, { name: 'Ruhespannung', c: 1, pts: vv.map(p => [p[0], p[2]]), dash: true, fmt: v => nf(v, 3) + ' V' }], hlines: [{ y: cut, label: `Abschaltung ${nf(cut, 1)} V` }] });

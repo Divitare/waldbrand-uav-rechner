@@ -8,7 +8,7 @@
    - Rollleistung: Einfreiheitsgrad-Rollbewegung mit Rolldämpfung (Etkin & Reid 1996),
      Forderung MIL-F-8785C Klasse I: Kat. B 60° in 1,7 s, Kat. C 30° in 1,3 s (Level 1).
    - Querruder am elastischen Flügel: stationäres Rollen mit Biege-Torsions-Balken,
-     Wirksamkeit und Umkehrgeschwindigkeit (Wright & Cooper 2015, Kap. 9).
+     Wirksamkeit und Umkehrgeschwindigkeit (Wright & Cooper 2015, Kap. 8).
    - Höhenruder: Trimmung aus dem Momentengleichgewicht (mit Schubmoment, Strahl,
      nachgiebigem Träger), Ausschlag je g (Etkin & Reid), Schwerpunkttoleranz.
    - Seitenruder: stationärer Schiebeflug bei Seitenwind (Nelson 1998), Drall- und
@@ -105,7 +105,7 @@ function controlSurfaces(C, fd) {
   out.ail = { cellOverAil, e0, e1, E: Ea, tau0: tauA0, ClDa, CnDa, adverse: CnDa / Math.abs(ClDa), ClMax, etaVmax: etaAil, VR, rB, rC, h: hA, segs: Math.max(1, Math.round(P.nAilSeg)),
     lvlB: rB.t <= 1.7 ? 1 : rB.t <= 2.5 ? 2 : rB.t <= 3.4 ? 3 : 4, lvlC: rC.t <= 1.3 ? 1 : rC.t <= 1.8 ? 2 : rC.t <= 2.6 ? 3 : 4, Va, Vc };
   // Höhenruder: Bezug Reiseflug ohne Ausschlag (Einstellwinkel des Höhenleitwerks so gewählt)
-  const Ee = clamp(P.elevCf, 0.1, 1), allE = Ee >= 0.999, tauE0 = flapTau(Ee), hE = hingeCoef(Ee), ref = C.lvl;
+  const Ee = clamp(P.elevCf, 0.1, 1), allE = Ee >= 0.999, tauE0 = flapTau(Ee), hE = hingeCoef(Ee), ref = C.lvl, hPiv = clamp((P.elevPivot ?? 23) / 100, 0.1, 0.6);
   const ct = { CLh0: ref.CLh, CL0: ref.CL, Lt0: ref.Lt, tauE0, tauE: tauE0 * flapEta(5, allE), allE };
   const cg = climbGlide(C), Vmin = 1.1 * Vs, dx = P.cgTol / 100, nL = Math.max(P.nLimit, 2.5), VA = Math.min(P.vmax, Vs * Math.sqrt(nL));
   const curves = { off: [], on: [], full: [] }, NV = 24;
@@ -126,9 +126,9 @@ function controlSurfaces(C, fd) {
   const qc = 0.5 * rho * Vc * Vc, kF = np.kFlex || 1, CmDe = -np.at * np.etaT * kF * tg.Sh * (np.xact - bal.xcg) / (S * cb) * ct.tauE, CW = W / (qc * S);
   const dPerG = -CW * (-bal.sm + rho * S * cb * d.Cmq / (4 * m)) / CmDe;
   const ClhMax = (foilMeta(C.tfoil, 'free', Vc * tg.ch / C.nu).clmax || 0.9) + (allE ? 0 : 0.25);
-  out.elev = { E: Ee, all: allE, tau0: tauE0, CmDe, CLhDe: np.at * ct.tauE, dPerG: dPerG * RAD, curves, cases, h: hE, ClhMax, VA, maxDeg: Math.max(...cases.map(c => Math.abs(c.deg))) };
+  out.elev = { E: Ee, all: allE, pivot: hPiv, tau0: tauE0, CmDe, CLhDe: np.at * ct.tauE, dPerG: dPerG * RAD, curves, cases, h: hE, ClhMax, VA, maxDeg: Math.max(...cases.map(c => Math.abs(c.deg))) };
   // Seitenruder
-  const Er = clamp(P.rudCf, 0.1, 1), tauR0 = flapTau(Er), hR = hingeCoef(Er), tauR = tauR0 * flapEta(5, Er >= 0.999);
+  const Er = clamp(P.rudCf, 0.1, 0.9), tauR0 = flapTau(Er), hR = hingeCoef(Er), tauR = tauR0 * flapEta(5, Er >= 0.999);
   const etaV = C.pw ? C.pw.etaV : 1, CYDr = d.av * etaV * d.kFlexV * tauR * tg.Sv / S, CnDr = -CYDr * d.lvv / b, ClDr = CYDr * d.zv / b;
   // Stationärer Schiebeflug bei Seitenwind im Anflug (Querlage φ, Quer- und Seitenruder), Nelson 1998
   const beta = Math.atan(Math.max(P.vCross, 0.2 * Vs) / Va), CWa = W / (0.5 * rho * Va * Va * S);
@@ -151,7 +151,8 @@ function controlSurfaces(C, fd) {
   const aW = C.lvl.CL / np.aw;
   const servo = [
     { name: `Querruder (je Segment, ${out.ail.segs} × 2)`, Sf: Sail, cf: cA, H: Hm(hA, Sail, cA, P.ailMax * DEG, aW) },
-    allE ? { name: 'Pendelhöhenruder (Drehachse 2 % vor dem Neutralpunkt)', Sf: tg.Sh, cf: tg.ch, H: Math.max(qA, qM / 3) * tg.Sh * tg.ch * 0.02 * ClhMax }
+    // Pendelruder: Auftrieb am Neutralpunkt (c/4) mit dem Hebel zur Drehachse, mindestens 2 % der Tiefe (Lage des Neutralpunkts unsicher)
+    allE ? { name: `Pendelhöhenruder (Drehachse bei ${Math.round(hPiv * 100)} % der Tiefe)`, Sf: tg.Sh, cf: tg.ch, H: Math.max(qA, qM / 3) * tg.Sh * tg.ch * Math.max(Math.abs(0.25 - hPiv), 0.02) * ClhMax }
       : { name: 'Höhenruder', Sf: Ee * tg.Sh, cf: Ee * tg.ch, H: Hm(hE, Ee * tg.Sh, Ee * tg.ch, P.elevMax * DEG, 6 * DEG) },
     { name: tg.nFin > 1 ? 'Seitenruder (je Seitenleitwerk)' : 'Seitenruder', Sf: Er * tg.Svf, cf: Er * tg.cv, H: Hm(hR, Er * tg.Svf, Er * tg.cv, P.rudMax * DEG, Math.max(beta, 8 * DEG)) }
   ].map(s => ({ ...s, req: 1.5 * s.H, kgcm: 1.5 * s.H / G * 100 }));

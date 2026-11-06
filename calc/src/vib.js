@@ -2,23 +2,30 @@
    Schwingungen und Flattern des ganzen Flugzeugs
    - Freies Flugzeug (wie im Standschwingversuch an weicher Aufhängung):
      Halbflügel als Biege-Torsions-Balken, Rumpf samt Leitwerk als
-     Starrkörper an der Wurzel. Symmetrisch: Hub und Nicken frei,
-     antimetrisch: Rollen frei. Punktmassen im Flügel: Querruderservos,
-     Verbraucher an der Spitze, äußere Steckungen.
+     Starrkörper an der Wurzel. Die Wurzel hängt über Zwangsbedingungen an
+     den Flugzeugachsen (auch beim gepfeilten Flügel): symmetrisch Hub und
+     Nicken frei, antimetrisch Rollen frei. Punktmassen im Flügel:
+     Querruderservos, Verbraucher an der Spitze, äußere Steckungen.
    - Freiflug-Flattern (Body-Freedom-Flattern): symmetrisches Modell mit
      Höhenleitwerk (quasistationär, Abwind mit Laufzeit l_t/V, Etkin & Reid
-     1996, Kap. 5) und Rumpfmoment; Flügel nach Theodorsen mit der Steigung
-     des Gesamtflügels (modifizierte Streifentheorie, Yates 1966). Liefert
-     nebenbei die Anstellwinkelschwingung als Gegenprobe zur Flugdynamik.
+     1996, Kap. 5.4, 5.5), Rumpfmoment und Propeller-Normalkraft; Flügel nach
+     Theodorsen mit der Steigung des Gesamtflügels (modifizierte
+     Streifentheorie, Barmby et al. 1951, Yates 1966). Liefert nebenbei die
+     Anstellwinkelschwingung als Gegenprobe zur Flugdynamik.
    - Seitenleitwerk als Balken auf dem nachgiebigen Träger: Querbiegung des
      Trägers (Hub und Gieren der Wurzel) und Torsion (Rollen), Motor bzw.
      T-Höhenleitwerk an der Spitze. Höhenleitwerk auf der Vertikalbiegung
-     des Trägers. Leitwerke mit modifizierter Streifentheorie.
+     des Trägers, beim Doppelträger an seinen Enden auf beiden Trägern;
+     Pendelhöhenruder um seine Drehachse. Leitwerke mit modifizierter
+     Streifentheorie.
    - Ruder als zusätzliche Koordinate mit Theodorsens T-Funktionen (NACA
-     Report 496), Lagerung am Servo als Drehfeder; untersucht von null
-     (Spiel, Servoausfall) bis 1,5 × Nennsteifigkeit (AC 23.629-1B).
-   - Nachweis flatterfrei bis 1,2 × V_D mit Strukturdämpfung g = 0,03
-     (AC 23.629-1B; ASTM F3093-21, 4.3). V_D ist hier V_max.
+     Report 496), Lagerung am Servo als Drehfeder; Ruderdrehfrequenz im
+     Betrieb 0,5- bis 1,5-fach (Steifigkeit 0,25- bis 2,25-fach), dazu frei
+     (Spiel, Servoausfall; AC 23.629-1B: von null an untersuchen).
+   - Statische Divergenz (reeller positiver Eigenwert) zählt wie Flattern.
+   - Nachweis flatterfrei von der Mindestfahrt V_S bis 1,2 × V_D mit
+     Strukturdämpfung g = 0,03 (AC 23.629-1B; ASTM F3093-21, 4.3). V_D ist
+     hier V_max. Unter V_S fliegt das Flugzeug nicht stationär.
    - Standschwingversuch: gemessene Frequenzen eichen Biege- und
      Torsionssteifigkeit von Flügel und Leitwerksträger, k = (f_Messung/f_Modell)².
    - Report 45 (CAA/FAA 1955): Torsionsnachgiebigkeit des Flügels
@@ -27,6 +34,9 @@
 const VIB_G = 0.03, VIB_ZETA = VIB_G / 2;
 // Ruderdrehfrequenz relativ zum Nennwert: Betrieb 0,5- bis 1,5-fach (Streuung, Verschleiß), Ausfall bzw. Spiel: frei (0)
 const CTRL_FB = [0.5, 1, 1.5];
+// Untere Grenze der Flattersuche: Mindestfahrt (Abriss bei 1 g, Flugmasse). Darunter fliegt das Flugzeug nicht stationär,
+// und die lineare Theorie mit anliegender Strömung gilt nicht; Buckel-Instabilitäten freier Ruder dort zählen nicht.
+const vMinOf = C => (fin(C.vs) && C.vs > 0 ? C.vs : 0);
 // Punktmassen im Halbflügel (eine Seite): Querruderservos, Verbraucher außen, äußere Steckungen
 function wingPointMasses(C, g) {
   g = g || C.bal.g;
@@ -49,6 +59,17 @@ function wingPointMasses(C, g) {
   return out;
 }
 // Masse und Momente des Flügelbalkens (beide Hälften) samt Punktmassen
+// Komponenten am Flügel (|y| > 0,3 m) mit fester Längslage: liegt eine deutlich vor oder hinter der Flügeltiefe
+// (z. B. nach Ändern der Pfeilung oder Verschieben des Flügels), passt die Eingabe nicht mehr zur Geometrie.
+function wingCompOff(C, g) {
+  g = g || C.bal.g;
+  const pf = C.pf, h = pf.b / 2, out = [];
+  for (const c of C.comps) if (c.on && c.id !== 'servo' && c.m > 0 && Math.abs(c.y || 0) > 0.3 && c.x != null) {
+    const y = Math.min(h, Math.abs(c.y)), xLE = g.xLE0 + pf.xLE(y / h), ch = pf.chordAt(y / h);
+    if (c.x < xLE - 0.5 * ch || c.x > xLE + 1.5 * ch || Math.abs(c.y) > h + 0.05) out.push({ id: c.id, name: c.name, y: c.y, x: c.x, xLE, xTE: xLE + ch, beyond: Math.abs(c.y) > h + 0.05 });
+  }
+  return out;
+}
 function wingBeamMass(C, sec, pts) {
   const pf = C.pf, g = C.bal.g, h = pf.b / 2, dy = h / sec.length, r = { m: 0, mx: 0, mx2: 0, my2: 0, mz: 0, mz2: 0 };
   const acc = (mm, x, y, z) => { r.m += mm; r.mx += mm * x; r.mx2 += mm * x * x; r.my2 += mm * y * y; r.mz += mm * z; r.mz2 += mm * z * z; };
@@ -85,46 +106,58 @@ function wingTorsionFactor(C, sec) {
   const Flim = 200 / (C.P.vmax * 2.23694) ** 2 * (0.3048 ** 2 / 4.44822);   // 200/V_D² in rad·ft²/lb (V_D in mph) → rad·m²/N
   return { F, Flim, ratio: F / Flim };
 }
-// Freie Eigenformen (symmetrisch und antimetrisch) mit Rumpf als Starrkörper
+// Freie Eigenformen (symmetrisch und antimetrisch) mit Rumpf als Starrkörper.
+// Wurzel als Zwangsbedingung in Flugzeugachsen, damit auch der gepfeilte Balken richtig gelagert ist:
+// symmetrisch [w, w', θ] = [w₀, −Θ·sin Λ, Θ·cos Λ] (Hub w₀, Nicken Θ), antimetrisch [0, Φ·cos Λ, Φ·sin Λ] (Rollen Φ).
 function freeModes(C, opt = {}) {
-  const pf = C.pf, g = C.bal.g, cosL = Math.cos(pf.sweep * DEG), tanL = Math.tan(pf.sweep * DEG), L = pf.b / 2 / cosL;
+  const pf = C.pf, g = C.bal.g, sL = Math.sin(pf.sweep * DEG), cosL = Math.cos(pf.sweep * DEG), tanL = Math.tan(pf.sweep * DEG), L = pf.b / 2 / cosL;
   const sec = calibSections(wingSections(C), opt.kEI || 1, opt.kGJ || 1), pts = (C.layout && C.layout.wingPoints) || wingPointMasses(C), fr = fuselageRigid(C, sec, pts);
-  const a2d = wingA2d(C), xea0 = g.xLE0 + sec[0].xea * sec[0].c, nEl = opt.nEl || 12;
-  const bS = beamModel(sec, L, nEl, cosL, tanL, a2d, 0.25, [...pts, { y: 0, m: fr.mF / 2, dx: fr.xF - xea0, J: fr.Iyy / 2 }], { bc: 'sym' });
-  const bA = beamModel(sec, L, nEl, cosL, tanL, a2d, 0.25, [...pts, { y: 0, m: 0, dx: 0, J: 0, Jb: fr.Ixx / 2 }], { bc: 'anti' });
+  const a2d = wingA2d(C), xea0 = g.xLE0 + sec[0].xea * sec[0].c, nEl = opt.nEl || 12, m2 = fr.mF / 2, dx = fr.xF - xea0;
+  const bS = beamModel(sec, L, nEl, cosL, tanL, a2d, 0.25, pts, { bc: 'free', cons: { T: [[1, 0], [0, -sL], [0, cosL]], M: [[m2, -m2 * dx], [-m2 * dx, m2 * dx * dx + fr.Iyy / 2]] } });
+  const bA = beamModel(sec, L, nEl, cosL, tanL, a2d, 0.25, pts, { bc: 'free', cons: { T: [[0], [cosL], [sL]], M: [[fr.Ixx / 2]] } });
   return { sym: beamModes(bS, 7), anti: beamModes(bA, 6), bS, bA, fr, sec, pts, xea0, a2d };
 }
-// Freiflug-Flattern: symmetrisches freies Modell mit Höhenleitwerk und Rumpfmoment.
+// Freies Flugzeug (symmetrisch) mit Höhenleitwerk, Rumpfmoment und Propeller-Normalkraft.
 // Abwind mit Laufzeit: ε(t) = dε/dα·α_F(t − l_t/V), α_F = Θ − ẇ₀/V, daraus
-// α_H = (1 − dε/dα)·(Θ − ẇ₀/V) + (1 + dε/dα)·l_t·Θ̇/V − dε/dα·l_t·ẅ₀/V²; Leitwerkskraft am Punkt w_H = w₀ − l_t·Θ
+// α_H = (1 − dε/dα)·(Θ − ẇ₀/V) + (1 + dε/dα)·l_t·Θ̇/V − dε/dα·l_t·ẅ₀/V²; Leitwerkskraft am Punkt w_H = w₀ − l_t·Θ.
+// Hub w₀ und Nicken Θ sind die Wurzelkoordinaten des freien Balkens (phiR). Statische Instabilität gehört zur Flugdynamik
+// und zählt hier nicht (nur schwingende Instabilität).
 function bodyFreedom(C, fm, opt = {}) {
   const np = C.np, pf = C.pf, g = C.bal.g, tg = C.tail, bm0 = fm.bS, P = C.P;
-  const bm = { ...bm0, a2d: np.aw / bm0.cosL ** 2 };                 // Streifen auf die Steigung des Gesamtflügels
-  const modes = fm.sym.slice(0, 6), iW = bm.rootIdx[0], iT = bm.rootIdx[2], lt = g.xact - fm.xea0, de = np.deda;
-  const fx = C.struct && C.struct.tail && C.struct.tail.flex;
-  const extraFor = modes => (V, rho) => {
-    const nq = modes.length, Ca = zeros(nq, nq), Ka = zeros(nq, nq), Ma = zeros(nq, nq), q = 0.5 * rho * V * V;
-    const kF = fx ? 1 / (1 + q * np.etaT * tg.Sh / fx.nb * np.at * fx.H) : 1, Kt = q * np.etaT * kF * tg.Sh * np.at / 2, Kf = q * pf.S / 2 * pf.mac * np.Cmaf;
+  // Streifen auf die Steigung des Gesamtflügels: einfache Pfeiltheorie a_ges = a_n·cos Λ (Normalschnitt, Anströmung V·cos Λ)
+  const bm = { ...bm0, a2d: np.aw / bm0.cosL };
+  const modes = fm.sym.slice(0, 6), [iW, iT] = bm.rIdx, lt = g.xact - fm.xea0, lp = g.xProp - fm.xea0, de = np.deda;
+  const fx = C.struct && C.struct.tail && C.struct.tail.flex, CNs = C.pw && fin(C.pw.CNaS) ? C.pw.CNaS : 0;
+  const extraFor = ms => (V, rho) => {
+    const nq = ms.length, Ca = zeros(nq, nq), Ka = zeros(nq, nq), Ma = zeros(nq, nq), q = 0.5 * rho * V * V;
+    const kF = fx ? 1 / (1 + q * np.etaT * tg.Sh / fx.nb * np.at * fx.H) : 1, Kt = q * np.etaT * kF * tg.Sh * np.at / 2, Kf = q * pf.S / 2 * pf.mac * np.Cmaf, Kp = q * pf.S / 2 * CNs;
     for (let r = 0; r < nq; r++) {
-      const pr = modes[r].phi, Wr = pr[iW] - lt * pr[iT];
+      const pr = ms[r].phiR, Wr = pr[iW] - lt * pr[iT], Wp = pr[iW] - lp * pr[iT];
       for (let k = 0; k < nq; k++) {
-        const pk = modes[k].phi;
-        // Rumpfmoment hängt vom Anstellwinkel α = Θ − ẇ₀/V ab (nicht von der Fluglage)
-        Ka[r][k] += Kt * Wr * (1 - de) * pk[iT] + Kf * pr[iT] * pk[iT];
-        Ca[r][k] += (Kt * Wr * (-(1 - de) * pk[iW] + (1 + de) * lt * pk[iT]) - Kf * pr[iT] * pk[iW]) / V;
+        const pk = ms[k].phiR;
+        // Rumpfmoment und Propeller-Normalkraft hängen vom Anstellwinkel α = Θ − ẇ₀/V ab (nicht von der Fluglage)
+        Ka[r][k] += Kt * Wr * (1 - de) * pk[iT] + Kf * pr[iT] * pk[iT] + Kp * Wp * pk[iT];
+        Ca[r][k] += (Kt * Wr * (-(1 - de) * pk[iW] + (1 + de) * lt * pk[iT]) - Kf * pr[iT] * pk[iW] - Kp * Wp * pk[iW]) / V;
         Ma[r][k] -= Kt * Wr * de * lt * pk[iW] / (V * V);
       }
     }
     return { Ca, Kaa: Ka, Ma };
   };
-  const o = { extra: extraFor(modes), wmin: 0.3 };
+  const o = { extra: extraFor(modes), wmin: 0.3, real: false, vMin: opt.vMin || 0 };
   const fl = flutterSearch(bm, modes, C.rho, opt.vMax || Math.max(2.6 * P.vmax, 60), VIB_ZETA, opt.nStep || 30, [], o);
-  // Anstellwinkelschwingung im Reiseflug: tiefste schwingende Wurzel, starr (nur Hub und Nicken) und elastisch
-  const spOf = ms => { const r0 = flutterRoots(bm, ms, P.v, C.rho, VIB_ZETA, [], ms === modes ? o : { ...o, extra: extraFor(ms) }), z = r0.length ? r0[0] : null; return z ? { wn: Math.hypot(z.re, z.im), zeta: -z.re / Math.hypot(z.re, z.im), f: z.im / (2 * Math.PI) } : null; };
-  const sp = spOf(modes), spRigid = spOf(modes.filter(m => m.rigid));
-  // Abstand zur ersten symmetrischen Biegung (für die Anzeige)
-  const b1 = fm.sym.find(m => !m.rigid);
-  return { vf: fl.vf, wf: fl.wf, sp, spRigid, ratio: sp && b1 ? b1.omega / sp.wn : NaN, lt, track: fl.track };
+  // Anstellwinkelschwingung zur Gegenprobe: nur Starrkörperformen, quasistationär (C(k) = 1). Die Zustände der
+  // Wagner-Funktion sind dann entkoppelt (reelle Wurzeln −0,0455·U/b und −0,3·U/b); übrig bleiben zwei Nullstellen
+  // (Höhe, Bahnwinkel) und das Paar der Anstellwinkelschwingung.
+  const rig = modes.filter(m => m.rigid), A = flutterMatrix(bm, rig, P.v, C.rho, 0, [], { extra: extraFor(rig), quasi: true });
+  const nq = rig.length, A2 = A.slice(0, 2 * nq).map(row => row.slice(0, 2 * nq)), ev = eigReal(A2).filter(z => Math.hypot(z.re, z.im) > 1e-6 * (1 + Math.abs(P.v)));
+  let spRigid = null;
+  const cxr = ev.find(z => z.im > 1e-9);
+  if (cxr) { const wn = Math.hypot(cxr.re, cxr.im); spRigid = { wn, zeta: -cxr.re / wn, f: cxr.im / (2 * Math.PI), re: cxr.re, im: cxr.im }; }
+  else { const re = ev.filter(z => Math.abs(z.im) <= 1e-9).sort((a, b) => a.re - b.re); if (re.length >= 2) { const a = re[0], b = re[re.length - 1], wn = Math.sqrt(Math.max(0, a.re * b.re)); spRigid = { wn, zeta: wn > 0 ? -(a.re + b.re) / (2 * wn) : NaN, f: NaN, real: true }; } }
+  const b1 = fm.sym.find(m => !m.rigid), sym1 = b1 ? b1.omega : NaN;
+  // Art der Instabilität: deutlich unter der 1. symmetrischen Biegung heißt Body-Freedom, sonst Flügelform im freien Flugzeug
+  const type = fl.vf ? (fl.wf && fl.wf < 0.8 * sym1 ? 'bff' : 'wing') : null;
+  return { vf: fl.vf, wf: fl.wf, kind: fl.kind, type, spRigid, ratio: spRigid ? sym1 / spRigid.wn : NaN, lt, track: fl.track };
 }
 // Ruder je Meter Spannweite: Masse, statisches Moment und Trägheit um die Drehachse; Ausgleichsmasse 0,25·c_R vor der Achse
 function ctrlProps(P, cF, bal) {
@@ -148,21 +181,21 @@ function balancePoints(cp, y0, y1, dxAt, n = 3) {
 // flatterfrei bis V_D (sinngemäß CS/FAR 25.629(b)(2) für Fehlerfälle).
 // make(bal) liefert { bm, modes, cs(fb) } für einen Ausgleichsgrad; sV: Geschwindigkeitsfaktor im Propellerstrahl
 function ctrlCase(make, fNom, rho, vD, vMax, sV = 1, opt = {}) {
-  const P0 = make(opt.bal), vReq = 1.2 * vD;
-  const search = (M, fb) => { const r = flutterSearch(M.bm, M.modes, rho, vMax * sV, VIB_ZETA, opt.nStep || 24, [M.cs(fb)]); return { vf: r.vf ? r.vf / sV : null, wf: r.wf, fb }; };
+  const P0 = make(opt.bal), vReq = 1.2 * vD, o = { vMin: (opt.vMin || 0) * sV };
+  const search = (M, fb) => { const r = flutterSearch(M.bm, M.modes, rho, vMax * sV, VIB_ZETA, opt.nStep || 24, [M.cs(fb)], o); return { vf: r.vf ? r.vf / sV : null, wf: r.wf, fb, kind: r.kind }; };
   let op = { vf: null, fb: NaN };
   for (const k of CTRL_FB) { const r = search(P0, k * fNom); if (r.vf && (!op.vf || r.vf < op.vf)) op = r; }
   const free = search(P0, 0);
   // nötiger Ausgleich (Anteil des statischen Moments) für Betrieb bzw. Ausfall
   const need = (fbs, vR) => {
-    const okAt = b => { const M = make(b); return fbs.every(fb => flutterFreeTo(M.bm, M.modes, rho, vR * sV, VIB_ZETA, [M.cs(fb)], {}, 12)); };
+    const okAt = b => { const M = make(b); return fbs.every(fb => flutterFreeTo(M.bm, M.modes, rho, vR * sV, VIB_ZETA, [M.cs(fb)], o, 12)); };
     if (okAt(0)) return 0; if (!okAt(1.5)) return Infinity;
     let lo = 0, hi = 1.5; for (let i = 0; i < 9; i++) { const m = (lo + hi) / 2; if (okAt(m)) hi = m; else lo = m; } return hi;
   };
   const needOp = need(CTRL_FB.map(k => k * fNom), vReq), needFree = need([0], vD);
   // Halter des Ausgleichsgewichts: 1,5 × höchste beteiligte Frequenz (Flatterfrequenzen und die zwei tiefsten Formen)
   const fMax = Math.max(...P0.modes.slice(0, 2).map(m => m.f), (free.wf || 0) / (2 * Math.PI), (op.wf || 0) / (2 * Math.PI));
-  return { vf: op.vf, wf: op.wf, fbCrit: op.fb, free, needOp, needFree, need: Math.max(needOp, needFree), cp: P0.cp, fMax, sV, modes: P0.modes, okOp: !(op.vf && op.vf < vReq), okFree: !(free.vf && free.vf < vD) };
+  return { vf: op.vf, wf: op.wf, kindF: op.kind, fbCrit: op.fb, free, needOp, needFree, need: Math.max(needOp, needFree), cp: P0.cp, fMax, sV, modes: P0.modes, okOp: !(op.vf && op.vf < vReq), okFree: !(free.vf && free.vf < vD) };
 }
 // Querruder am eingespannten Flügel
 function aileronCase(C, k, vD, vMax) {
@@ -174,7 +207,7 @@ function aileronCase(C, k, vD, vMax) {
     return { bm: W.bm, modes: W.modes.slice(0, 4), cp, cs: fb => ({ y0: e0 * h, y1: e1 * h, c: 1 - 2 * E, Sb: cp.Sb, Ib: cp.Ib, wb: 2 * Math.PI * fb, zb: VIB_ZETA }) };
   };
   const fNom = ctrlFreq(P, ctrlProps(P, cF, P.ctrlBal / 100), spanServo, P.gvtAil);
-  return { ...ctrlCase(make, fNom.f, C.rho, vD, vMax), E, cF, span: (e1 - e0) * h, fNom };
+  return { ...ctrlCase(make, fNom.f, C.rho, vD, vMax, 1, { vMin: vMinOf(C) }), E, cF, span: (e1 - e0) * h, fNom };
 }
 // Leitwerksträger bzw. Rumpfröhre als Federn an der Leitwerkswurzel in [w, w', θ] (Hub, Rollen, Drehung um die Flächenachse),
 // verschoben auf die elastische Achse der Fläche bei x_ea: w_Träger = w + d·θ, d = x_ea − x_Trägerende
@@ -229,8 +262,11 @@ function finModel(C, opt = {}) {
 // Höhenleitwerk (symmetrische Vertikalschwingungen) auf dem Träger; Halbmodell.
 // Pendelhöhenruder: Drehung des Trägerendes als eigener Freiheitsgrad, Servo als Drehfeder zwischen Träger und Fläche.
 function htModel(C, opt = {}) {
-  const P = C.P, tg = C.tail, g = C.bal.g, cf = C.cfg, kR = 1 + P.rugged / 100, fea = 0.35, half = tg.bh / 2, all = P.elevCf >= 0.999;
-  const sec = tailSections(C, half, tg.ch, 1, (C.mass.solarHT || 0) / tg.bh, 0), at = C.np ? C.np.at : 4.5, xeaR = g.xhLE + fea * tg.ch;
+  const P = C.P, tg = C.tail, g = C.bal.g, cf = C.cfg, kR = 1 + P.rugged / 100, half = tg.bh / 2, twin = cf.nBoom > 1, all = P.elevCf >= 0.999 && !twin;
+  // Pendelruder: Fläche dreht um die Drehachse bei elevPivot (% Tiefe); sonst elastische Achse der Schale bei 35 %
+  const fea = all ? clamp((P.elevPivot ?? 23) / 100, 0.1, 0.6) : 0.35;
+  const sec = tailSections(C, half, tg.ch, 1, (C.mass.solarHT || 0) / tg.bh, 0).map(q => ({ ...q, xea: fea, Ia: q.m * q.c * q.c * (1 / 12 + (q.xcg - fea) ** 2) }));
+  const at = C.np ? C.np.at : 4.5, xeaR = g.xhLE + fea * tg.ch;
   const sp = boomSprings(C, 'v', xeaR, opt.kB || 1), nb = sp.nb, zR = g.zRoot;
   const mV = (C.struct ? C.struct.parts.fin : P.wTail * tg.Sv) * kR, xV = g.xvLE + 0.4 * tg.cv + g.vSw * 0.42 * tg.bv, zV = g.zV0 + 0.42 * tg.bv;
   // Massen am Trägerende (Halbmodell: halbe Masse); Lage dx hinter der Drehachse der Fläche, Höhe über der Trägerachse
@@ -241,7 +277,12 @@ function htModel(C, opt = {}) {
   const mH2 = (P.wTail * tg.Sh * kR + (C.mass.solarHT || 0)) / 2, Jt = cf.tail === 'T' ? mH2 * (g.zH - zR) ** 2 : 0;   // T-Leitwerk: Fläche über der Trägerachse
   const K = sp.K.map(r => r.map(v => v * nb / 2));   // Federn je Hälfte
   let bm;
-  if (!all) {
+  if (twin) {
+    // Doppelträger: Höhenleitwerk liegt an seinen Enden auf den Trägern; Mitte symmetrisch frei (Hub und Nicken)
+    // Rollen des Trägers (Neigung w′ am Auflager) gegen seine Torsion: Trägheit aus der Höhe der Massen und dem Träger selbst
+    const pts = [...tipPts.map(p => ({ ...p, y: half, Jb: p.J + (p.key === 'boom' ? sp.Jlump : 0) })), ...(opt.extra || [])];
+    bm = beamModel(sec, half, 6, 1, 0, at, 0.25, pts, { bc: 'sym', nodeK: [{ y: half, K: sp.K }] });
+  } else if (!all) {
     const pts = [...tipPts, ...(Jt ? [{ key: 'htz', y: 0, m: 0, dx: 0, J: Jt }] : []), ...(opt.extra || [])];
     bm = beamModel(sec, half, 6, 1, 0, at, 0.25, pts, { bc: 'sym', root: { K } });
   } else {
@@ -254,7 +295,7 @@ function htModel(C, opt = {}) {
     Mx[3][3] += Jt;
     bm = beamModel(sec, half, 6, 1, 0, at, 0.25, opt.extra || [], { bc: 'sym', ext: { n: 1, K: Kx, M: Mx } });
   }
-  return { bm, modes: beamModes(bm, 5), sec, sp, at, xeaR, fea, all };
+  return { bm, modes: beamModes(bm, 5), sec, sp, at, xeaR, fea, all, twinAll: twin && P.elevCf >= 0.999 };
 }
 // Staudruck im Propellerstrahl an den Leitwerken bei V_max und Vollgas (Geschwindigkeitsfaktor √(q_lokal/q))
 function tailSlipFactor(C) {
@@ -265,12 +306,18 @@ function tailSlipFactor(C) {
 }
 // Leitwerksfall: Seitenleitwerk mit Seitenruder ('fin') oder Höhenleitwerk mit Höhenruder ('ht')
 function tailCase(C, which, kB, vD, vMax, sV) {
-  const P = C.P, tg = C.tail, isFin = which === 'fin', E = clamp(isFin ? P.rudCf : P.elevCf, 0.05, 1);
+  // Seitenruder höchstens 90 % der Tiefe (Pendelseitenleitwerk nicht vorgesehen); Pendelhöhenruder am Doppelträger nicht modelliert
+  const P = C.P, tg = C.tail, isFin = which === 'fin', E = clamp(isFin ? Math.min(P.rudCf, 0.9) : P.elevCf, 0.05, 1);
   const base = isFin ? finModel(C, { kB }) : htModel(C, { kB });
   const modes0 = base.modes.filter(m => m.omega > 0).slice(0, 4);
+  const o = { vMin: vMinOf(C) * sV };
+  if (base.twinAll) {
+    const r = flutterSearch(base.bm, modes0, C.rho, vMax * sV, VIB_ZETA, 24, [], o), vf = r.vf ? r.vf / sV : null;
+    return { vf, wf: r.wf, kindF: r.kind, need: 0, needOp: 0, needFree: 0, all: true, note: 'Pendelhöhenruder am Doppelträger: Servo-Drehfeder nicht modelliert, Fläche fest gerechnet', modes: base.modes, M: base, sV, fMax: Math.max(...modes0.map(m => m.f)), okOp: !(vf && vf < 1.2 * vD), okFree: true, free: { vf: null } };
+  }
   if (E >= 0.999) {   // Pendelruder: Fläche dreht am Servo, keine Ruderkoordinate
-    const r = flutterSearch(base.bm, modes0, C.rho, vMax * sV, VIB_ZETA, 24), vf = r.vf ? r.vf / sV : null;
-    return { vf, wf: r.wf, need: 0, needOp: 0, needFree: 0, all: true, modes: base.modes, M: base, sV, fMax: Math.max(...modes0.map(m => m.f)), okOp: !(vf && vf < 1.2 * vD), okFree: true, free: { vf: null } };
+    const r = flutterSearch(base.bm, modes0, C.rho, vMax * sV, VIB_ZETA, 24, [], o), vf = r.vf ? r.vf / sV : null;
+    return { vf, wf: r.wf, kindF: r.kind, need: 0, needOp: 0, needFree: 0, all: true, modes: base.modes, M: base, sV, fMax: Math.max(...modes0.map(m => m.f)), okOp: !(vf && vf < 1.2 * vD), okFree: true, free: { vf: null } };
   }
   const span = isFin ? tg.bv : tg.bh / 2, cMean = isFin ? 0.81 * tg.cv : tg.ch, cF = E * cMean, fea = base.fea;
   const chord = y => (isFin ? tg.cv * (1 - 0.38 * y / span) : tg.ch);
@@ -281,13 +328,13 @@ function tailCase(C, which, kB, vD, vMax, sV) {
   };
   // Ein Servo je Seitenruder bzw. für das ganze Höhenruder
   const fNom = ctrlFreq(P, ctrlProps(P, cF, P.ctrlBal / 100), isFin ? span : tg.bh, isFin ? P.gvtRud : P.gvtElev);
-  return { ...ctrlCase(make, fNom.f, C.rho, vD, vMax, sV), E, cF, span, modes: base.modes, M: base, fNom };
+  return { ...ctrlCase(make, fNom.f, C.rho, vD, vMax, sV, { vMin: vMinOf(C) }), E, cF, span, modes: base.modes, M: base, fNom };
 }
 // Eichung aus dem Standschwingversuch: Faktor k so, dass die Modellfrequenz die gemessene trifft (k ∝ f²)
 function calibrate(fModel, fMeas, k0 = 1) { return fMeas > 0 && fModel > 0 ? k0 * (fMeas / fModel) ** 2 : k0; }
 // Gesamtauswertung (rechenintensiv, für die Ansicht Struktur)
 function vibAnalysis(C) {
-  const P = C.P, vReq = 1.2 * P.vmax, vMax = Math.max(2.2 * vReq, 60), out = { vReq, vMax, g: VIB_G };
+  const P = C.P, vReq = 1.2 * P.vmax, vMax = Math.max(2.2 * vReq, 60), vS = vMinOf(C), out = { vReq, vMax, vS, g: VIB_G };
   // Flügel frei-frei, ggf. auf den Standschwingversuch geeicht
   let kEI = 1, kGJ = 1, fm = freeModes(C);
   out.free0 = { sym: fm.sym, anti: fm.anti };
@@ -301,10 +348,10 @@ function vibAnalysis(C) {
   out.free = fm; out.kEI = kEI; out.kGJ = kGJ; out.b1 = b1Of(fm); out.t1 = t1Of(fm);
   // Flügel eingespannt (geeicht): Biege-Torsions-Flattern, Report-45-Kennwert
   const W = wingClamped(C, { kEI, kGJ });
-  out.wing = flutterSearch(W.bm, W.modes.slice(0, 4), C.rho, vMax, VIB_ZETA, 36);
+  out.wing = flutterSearch(W.bm, W.modes.slice(0, 4), C.rho, vMax, VIB_ZETA, 36, [], { vMin: vS });
   out.r45 = wingTorsionFactor(C, W.sec);
   // Freiflug-Flattern und Anstellwinkelschwingung
-  out.bff = bodyFreedom(C, fm, { vMax });
+  out.bff = bodyFreedom(C, fm, { vMax, vMin: vS });
   try { const fd = flightDynamics(C); out.spDyn = fd.lon.sp || null; } catch (e) { out.spDyn = null; }
   // Querruder
   out.ail = aileronCase(C, { kEI, kGJ }, P.vmax, vMax);
@@ -318,11 +365,11 @@ function vibAnalysis(C) {
   out.ht = tailCase(C, 'ht', kV, P.vmax, vMax, sl.H);
   // Zusammenfassung
   const cases = [
-    { k: 'wing', name: 'Flügel (Biegung–Torsion)', vf: out.wing.vf },
-    { k: 'bff', name: 'Freiflug (Anstellwinkel–Flügelbiegung)', vf: out.bff.vf },
-    { k: 'ail', name: 'Querruder', vf: out.ail.vf, free: out.ail.free.vf },
-    { k: 'fin', name: out.fin.all ? 'Seitenleitwerk (Pendelruder)' : 'Seitenleitwerk mit Seitenruder', vf: out.fin.vf, free: out.fin.free.vf },
-    { k: 'ht', name: out.ht.all ? 'Höhenleitwerk (Pendelruder)' : 'Höhenleitwerk mit Höhenruder', vf: out.ht.vf, free: out.ht.free.vf }
+    { k: 'wing', name: 'Flügel (Biegung–Torsion)', vf: out.wing.vf, kind: out.wing.kind },
+    { k: 'bff', name: out.bff.type === 'bff' ? 'Freies Flugzeug (Body-Freedom)' : 'Freies Flugzeug (symmetrisch)', vf: out.bff.vf, kind: out.bff.kind },
+    { k: 'ail', name: 'Querruder', vf: out.ail.vf, kind: out.ail.kindF, free: out.ail.free.vf, kindFree: out.ail.free.kind },
+    { k: 'fin', name: 'Seitenleitwerk mit Seitenruder', vf: out.fin.vf, kind: out.fin.kindF, free: out.fin.free.vf, kindFree: out.fin.free.kind },
+    { k: 'ht', name: out.ht.all ? 'Höhenleitwerk (Pendelruder)' : 'Höhenleitwerk mit Höhenruder', vf: out.ht.vf, kind: out.ht.kindF, free: out.ht.free.vf, kindFree: out.ht.free.kind }
   ];
   cases.forEach(c => { c.ok = !(c.vf && c.vf < vReq); c.okFree = !(c.free && c.free < P.vmax); });
   out.cases = cases; out.vfMin = cases.reduce((a, c) => (c.vf && (!a || c.vf < a) ? c.vf : a), null);

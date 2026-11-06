@@ -79,6 +79,9 @@ function wingSections(C) {
 // opt.root = { K: 3×3, M: 3×3 } als Federn und Massen an [w, w', θ] der Wurzel (z. B. Leitwerksträger).
 // opt.ext = { n, K, M }: zusätzliche Freiheitsgrade hinter den Wurzel-Freiheitsgraden, K und M über [w, w', θ, x₁ … xₙ]
 // (z. B. Drehung des Trägerendes unter einem Pendelleitwerk, das über eine Servofeder angelenkt ist).
+// opt.nodeK = [{ y, K: 3×3 }]: Federn an einem inneren Knoten (z. B. Doppelträger an den Enden des Höhenleitwerks).
+// opt.cons = { T: 3×k, M: k×k }: Zwangsbedingung u_Wurzel = T·q mit k Wurzelkoordinaten q (verlangt bc 'free'),
+// dazu Massen in q (z. B. gepfeilter Flügel frei fliegend: Hub und Nicken bzw. Rollen um die Flugzeugachsen).
 function beamModel(sec, L, nEl, cosL, tanL, a2d, xac = 0.25, point = [], opt = {}) {
   const bc = opt.bc || 'clamped', rootFree = { clamped: [0, 0, 0], sym: [1, 0, 1], anti: [0, 1, 0], free: [1, 1, 1] }[bc] || [0, 0, 0];
   const nX = opt.ext ? opt.ext.n : 0, nR = rootFree.reduce((a, v) => a + v, 0), n = 3 * nEl + nR + nX, K = zeros(n, n), M = zeros(n, n), Ka = zeros(n, n), l = L / nEl;
@@ -125,7 +128,19 @@ function beamModel(sec, L, nEl, cosL, tanL, a2d, xac = 0.25, point = [], opt = {
   }
   if (nX) { const xi = a => (a < 3 ? rootIdx[a] : 3 * nEl + nR + a - 3), m = 3 + nX;
     for (let a = 0; a < m; a++) for (let b = 0; b < m; b++) { const i = xi(a), j = xi(b); if (i < 0 || j < 0) continue; if (opt.ext.K) K[i][j] += opt.ext.K[a][b]; if (opt.ext.M) M[i][j] += opt.ext.M[a][b]; } }
-  return { K, M, Ka, n, nEl, l, L, strips, cosL, tanL, a2d, bc, dof, kind, rootIdx, rootK: !!((opt.root && opt.root.K) || (opt.ext && opt.ext.K)) };
+  for (const nk of opt.nodeK || []) { const j = clamp(Math.round(nk.y / cosL / l), 1, nEl); for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) K[dof(j, a)][dof(j, b)] += nk.K[a][b]; }
+  const out = { K, M, Ka, n, nEl, l, L, strips, cosL, tanL, a2d, bc, dof, kind, rootIdx, rootK: !!((opt.root && opt.root.K) || (opt.ext && opt.ext.K) || (opt.nodeK && opt.nodeK.length)) };
+  if (opt.cons && bc === 'free') {
+    // Reduktion auf die Wurzelkoordinaten q: u = T_f·u_r, K_r = T_fᵀ·K·T_f (ebenso M, K_a)
+    const k = opt.cons.T[0].length, nI = 3 * nEl, nr = nI + k + nX, Tf = zeros(n, nr);
+    for (let i = 0; i < nI; i++) Tf[i][i] = 1;
+    for (let a = 0; a < 3; a++) for (let j = 0; j < k; j++) Tf[rootIdx[a]][nI + j] = opt.cons.T[a][j];
+    for (let i = 0; i < nX; i++) Tf[nI + 3 + i][nI + k + i] = 1;
+    const TfT = transpose(Tf), red = A => matMul(TfT, matMul(A, Tf));
+    const Mr = red(M); if (opt.cons.M) for (let a = 0; a < k; a++) for (let b = 0; b < k; b++) Mr[nI + a][nI + b] += opt.cons.M[a][b];
+    Object.assign(out, { K: red(K), M: Mr, Ka: red(Ka), n: nr, Tf, nFull: n, rIdx: Array.from({ length: k }, (_, j) => nI + j), kind: [...kind.slice(0, nI), ...Array(k).fill('r'), ...Array(nX).fill('x')] });
+  }
+  return out;
 }
 // Auslenkung (w, w', θ) eines Freiheitsgradvektors am Knoten j
 const beamNode = (bm, v, j) => [0, 1, 2].map(k => { const i = bm.dof(j, k); return i >= 0 ? v[i] : 0; });
@@ -141,7 +156,9 @@ function beamModes(bm, nm = 6) {
     for (let a = 0; a < bm.n; a++) for (let b = 0; b < bm.n; b++) { const kv = phi[a] * bm.K[a][b] * phi[b]; if (isT(a) && isT(b)) et += kv; else if (!isT(a) && !isT(b)) eb += kv; }
     // Starrkörperform nur bei freier Wurzel ohne Federn: Eigenwert im Rauschen der Zahlendarstellung
     const lmax = Math.max(...r.values.map(Math.abs)), rigid = bm.bc && bm.bc !== 'clamped' && !bm.rootK && Math.abs(r.values[i]) < 1e-10 * lmax;
-    modes.push({ omega: rigid ? 0 : om, f: rigid ? 0 : om / (2 * Math.PI), phi, kind: rigid ? 'Starrkörper' : et > eb ? 'Torsion' : 'Biegung', tors: et / Math.max(1e-12, et + eb), rigid });
+    // reduziertes Modell: Form in den vollen Freiheitsgraden (für die Streifen) und in den Wurzelkoordinaten
+    const full = bm.Tf ? bm.Tf.map(row => row.reduce((a, t, j) => a + t * phi[j], 0)) : phi;
+    modes.push({ omega: rigid ? 0 : om, f: rigid ? 0 : om / (2 * Math.PI), phi: full, phiR: phi, kind: rigid ? 'Starrkörper' : et > eb ? 'Torsion' : 'Biegung', tors: et / Math.max(1e-12, et + eb), rigid });
   }
   let nb = 0, nt = 0, nr = 0; modes.forEach(m => { m.label = m.rigid ? `Starrkörper ${++nr}` : m.kind === 'Torsion' ? `${++nt}. Torsion` : `${++nb}. Biegung`; });
   return modes;
@@ -200,7 +217,8 @@ function flutterMatrix(bm, modes, V, rho, zeta = 0.02, cs = [], opt = {}) {
       for (let r = 0; r < nm; r++) { const v = ds * (-Sb * W[r] + (Ib + (c - a) * b * Sb) * T[r]); Ms[r][q] += v; Ms[q][r] += v; }
       Ms[q][q] += ds * Ib;
     }
-    const c0 = 2 * PI * rho * U * b * kap * (1 - JA[0] - JA[1]), cl = [2 * PI * rho * U * U * kap * JA[0] * JB[0], 2 * PI * rho * U * U * kap * JA[1] * JB[1]];
+    const ja = opt.quasi ? [0, 0] : JA;   // quasistationär: C(k) = 1
+    const c0 = 2 * PI * rho * U * b * kap * (1 - ja[0] - ja[1]), cl = [2 * PI * rho * U * U * kap * ja[0] * JB[0], 2 * PI * rho * U * U * kap * ja[1] * JB[1]];
     const T10 = Tf ? Tf.T10 : 0, T11 = Tf ? Tf.T11 : 0, T12 = Tf ? Tf.T12 : 0;
     const D1 = W.map((w, k) => -w + b * (0.5 - a) * T[k] + b / (2 * PI) * T11 * Bf[k]), D0 = T.map((t, k) => U * (t - bm.tanL * Wp[k]) + U / PI * T10 * Bf[k]);
     const Gv = W.map((w, k) => w + b * (a + 0.5) * T[k] - T12 / (2 * PI) * b * Bf[k]);
@@ -240,30 +258,38 @@ function flutterMatrix(bm, modes, V, rho, zeta = 0.02, cs = [], opt = {}) {
   return A;
 }
 // Strukturelle Eigenwerte (schwingend) bei V; nach Frequenz sortiert
+// Schwingende Wurzeln (für das V-g-Diagramm); dazu maxReal: größter positiver reeller Eigenwert (statische Divergenz).
+// Reelle Wurzeln nahe null (Starrkörper) zählen nicht; opt.real = false schaltet die Divergenz ab (Freiflug: Flugdynamik).
 function flutterRoots(bm, modes, V, rho, zeta, cs = [], opt = {}) {
   const w0 = modes.find(m => m.omega > 0), ev = eigReal(flutterMatrix(bm, modes, V, rho, zeta, cs, opt));
   const wmin = opt.wmin ?? 0.3 * Math.min(w0 ? w0.omega : 1, ...cs.map(c => c.wb).filter(w => w > 0));
-  return ev.filter(z => z.im > wmin).sort((a, b) => a.im - b.im).map(z => ({ re: z.re, im: z.im, g: 2 * z.re / z.im, f: z.im / (2 * Math.PI) }));
+  const out = ev.filter(z => z.im > wmin).sort((a, b) => a.im - b.im).map(z => ({ re: z.re, im: z.im, g: 2 * z.re / z.im, f: z.im / (2 * Math.PI) }));
+  const tol = 1e-3 * (w0 ? w0.omega : 1);
+  out.maxReal = opt.real === false ? -1 : ev.filter(z => Math.abs(z.im) <= Math.max(1e-9, 1e-6 * Math.abs(z.re)) && z.re > tol).reduce((a, z) => Math.max(a, z.re), -1);
+  return out;
 }
+// opt.vMin: Suche erst ab dieser Fahrt (Mindestfahrt im Flug); ist das System dort schon instabil, gilt vf = vMin.
 function flutterSearch(bm, modes, rho, vMax, zeta = 0.02, nStep = 50, cs = [], opt = {}) {
-  const track = [];
+  const track = [], v0 = Math.max(0, Math.min(opt.vMin || 0, 0.9 * vMax));
   let vf = null, wf = null;
-  const crit = V => { const r = flutterRoots(bm, modes, V, rho, zeta, cs, opt); return { r, g: r.length ? Math.max(...r.map(z => z.re)) : -1 }; };
-  let prev = null;
-  for (let i = 1; i <= nStep; i++) {
-    const V = vMax * i / nStep, c = crit(V); track.push({ V, roots: c.r });
+  const crit = V => { const r = flutterRoots(bm, modes, V, rho, zeta, cs, opt), go = r.length ? Math.max(...r.map(z => z.re)) : -1; return { r, g: Math.max(go, r.maxReal), div: r.maxReal > 0 && r.maxReal >= go }; };
+  let prev = null, kind = null;
+  for (let i = v0 > 0 ? 0 : 1; i <= nStep; i++) {
+    const V = v0 + (vMax - v0) * i / nStep, c = crit(V); track.push({ V, roots: c.r });
     if (vf === null && c.g > 0) {
-      let lo = prev ? prev.V : 0, hi = V;
-      for (let k = 0; k < 22; k++) { const m = (lo + hi) / 2; if (crit(m).g > 0) hi = m; else lo = m; }
-      vf = hi; const rr = crit(hi).r; const z = rr.reduce((a, b) => (b.re > a.re ? b : a), rr[0]); wf = z ? z.im : null;
+      let hi = V;
+      if (prev || v0 === 0) { let lo = prev ? prev.V : 0; for (let k = 0; k < 22; k++) { const m = (lo + hi) / 2; if (crit(m).g > 0) hi = m; else lo = m; } }
+      vf = hi; const ch = crit(hi), rr = ch.r; kind = ch.div ? 'div' : 'flutter';
+      const z = rr.reduce((a, b) => (b.re > a.re ? b : a), rr[0]); wf = ch.div ? 0 : z ? z.im : null;
     }
     prev = { V };
   }
-  return { vf, wf, track };
+  return { vf, wf, kind, track, vMin: v0 };
 }
-// Flatterfrei bis vReq? Prüfung auf einem Geschwindigkeitsraster (für Parameterstudien, ohne Eingrenzung)
+// Flatterfrei bis vReq? Prüfung auf einem Geschwindigkeitsraster ab opt.vMin (für Parameterstudien, ohne Eingrenzung)
 function flutterFreeTo(bm, modes, rho, vReq, zeta, cs = [], opt = {}, n = 14) {
-  for (let i = 1; i <= n; i++) { const r = flutterRoots(bm, modes, vReq * i / n, rho, zeta, cs, opt); if (r.some(z => z.re > 0)) return false; }
+  const v0 = Math.max(0, Math.min(opt.vMin || 0, 0.9 * vReq));
+  for (let i = v0 > 0 ? 0 : 1; i <= n; i++) { const r = flutterRoots(bm, modes, v0 + (vReq - v0) * i / n, rho, zeta, cs, opt); if (r.some(z => z.re > 0) || r.maxReal > 0) return false; }
   return true;
 }
 // Leitwerksträger als Kragarm mit Endmasse (Rayleigh)
@@ -282,7 +308,7 @@ function aeroelastic(C, opt = {}) {
   const bm = beamModel(sec, L, opt.nEl || 12, cosL, tanL, a2d, 0.25, pts), modes = beamModes(bm, 6);
   const qD0 = divergence(bm), VD0 = Number.isFinite(qD0) ? Math.sqrt(2 * qD0 / C.rho) : Infinity, VD = VD0 > 30 * Math.max(P.vmax, 10) ? Infinity : VD0, qD = Number.isFinite(VD) ? qD0 : Infinity;
   const vMax = opt.vMax || Math.max(3 * P.vmax, 60);
-  const fl = opt.noFlutter ? { vf: null, track: [] } : flutterSearch(bm, modes.slice(0, 4), C.rho, vMax, zeta, opt.nStep || 40);
+  const fl = opt.noFlutter ? { vf: null, track: [] } : flutterSearch(bm, modes.slice(0, 4), C.rho, vMax, zeta, opt.nStep || 40, [], { real: false });
   const le = liftEffectiveness(bm, 0.5 * C.rho * P.vmax ** 2);
   // Nachweisgeschwindigkeit sinngemäß CS-23.629 / ASTM F3093: flatter- und divergenzfrei bis 1,2 × V_D (hier V_max)
   const vReq = 1.2 * P.vmax;
@@ -318,7 +344,7 @@ function resonance(C, freqs) {
 // Prüffall Goland-Flügel (Goland 1945): gleichmäßiger Kragflügel 6,1 m × 1,83 m, Meereshöhe
 function golandCheck() {
   const c = 1.8288, L = 6.096, sec = [0, L].map(y => ({ y, c, EI: 9.77e6, GJ: 0.987e6, m: 35.71, xcg: 0.43, xea: 0.33, Ia: 8.64 }));
-  const bm = beamModel(sec, L, 16, 1, 0, 2 * Math.PI, 0.25, []), md = beamModes(bm, 6), qD = divergence(bm), fl = flutterSearch(bm, md.slice(0, 4), 1.225, 300, 0, 60);
+  const bm = beamModel(sec, L, 16, 1, 0, 2 * Math.PI, 0.25, []), md = beamModes(bm, 6), qD = divergence(bm), fl = flutterSearch(bm, md.slice(0, 4), 1.225, 300, 0, 60, [], { real: false });
   return { VD: Math.sqrt(2 * qD / 1.225), VF: fl.vf, wF: fl.wf, w1: md[0].omega, w2: md[1].omega };
 }
 // Prüffall typischer Profilschnitt (Hodges & Pierce 2011, Abschn. 5.4: a = −0,2, x_α = 0,1, r_α² = 0,24, μ = 20, ω_h/ω_θ = 0,4):
@@ -328,6 +354,6 @@ function sectionCheck() {
   const m = mu * Math.PI * rho * b * b, Ia = m * ra2 * b * b, Sa = m * xa * b, M = [[m, -Sa], [-Sa, Ia]], K = [[m * (sig * wth) ** 2, 0], [0, Ia * wth * wth]], r = genSymEig(K, M);
   const modes = r.values.map((lam, i) => { const v = r.vectors[i]; let mm = 0; for (let p = 0; p < 2; p++) for (let q = 0; q < 2; q++) mm += v[p] * M[p][q] * v[q]; return { omega: Math.sqrt(lam), phi: v.map(x => x / Math.sqrt(mm)) }; });
   const bm = { strips: [{ idx: [0, -1, -1, -1], nw: [1, 0, 0, 0], np: [0, 0, 0, 0], it: [1, -1], nt: [1, 0], ds: 1, b, ah: a, y: 0.5 }], cosL: 1, tanL: 0, a2d: 2 * Math.PI };
-  const f0 = flutterSearch(bm, modes, rho, 5, 0, 200), f1 = flutterSearch(bm, modes, rho, 5, 0, 200, [{ y0: 0, y1: 1, c: 0.5, Sb: 0, Ib: 1e-3 * Ia, wb: 200, zb: 0.02 }]);
+  const f0 = flutterSearch(bm, modes, rho, 5, 0, 200, [], { real: false }), f1 = flutterSearch(bm, modes, rho, 5, 0, 200, [{ y0: 0, y1: 1, c: 0.5, Sb: 0, Ib: 1e-3 * Ia, wb: 200, zb: 0.02 }], { real: false });
   return { vf: f0.vf / (b * wth), wf: f0.wf / wth, vfFlap: f1.vf / (b * wth) };
 }
