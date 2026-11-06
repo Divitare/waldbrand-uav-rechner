@@ -30,6 +30,7 @@
     "ui-views3.js",
     "ui-views4.js",
     "ui-doc.js",
+    "ui-req.js",
     "ui-main.js"
   ]
 }

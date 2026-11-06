@@ -56,6 +56,7 @@
       <a href="#einsatz" data-v="einsatz">Einsatz</a>
       <a href="#robustheit" data-v="robustheit">Robustheit</a>
       <a href="#sora" data-v="sora">SORA</a>
+      <a href="#anforderungen" data-v="anforderungen">Anforderungen</a>
       <a href="#validierung" data-v="validierung">Validierung</a>
       <a href="#formeln" data-v="formeln">Formeln</a>
       <!--TEAM-NAV-->
@@ -372,6 +373,40 @@
           <div class="panel"><div class="panel-head"><div><h2>SAIL-Matrix</h2></div></div><div class="table-wrap"><table class="mat small" id="tbl-sail"></table></div></div>
           <div class="panel"><div class="panel-head"><div><h2>Angrenzendes Gebiet und Containment</h2></div></div><div id="sora-adj"></div></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Anforderungen -->
+  <section class="view" id="v-anforderungen" data-view="anforderungen" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Stand</h3><div id="rq-sum"></div>
+          <div class="pgrid" style="margin-top:12px">
+            <div class="field"><label for="rq-knapp">Knapp-Schwelle <span class="u">%</span></label><input type="number" id="rq-knapp" min="0.5" max="50" step="0.5" inputmode="decimal"></div>
+            <div class="field"><label for="rq-myname">Dein Name</label><input type="text" id="rq-myname" maxlength="60" autocomplete="name"></div>
+          </div>
+          <p class="note" style="margin-top:10px">Knapp heißt: der Abstand zur Grenze ist kleiner als dieser Anteil (bei zwei Grenzen der Bereichsbreite, sonst der Grenze). Ganzzahlige Größen wie das SAIL sind knapp, wenn sie genau auf der Grenze liegen.</p></div>
+        <div class="panel"><h3 class="first">Anforderung an ein Ergebnis</h3>
+          <div class="pgrid">
+            <div class="field wide"><label for="rq-new-k">Kenngröße</label><select id="rq-new-k"></select><span class="help" id="rq-new-cur"></span></div>
+            <div class="field"><label for="rq-new-min">mindestens</label><input type="number" id="rq-new-min" step="any" inputmode="decimal"></div>
+            <div class="field"><label for="rq-new-max">höchstens</label><input type="number" id="rq-new-max" step="any" inputmode="decimal"></div>
+          </div>
+          <div class="table-actions"><button class="btn primary sm" type="button" id="rq-new-add">Hinzufügen</button></div>
+          <p class="note" style="margin-top:10px">Eingaben legt ihr direkt am Feld fest: das Fähnchen rechts neben der Bezeichnung öffnet Festhalten, Bereich und Kommentare. Die Kennwerte oben im Streifen lassen sich anklicken.</p></div>
+        <div class="panel"><h3 class="first">Kommentare zum Modell</h3>
+          <ul class="rq-notes" id="rq-model-notes"></ul>
+          <textarea id="rq-model-note" rows="3" aria-label="Kommentar zum Modell" placeholder="Absprachen, offene Punkte, Entscheidungen …"></textarea>
+          <div class="table-actions"><button class="btn sm" type="button" id="rq-model-add">Kommentar hinzufügen</button></div></div>
+      </div>
+      <div class="main">
+        <div class="panel"><div class="panel-head"><div><h2>Anforderungen an Ergebnisse</h2><p>Grenzen für Kenngrößen des Entwurfs. Aufwendige Größen (Flattern aller Fälle) rechnet der Rechner nach jeder Änderung im Hintergrund nach.</p></div></div>
+          <div class="table-wrap"><table class="data rq-tbl" id="tbl-rq-out"></table></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Festgehaltene und begrenzte Eingaben</h2><p>Festgehaltene Felder sind gesperrt; Vorlagen und Entwurfsvorschläge ändern sie nicht. Bereiche geben vor, wo eine Eingabe bleiben soll.</p></div></div>
+          <div class="table-wrap"><table class="data rq-tbl" id="tbl-rq-in"></table></div></div>
+        <!--OPT-PANEL-->
+        <div class="panel"><div class="panel-head"><div><h2>Alle Kommentare</h2><p>Gesammelt aus Eingaben und Ergebnissen; der Name springt zum Feld.</p></div></div><div id="rq-all-notes"></div></div>
       </div>
     </div>
   </section>

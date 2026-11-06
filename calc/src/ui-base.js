@@ -256,12 +256,13 @@ function fieldHTML(k, form) {
   const m = PM[k]; if (!m) return '';
   const id = `f-${form}-${k}`, help = m.help ? `<span class="help">${esc(m.help)}</span>` : '';
   const lab = `${esc(m.l)}${m.u ? ` <span class="u">${esc(m.u)}</span>` : ''}`;
+  const rq = `<button type="button" class="rq-btn" data-rq="${k}" aria-label="Anforderung oder Kommentar: ${esc(m.l)}"></button>`;
   const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'solarMode', 'cellType', 'cellOrient', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
-  if (m.sel === 'bool') return `<div class="field chk wide" data-fk="${k}"><input type="checkbox" id="${id}" data-k="${k}"><label for="${id}">${lab}</label>${help}</div>`;
-  if (m.sel === 'date') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label><input type="date" id="${id}" data-k="${k}"></div>`;
-  if (m.sel === 'time') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label><input type="time" id="${id}" data-k="${k}"></div>`;
-  if (m.sel) return `<div class="field${wide}" data-fk="${k}"><label for="${id}">${lab}</label><select id="${id}" data-k="${k}">${selOptions(m.sel === true ? k : m.sel)}</select>${help}</div>`;
-  return `<div class="field${wide}" data-fk="${k}"><label for="${id}">${lab}</label><input type="number" id="${id}" data-k="${k}" step="${m.step}" min="${m.min}" max="${m.max}" inputmode="decimal">${help}</div>`;
+  if (m.sel === 'bool') return `<div class="field chk wide" data-fk="${k}"><input type="checkbox" id="${id}" data-k="${k}"><label for="${id}">${lab}</label>${rq}${help}</div>`;
+  if (m.sel === 'date') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="date" id="${id}" data-k="${k}"></div>`;
+  if (m.sel === 'time') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="time" id="${id}" data-k="${k}"></div>`;
+  if (m.sel) return `<div class="field${wide}" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<select id="${id}" data-k="${k}">${selOptions(m.sel === true ? k : m.sel)}</select>${help}</div>`;
+  return `<div class="field${wide}" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="number" id="${id}" data-k="${k}" step="${m.step}" min="${m.min}" max="${m.max}" inputmode="decimal">${help}</div>`;
 }
 function buildForms() {
   $$('[data-form]').forEach(el => { const f = el.dataset.form; el.innerHTML = (FORMS[f] || []).map(k => fieldHTML(k, f)).join(''); });
@@ -275,6 +276,7 @@ function fillForms() {
     else if (document.activeElement !== el) el.value = v == null ? '' : String(v);
   });
   $$('[data-fk]').forEach(el => { const f = SHOW_IF[el.dataset.fk]; el.hidden = f ? !f(P) : false; });
+  if (typeof reqDecorate === 'function') reqDecorate();
 }
 function readField(el) {
   const k = el.dataset.k, m = PM[k];
@@ -422,7 +424,7 @@ function refreshAll() { buildForms(); renderCompTable(); onWeatherChange(); inva
 function markPreset() { S.preset = ''; const el = $('#preset-sel'); if (el) el.value = ''; }
 
 /* ---------- Ansichten ---------- */
-const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'ruder', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'validierung', 'formeln', 'team'];
+const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'ruder', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'anforderungen', 'validierung', 'formeln', 'team'];
 let VIEW = 'uebersicht';
 function showView(v) {
   if (!VIEWS.includes(v) || !document.getElementById('v-' + v)) v = 'uebersicht';
@@ -441,6 +443,7 @@ function invalidateAll() { dirty = { all: true }; }
 function schedule(now) {
   clearTimeout(recTimer);
   invalidateAll();
+  if (typeof enforceFixed === 'function') enforceFixed();
   recTimer = setTimeout(() => { recompute(); save(); }, now ? 0 : 140);
 }
 const computeBase = () => baseResult(S.params, S.comps);
@@ -448,6 +451,7 @@ function recompute() {
   try { R = computeBase(); }
   catch (err) { console.error(err); $('#strip').innerHTML = `<div style="grid-column:1/-1">${pill('crit', 'Rechenfehler: ' + err.message)}</div>`; return; }
   renderStrip(R);
+  if (typeof reqUpdate === 'function') reqUpdate(R);
   renderView(false);
 }
 const viewDone = {};
