@@ -349,6 +349,16 @@ function migrateParams(p) {
   if (o.mGear !== undefined && o.landGear === undefined) o.landGear = Number(o.mGear) > 0 ? 'skid' : 'belly';
   return o;
 }
+function sanitizeComp(c) {
+  const o = {
+    id: String(c.id || 'own-' + Math.random().toString(36).slice(2, 8)).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) || 'own-' + Math.random().toString(36).slice(2, 8), name: String(c.name || 'Komponente').slice(0, 120), group: GROUPS.some(g => g[0] === c.group) ? c.group : 'own',
+    m: fin(Number(c.m)) ? Number(c.m) : 0, p: fin(Number(c.p)) ? Number(c.p) : 0, d: fin(Number(c.d)) ? clamp(Number(c.d), 0, 100) : 100, on: c.on !== false,
+    sched: SCHED.some(x => x[0] === c.sched) ? c.sched : 'always', cda: fin(Number(c.cda)) ? Number(c.cda) : 0,
+    x: fin(Number(c.x)) ? clamp(Number(c.x), -0.5, 6) : compX(c.id), y: fin(Number(c.y)) ? Number(c.y) : 0, z: fin(Number(c.z)) ? clamp(Number(c.z), -0.5, 1) : compZ(c.id)
+  };
+  if (typeof c.note === 'string' && c.note) o.note = c.note.slice(0, 1000);
+  return o;
+}
 function sanitize(raw) {
   const s = defaultState();
   if (!raw || typeof raw !== 'object') return s;
@@ -360,14 +370,7 @@ function sanitize(raw) {
     else if (typeof d === 'boolean') s.params[k] = !!v;
     else s.params[k] = String(v);
   }
-  if (Array.isArray(raw.comps)) {
-    s.comps = raw.comps.filter(c => c && typeof c === 'object').map(c => ({
-      id: String(c.id || 'own-' + Math.random().toString(36).slice(2, 8)), name: String(c.name || 'Komponente').slice(0, 120), group: GROUPS.some(g => g[0] === c.group) ? c.group : 'own',
-      m: fin(Number(c.m)) ? Number(c.m) : 0, p: fin(Number(c.p)) ? Number(c.p) : 0, d: fin(Number(c.d)) ? clamp(Number(c.d), 0, 100) : 100, on: c.on !== false,
-      sched: SCHED.some(x => x[0] === c.sched) ? c.sched : 'always', cda: fin(Number(c.cda)) ? Number(c.cda) : 0, note: typeof c.note === 'string' ? c.note.slice(0, 1000) : undefined,
-      x: fin(Number(c.x)) ? clamp(Number(c.x), -0.5, 6) : compX(c.id), y: fin(Number(c.y)) ? Number(c.y) : 0, z: fin(Number(c.z)) ? clamp(Number(c.z), -0.5, 1) : compZ(c.id)
-    }));
-  }
+  if (Array.isArray(raw.comps)) s.comps = raw.comps.filter(c => c && typeof c === 'object').map(sanitizeComp);
   s.wx = sanitizeWx(raw.wx); s.req = sanitizeReq(raw.req); s.notes = sanitizeNotes(raw.notes);
   if (raw.meta && typeof raw.meta === 'object') s.meta = { name: TXT(raw.meta.name, 120), knapp: fin(Number(raw.meta.knapp)) ? clamp(Number(raw.meta.knapp), 0.5, 50) : 5 };
   if (raw.gen && Array.isArray(raw.gen.months) && raw.gen.months.length === 12) s.gen = { src: String(raw.gen.src || ''), months: raw.gen.months.map(m => ({ kt: clamp(Number(m.kt) || 0.4, 0.05, 0.8), T: Number(m.T) || 10, amp: Number(m.amp) || 8, ws: Number(m.ws) || 2 })) };
@@ -408,7 +411,12 @@ function loadState() {
   return defaultState();
 }
 let saveTimer = null;
-function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* ignorieren */ } }, 300); }
+// Nach jeder Rechnung: im Browser speichern; SAVE_HOOKS (Teamarbeit) gleichen den Stand sofort ab
+const SAVE_HOOKS = [];
+function save() {
+  for (const f of SAVE_HOOKS) { try { f(); } catch (e) { console.error(e); } }
+  clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* ignorieren */ } }, 300);
+}
 
 /* ---------- Vorlagen ---------- */
 function applyPreset(key) {
@@ -424,7 +432,7 @@ function refreshAll() { buildForms(); renderCompTable(); onWeatherChange(); inva
 function markPreset() { S.preset = ''; const el = $('#preset-sel'); if (el) el.value = ''; }
 
 /* ---------- Ansichten ---------- */
-const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'ruder', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'anforderungen', 'validierung', 'formeln', 'team'];
+const VIEWS = ['uebersicht', 'flugzeug', 'konfiguration', 'schwerpunkt', 'struktur', 'antrieb', 'flugdynamik', 'ruder', 'profile', 'komponenten', 'energie', 'wetter', 'einsatz', 'robustheit', 'sora', 'anforderungen', 'entwurf', 'validierung', 'formeln', 'team'];
 let VIEW = 'uebersicht';
 function showView(v) {
   if (!VIEWS.includes(v) || !document.getElementById('v-' + v)) v = 'uebersicht';

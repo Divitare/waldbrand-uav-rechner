@@ -19,6 +19,7 @@
     "sim.js",
     "ext.js",
     "kenn.js",
+    "opt.js",
     "defaults.js",
     "formulas.js"
   ],
@@ -31,6 +32,7 @@
     "ui-views4.js",
     "ui-doc.js",
     "ui-req.js",
+    "ui-opt.js",
     "ui-main.js"
   ]
 }

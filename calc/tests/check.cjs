@@ -60,6 +60,19 @@ const t0 = Date.now();
   chk('Pfeilung 10°: ω frei / Flugdynamik', bf.spRigid.wn / fd.lon.sp.wn, 1, 0.05);
   chk('Pfeilung 10°: ζ frei / Flugdynamik', bf.spRigid.zeta / fd.lon.sp.zeta, 1, 0.05);
 }
+// Entwurfsvorschläge: freie Größen aus Gruppen und Anforderungen, Ver- und Entschlüsseln, Vergleich nach Deb
+{
+  const P = { ...U.DEFAULT_PARAMS };
+  const req = { 'p:span': { fix: false, min: 5, max: 6, allow: null }, 'p:airfoil': { fix: true, val: P.airfoil }, 'p:matCap': { fix: false, min: null, max: null, allow: ['cfk_ud', 'gfk_ud'] } };
+  const { vars, info } = U.optVarSet(P, req, ['wing', 'struct'], ['dihedral'], 'payload'), by = Object.fromEntries(vars.map(v => [v.k, v]));
+  const okSet = by.span && by.span.lo === 5 && by.span.hi === 6 && !by.airfoil && info.find(i => i.k === 'airfoil').why === 'fix' && !by.dihedral && by.matCap.opts.join() === 'cfk_ud,gfk_ud' && by.payloadExtra && !by.v && by.taper && !by.propD;
+  if (!okSet) bad++; console.log(`${okSet ? 'ok    ' : 'FEHLER'} Freie Größen: Bereich, festgehalten, abgewählt, erlaubte Werte, Gruppen, Nutzlast`);
+  chk('Raster beim Entschlüsseln (Spannweite 0,05 m)', U.optDecodeVal(by.span, 0.4321), 5.45, 1e-12);
+  chk('Auswahl ver- und entschlüsseln', by.matCap.opts.indexOf(U.optDecodeVal(by.matCap, U.optEncodeVal(by.matCap, 'gfk_ud'))), 1, 0);
+  chk('Verletzung relativ zur Grenze', U.consViol(9, { min: null, max: 8 }), 0.125, 1e-12);
+  const order = [{ viol: 0.2, f: 1 }, { viol: 0, f: 5 }, { viol: 0, f: 3 }, { viol: 0.1, f: 9 }].sort((a, b) => (U.optBetter(a, b) ? (U.optBetter(b, a) ? 0 : -1) : 1)).map(x => x.f).join();
+  if (order !== '3,5,9,1') bad++; console.log(`${order === '3,5,9,1' ? 'ok    ' : 'FEHLER'} Vergleich nach Deb: zulässig vor unzulässig, dann Ziel bzw. Verletzung`);
+}
 // Fertige Seiten vorhanden
 for (const f of ['dist/uav-budget.html', 'public/index.html']) {
   const p = path.join(__dirname, '..', '..', f), ok = fs.existsSync(p) && /<title>Waldbrand-UAV/.test(fs.readFileSync(p, 'utf8'));

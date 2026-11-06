@@ -7,8 +7,9 @@ function load() {
   const parts = MODEL.map(f => fs.readFileSync(path.join(SRC, f), 'utf8')), names = new Set();
   for (const src of parts) for (const m of src.matchAll(/^(?:function\*?\s+|const\s+|let\s+)([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
   const code = parts.join('\n;\n') + `\nmodule.exports = { ${[...names].join(', ')} };\n`;
-  const tmp = path.join(__dirname, '_model.cjs');
-  fs.writeFileSync(tmp, code);
+  // erst unter eigenem Namen schreiben, dann umbenennen: parallele Prozesse lesen nie eine halbe Datei
+  const tmp = path.join(__dirname, '_model.cjs'), part = `${tmp}.${process.pid}.tmp`;
+  fs.writeFileSync(part, code); fs.renameSync(part, tmp);
   delete require.cache[require.resolve(tmp)];
   const U = require(tmp);
   U.setAirfoils(JSON.parse(fs.readFileSync(path.join(DATA, 'airfoils.json'), 'utf8')));

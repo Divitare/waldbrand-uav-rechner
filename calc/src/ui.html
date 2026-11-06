@@ -6,6 +6,7 @@
       <p class="lead" id="lead">Auslegungsrechner für ein Solarflugzeug mit 5–6 m Spannweite: Profilpolaren, Wirbelgitter mit Pfeilung, Widerstandsaufbau, Schwerpunkt und Neutralpunkt, Werkstoffe, Eigenschwingungen und Flattern, Propeller-Kennfeld, Flugeigenschaften, Einstrahlung auf den gewölbten Flügel, Tages- und Dauerflugbilanz nach ETH-Methodik, echte Wetterdaten, Einsatzleistung und SORA. Änderungen bleiben in diesem Browser gespeichert.</p>
     </div>
     <div class="top-actions">
+      <!--TEAM-BAR-->
       <label class="small muted" for="preset-sel">Vorlage</label>
       <select id="preset-sel" style="width:auto">
         <option value="">– wählen –</option>
@@ -57,6 +58,7 @@
       <a href="#robustheit" data-v="robustheit">Robustheit</a>
       <a href="#sora" data-v="sora">SORA</a>
       <a href="#anforderungen" data-v="anforderungen">Anforderungen</a>
+      <a href="#entwurf" data-v="entwurf">Entwurf</a>
       <a href="#validierung" data-v="validierung">Validierung</a>
       <a href="#formeln" data-v="formeln">Formeln</a>
       <!--TEAM-NAV-->
@@ -405,8 +407,40 @@
           <div class="table-wrap"><table class="data rq-tbl" id="tbl-rq-out"></table></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Festgehaltene und begrenzte Eingaben</h2><p>Festgehaltene Felder sind gesperrt; Vorlagen und Entwurfsvorschläge ändern sie nicht. Bereiche geben vor, wo eine Eingabe bleiben soll.</p></div></div>
           <div class="table-wrap"><table class="data rq-tbl" id="tbl-rq-in"></table></div></div>
-        <!--OPT-PANEL-->
+        <div class="panel op-teaser"><div><h2>Entwurf berechnen</h2><p>Der Rechner sucht Entwürfe, die diese Anforderungen erfüllen und ein gewähltes Ziel verbessern, etwa möglichst leicht oder möglichst viel Nutzlast. Festgehaltene Eingaben bleiben, Bereiche begrenzen die Suche.</p></div><a class="btn primary" href="#entwurf">Zu den Entwurfsvorschlägen</a></div>
         <div class="panel"><div class="panel-head"><div><h2>Alle Kommentare</h2><p>Gesammelt aus Eingaben und Ergebnissen; der Name springt zum Feld.</p></div></div><div id="rq-all-notes"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="v-entwurf" data-view="entwurf" hidden>
+    <div class="cols">
+      <div class="side">
+        <div class="panel"><h3 class="first">Ziel</h3>
+          <div class="field"><label for="op-obj">Optimieren auf</label><select id="op-obj"></select><span class="help" id="op-obj-cur"></span></div>
+          <p class="note" id="op-obj-note" hidden></p></div>
+        <div class="panel"><h3 class="first">Bedingungen</h3>
+          <div id="op-cons"></div>
+          <h4 class="op-h4">Grundbedingungen</h4>
+          <div id="op-checks" class="op-checks"></div>
+          <label class="op-opt"><input type="checkbox" id="op-reserve"> <span>Abstand zu den Grenzen halten: Anforderungen um die Knapp-Schwelle (<span id="op-knapp"></span>) verschärfen</span></label>
+          <p class="note"><a href="#anforderungen">Anforderungen bearbeiten</a> · Eingaben festhalten oder begrenzen: Fähnchen am Feld.</p></div>
+        <div class="panel"><h3 class="first">Rechnen</h3>
+          <div class="op-effort" role="radiogroup" aria-label="Rechenaufwand" id="op-effort"></div>
+          <div class="op-run"><button type="button" class="btn primary" id="op-run">Entwurf berechnen</button><button type="button" class="btn" id="op-stop" hidden>Jetzt beenden</button></div>
+          <p class="note" id="op-run-note"></p></div>
+      </div>
+      <div class="main">
+        <div class="panel" id="op-prog-panel" hidden><div class="panel-head"><div><h2>Suche</h2><p id="op-prog-sub"></p></div></div>
+          <div class="progress" aria-hidden="true"><div id="op-bar"></div></div>
+          <div class="op-stat" id="op-stat" aria-live="polite"></div>
+          <div class="chart" id="ch-op"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Vorschläge</h2><p id="op-res-sub">Ziel wählen, Bedingungen prüfen, dann „Entwurf berechnen“. Der Rechner ändert die freien Größen und zeigt bis zu vier verschiedene Entwürfe mit allen Änderungen; übernehmen lässt sich jeder mit einem Klick.</p></div></div>
+          <div id="op-res" class="op-res"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Freie Größen</h2><p id="op-vars-sub"></p></div></div>
+          <div id="op-groups" class="op-groups"></div>
+          <details class="op-vdet" id="op-vdet"><summary id="op-vsum">Alle Größen einzeln mit Suchbereich</summary>
+            <div class="table-wrap"><table class="data op-vars" id="tbl-op-vars"></table></div></details></div>
       </div>
     </div>
   </section>

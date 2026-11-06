@@ -77,13 +77,19 @@ const LIT = {
   own: 'Eigene Herleitung im Rechner aus Geometrie bzw. Bilanzgleichung (keine externe Quelle); Annahmen stehen beim Eintrag.',
   dozier: 'Dozier, J. (1981). A method for satellite identification of surface temperature fields of subpixel resolution. Remote Sensing of Environment 11, 221–229.',
   itu834: 'ITU-R P.834-9 (2017). Effects of tropospheric refraction on radiowave propagation (Erdradius-Faktor k = 4/3).',
-  sora: 'JARUS (2024). JARUS guidelines on Specific Operations Risk Assessment (SORA), Edition 2.5, Main Body und Annexe.'
+  sora: 'JARUS (2024). JARUS guidelines on Specific Operations Risk Assessment (SORA), Edition 2.5, Main Body und Annexe.',
+  storn1997: 'Storn, R., Price, K. (1997). Differential Evolution – A Simple and Efficient Heuristic for Global Optimization over Continuous Spaces. Journal of Global Optimization 11(4), 341–359.',
+  zhang2009: 'Zhang, J., Sanderson, A. C. (2009). JADE: Adaptive Differential Evolution With Optional External Archive. IEEE Transactions on Evolutionary Computation 13(5), 945–958.',
+  deb2000: 'Deb, K. (2000). An efficient constraint handling method for genetic algorithms. Computer Methods in Applied Mechanics and Engineering 186(2–4), 311–338.',
+  mckay1979: 'McKay, M. D., Beckman, R. J., Conover, W. J. (1979). A Comparison of Three Methods for Selecting Values of Input Variables in the Analysis of Output from a Computer Code. Technometrics 21(2), 239–245.',
+  rechenberg1973: 'Rechenberg, I. (1973). Evolutionsstrategie: Optimierung technischer Systeme nach Prinzipien der biologischen Evolution. Frommann-Holzboog, Stuttgart.',
+  kolda2003: 'Kolda, T. G., Lewis, R. M., Torczon, V. (2003). Optimization by Direct Search: New Perspectives on Some Classical and Modern Methods. SIAM Review 45(3), 385–482.'
 };
 const FORMULA_CH = [
   ['atm', 'Atmosphäre'], ['aero', 'Profile und Tragflügel'], ['drag', 'Widerstand und Flugleistung'], ['mass', 'Anordnung, Massen und Schwerpunkt'],
   ['struct', 'Flügelstruktur und Lasten'], ['tail', 'Leitwerk, Träger, Start und Landung'], ['wire', 'Verkabelung'], ['prop', 'Antrieb und Propellerstrahl'],
   ['dyn', 'Stabilität und Flugdynamik'], ['ctrl', 'Ruder'], ['vib', 'Aeroelastik und Schwingungen'], ['solar', 'Solarenergie und Wetter'],
-  ['batt', 'Akku und Energiehaushalt'], ['mis', 'Einsatz, Sensorik und Turbulenz'], ['sora', 'Betriebsrisiko (SORA)']
+  ['batt', 'Akku und Energiehaushalt'], ['mis', 'Einsatz, Sensorik und Turbulenz'], ['sora', 'Betriebsrisiko (SORA)'], ['opt', 'Anforderungen und Entwurfsvorschläge']
 ];
 const FORMULAS = [
   // ---------------- Atmosphäre ----------------
@@ -202,7 +208,12 @@ const FORMULAS = [
   { id: 'turb-blur', ch: 'mis', t: 'Bewegungsunschärfe', f: 'Δ = ω·t/IFOV,  IFOV = HFOV/N_x;  Vorwärtsflug Δ = V·t/GSD;  Wärmebild: t = thermische Zeitkonstante', s: ['holst', 'kraus'], p: ['irTau', 'rgbExp', 'irHFOV', 'irRes', 'hAGL', 'v'], at: 'turb.js · imageStability' },
   // ---------------- SORA ----------------
   { id: 'sora-grc', ch: 'sora', t: 'Bodenrisiko (GRC)', f: 'iGRC aus Bevölkerungsdichte und Spannweite/Geschwindigkeit (Tab. 2); fGRC = iGRC + M1(A) + M1(B) + M1(C) + M2', s: ['sora|Main Body Tab. 2, 5'], p: ['density', 'span', 'vmax', 'm1a', 'm1b', 'm1c', 'm2'], at: 'ext.js · sora' },
-  { id: 'sora-arc', ch: 'sora', t: 'Luftrisiko und SAIL', f: 'ARC aus der Begegnungsklasse (AEC), strategische Minderung; SAIL aus fGRC und Rest-ARC (Tab. 7)', s: ['sora|Main Body Tab. 7, Annex C'], p: ['aec', 'arcStrat'], at: 'ext.js · sora' }
+  { id: 'sora-arc', ch: 'sora', t: 'Luftrisiko und SAIL', f: 'ARC aus der Begegnungsklasse (AEC), strategische Minderung; SAIL aus fGRC und Rest-ARC (Tab. 7)', s: ['sora|Main Body Tab. 7, Annex C'], p: ['aec', 'arcStrat'], at: 'ext.js · sora' },
+  // ---------------- Anforderungen und Entwurfsvorschläge ----------------
+  { id: 'req-state', ch: 'opt', t: 'Stand einer Anforderung', f: 'zwei Grenzen: m = min(x − x_min, x_max − x)/(x_max − x_min);  eine Grenze: m = (x − x_min)/|x_min| bzw. (x_max − x)/|x_max|;\nverletzt bei m < 0, knapp bei 0 ≤ m < m_knapp, sonst erfüllt', v: 'm_knapp ist die Knapp-Schwelle (Standard 5 %). Ganzzahlige Größen (SAIL, Bodenrisikoklasse, Zellzahl) sind knapp, wenn sie genau auf der Grenze liegen. Aufwendige Größen (Flattern aller Fälle) rechnet die Seite nach jeder Änderung im Hintergrund nach.', s: ['own'], p: [], at: 'ui-req.js · rangeState' },
+  { id: 'opt-viol', ch: 'opt', t: 'Bedingungen und Vergleich zweier Entwürfe', f: 'V = Σ_k [max(0, x_min,k − x_k)/|x_min,k| + max(0, x_k − x_max,k)/|x_max,k|] + Σ_j V_j;  zulässig heißt V = 0;\na schlägt b: beide zulässig und f(a) ≤ f(b), oder nur a zulässig, oder beide unzulässig und V(a) ≤ V(b)', v: 'f ist das Ziel als Größe, die kleiner werden soll (bei „möglichst groß“ mit umgekehrtem Vorzeichen). V_j sind die Grundbedingungen als bezogene Abstände: Abflugmasse höchstens die zulässige, Reise mindestens 1,25 × Mindestfahrt, Stabilitätsmaß mindestens 3 % MAC, gewünschte Zellen passen, Einsatz am Auslegungstag gelingt, Flügel flatterfrei bis 1,2 × V_D; wahlweise die geforderte Excess Time. Mit „Abstand halten“ werden die Grenzen um die Knapp-Schwelle verschärft.', s: ['deb2000'], p: ['mtomLimit', 'tExcReq'], at: 'kenn.js · DESIGN_CHECKS; opt.js · optEvalVals, optBetter' },
+  { id: 'opt-de', ch: 'opt', t: 'Suche: Differential Evolution (JADE)', f: 'v = x_i + F·(x_pbest − x_i) + F·(x_r1 − x_r2);  u_j = v_j für Zufall < CR oder j = j_rand, sonst x_i,j;\nF ~ Cauchy(μ_F; 0,1), CR ~ N(μ_CR; 0,1);  μ_CR ← 0,9·μ_CR + 0,1·mittel(S_CR),  μ_F ← 0,9·μ_F + 0,1·ΣS_F²/ΣS_F', v: 'Alle freien Größen auf [0, 1] skaliert; ganzzahlige und Auswahlgrößen werden beim Entschlüsseln gerundet (Raster der Eingabe). x_pbest aus dem besten Fünftel, S_F und S_CR sind die Werte erfolgreicher Kinder. Anfangsbevölkerung: der jetzige Entwurf, 30 % Nachbarn davon, der Rest als lateinischer Hyperwürfel. Mehrere Läufe mit eigenem Startwert rechnen parallel.', s: ['storn1997', 'zhang2009', 'mckay1979'], p: [], at: 'opt.js · optIsland' },
+  { id: 'opt-local', ch: 'opt', t: 'Feinschliff und Aufräumen', f: '(1+1)-ES: x′ = x + s·σ ∘ N(0, I);  Erfolg: s ← s·e^(1/3), sonst s ← s·e^(−1/12)  (Gleichgewicht bei jedem fünften Erfolg);\nKoordinatensuche: x_j ± h, h halbieren bis unter das Raster;\nAufräumen: Größe j zurück auf den alten Wert, solange zulässig und Σ Einbuße ≤ max(0,2 % · |f|, 1 % · Gewinn)', v: 'σ je Größe aus der Streuung des besten Fünftels der Bevölkerung. Rechnung in Stufen: ein Kind, das schon nach dem Rechenfall gegen sein Elternteil verliert, wird nicht weiter gerechnet (Tagesbilanz und Flattern entfallen). Werte am Rand des Suchbereichs werden markiert.', s: ['rechenberg1973', 'kolda2003', 'own'], p: [], at: 'opt.js · optIsland, optPolish' },
 ];
 const FORMULA_BY_ID = Object.fromEntries(FORMULAS.map(f => [f.id, f]));
 const litOf = s => { const [k, at] = String(s).split('|'); return { k, at: at || '', text: LIT[k] || k }; };
