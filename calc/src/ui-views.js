@@ -40,7 +40,7 @@ function verdictOf(R) {
 }
 function flagsOf(R) {
   const { P, C, mis, so, mp } = R, f = [];
-  if (C.bau) f.push(C.bau.ok ? pillF('good', 'Baubar: Propeller frei, Heck stimmig', 'bau-zone') : pillF('crit', `Nicht baubar: ${C.bau.crit[0].txt}`, 'bau-zone'));
+  if (C.bau) f.push(C.bau.ok ? pillF('good', 'Baubar: Propeller frei, Heck stimmig', 'bau-zone') : pillF('crit', `Bauraum: ${C.bau.crit.length === 1 ? 'eine Prüfung' : C.bau.crit.length + ' Prüfungen'} verletzt`, 'bau-zone'));
   if (C.m > P.mtomLimit) f.push(pillF('crit', `Abflugmasse ${nf(C.m, 2)} kg über ${nf(P.mtomLimit, 1)} kg`, 'mass-loop', 'mass'));
   else f.push(pillF('good', `Abflugmasse ${nf(C.m / P.mtomLimit * 100, 0)} % der zulässigen`, 'mass-loop', 'mass'));
   const vr = P.v / C.vs, vrt = P.v / C.vsTurn;

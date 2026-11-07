@@ -7,6 +7,17 @@ Cloudflare-Worker liefert die Seite aus, hält gemeinsame Teammodelle live synch
 Ansichten: Übersicht, Flugzeug, Konfiguration, Schwerpunkt, Struktur, Antrieb, Flugdynamik, Ruder,
 Profile, Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Anforderungen, Entwurf, Validierung, Formeln, Team.
 
+- **Bauraum und Freigang:** Motor, Motorgondel und Pylon liegen so, dass die Propellerblätter die Mindestabstände
+  nach 14 CFR 23.925 einhalten (25,4 mm zur Struktur, 12,7 mm zur Blattebene, einstellbar). Geprüft wird der
+  Propellerkreis gegen Rumpf, Träger, Flügel, Seiten- und Höhenleitwerk, dazu Boden und Heck bei der Landung,
+  Leitwerk hinter der Gondel, Heckkegel nicht steiler als 15°. Nicht baubare Entwürfe meldet die Übersicht,
+  die Seitenansicht zeigt den gesperrten Bereich rot; „Entwurf berechnen“ lässt nur baubare Entwürfe zu.
+- **Solarzellen:** nur ganze quadratische Zellen (SunPower C60, 125 mm, oder eigene). Jede Zelle folgt der
+  gewölbten Oberseite; aus dem zulässigen Stich (10 % je Zelle) und der Randdehnung folgt je Profil und
+  Flügeltiefe, wie weit vorn und hinten Zellen liegen können. Schatten von Seitenleitwerk, Motorgondel, Pylon
+  und Propellerkreis auf Flügel- und Leitwerkszellen, mit und ohne Bypassdioden.
+- **Motor auf dem Seitenleitwerk:** Abschätzung des Propeller-Wirbelflatterns (Whirl Flutter) aus den
+  Eigenformen von Seitenleitwerk und Träger, Blattelement-Luftkräften und Kreiselkopplung.
 - **Anforderungen:** Jede Eingabe lässt sich über das Fähnchen am Feld festhalten (Feld gesperrt) oder auf einen
   Bereich bzw. erlaubte Werte begrenzen; Ergebnisse (Masse, SAIL, Excess Time, Flattersicherheit …) bekommen
   Mindest- und Höchstwerte. Was knapp an der Grenze liegt, ist markiert. Kommentare an Feldern, Ergebnissen und am Modell.
@@ -41,6 +52,11 @@ Teammodelle liegen in Durable Objects (je Modell eine eigene SQLite-Datenbank mi
 Ständen), die Liste der Modelle in der D1-Datenbank; beides bleibt bei jedem Deploy erhalten.
 Andere Zweige als `main` werden nur gebaut und geprüft (GitHub Actions), nicht veröffentlicht.
 
+GitHub Actions: **Prüfung** (`check.yml`) baut und prüft bei jedem Push. **Teamarbeit** (`team.yml`) startet bei
+Änderungen an Worker oder Teamarbeit die echte Cloudflare-Laufzeit im Runner (`wrangler dev`, workerd mit
+Durable Objects und D1 lokal) und spielt mit zwei Browsern alle Teamfunktionen durch (`calc/tests/t16.cjs`);
+das Passwort `test` gilt nur in diesem Lauf. Von Hand: Reiter *Actions* → *Teamarbeit* → *Run workflow*.
+
 ## Aufbau
 
 | Pfad | Inhalt |
@@ -66,13 +82,15 @@ Rechenkern in `calc/src/`:
 | `vlm.js` | Wirbelgitter (Weissinger) mit Pfeilung |
 | `layout.js` | Rumpfformen, Leitwerk, drei Motoranordnungen, Massen in x/y/z, Schwerpunkt, Trägheit, Neutralpunkt, Trimmung |
 | `harness.js` | Verkabelung je Konfiguration (Spannungsfall, Erwärmung, Masse) |
-| `ground.js`, `tail.js` | Landung ohne Fahrwerk, Hand-/Katapultstart; Leitwerk, Träger, Rumpfröhre als tragende Bauteile |
+| `ground.js`, `tail.js` | Landung ohne Fahrwerk, Hand-/Katapultstart; Leitwerk, Träger, Rumpfröhre, Pylon und Motorgondel als tragende Bauteile |
+| `bau.js` | Bauraum und Freigang: Propellerkreis gegen alle Teile (14 CFR 23.925), Boden, Heck, Flügellage |
+| `shade.js` | Schatten von Seitenleitwerk, Motorgondel, Pylon und Propeller auf den Zellen, Verschaltung mit und ohne Bypassdioden |
 | `prop.js`, `power.js` | Propeller (Blattelement) und Motor; Propellerstrahl, Drall, Normalkraft, Schubmoment |
-| `aeroel.js`, `vib.js` | Balkenmodell, Divergenz, Flattern; freies Flugzeug, Leitwerks- und Ruderflattern, Massenausgleich, Standschwingversuch |
+| `aeroel.js`, `vib.js` | Balkenmodell, Divergenz, Flattern; freies Flugzeug, Leitwerks- und Ruderflattern, Propeller-Wirbelflattern, Massenausgleich, Standschwingversuch |
 | `dyn.js`, `controls.js` | Flugdynamik (MIL-F-8785C); Quer-, Höhen- und Seitenruder |
 | `batt.js`, `turb.js` | Akkuspannung über dem Ladezustand; Dryden-Turbulenz und Bildruhe an der Kamera |
 | `sim.js`, `ext.js` | Sonne, Wetter, Tages- und Dauerflug, Energie in der Höhe; Einsatzleistung, SORA, Unsicherheit |
-| `solar.js` | Solarzellen als ganze Rechteckzellen auf Flügel und Höhenleitwerk packen (Format, Fugen, Freiräume, Ruder) |
+| `solar.js` | ganze quadratische Zellen auf Flügel und Höhenleitwerk packen; Zellband je Profil und Tiefe aus Stich und Dehnung der gebogenen Zelle |
 | `kenn.js`, `opt.js` | Kenngrößen mit Richtung und Rechenaufwand, Grundbedingungen; Entwurfsvorschläge (Optimierer, auch im Web Worker) |
 
 Oberfläche: `ui-*.js` (Ansichten, `ui-doc.js` Datei, `ui-req.js` Anforderungen und Kommentare, `ui-opt.js` Entwurf),
@@ -144,7 +162,8 @@ damit Cloudflare immer dieselbe Wrangler-Version verwendet.
 
 Browsertests (`calc/tests/t*.cjs`, `interact.cjs`, `presets.cjs`, `hint.cjs`, `elshot.cjs`) brauchen Playwright
 und öffnen `dist/uav-budget.html`; Bilder landen in `calc/tests/out/`. `t15.cjs` prüft „Entwurf berechnen“ im
-Browser, `t17.cjs` den Optimierer im Rechenkern, `t16.cjs` die Teamarbeit mit zwei Browsern gegen die Nachbildung.
+Browser, `t17.cjs` den Optimierer im Rechenkern, `t16.cjs` die Teamarbeit mit zwei Browsern gegen die Nachbildung
+oder mit `TEAM_BASE=http://127.0.0.1:8787` gegen `npm run dev`.
 
 ## Zugriff
 

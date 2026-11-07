@@ -51,7 +51,7 @@ const SEL = {
   solarGeom: [['profil', 'aus Profilkontur (Wölbung, Einfallswinkel)'], ['flach', 'waagerecht mit Pauschalfaktor (ETH)']],
   stringLayout: [['span', 'Strings in Spannweitenrichtung'], ['chord', 'Strings in Tiefenrichtung']],
   bypass: [['cell', 'Bypassdiode je Zelle'], ['none', 'ohne Bypassdioden (Grenzfall)']],
-  solarMode: [['fill', 'Ganze Zellen, so viele wie passen'], ['count', 'Ganze Zellen, feste Anzahl'], ['area', 'Zellfläche frei eingeben (ohne Zellraster)']],
+  solarMode: [['fill', 'Ganze Zellen, so viele wie passen'], ['count', 'Ganze Zellen, feste Anzahl'], ['area', 'Zellfläche frei eingeben (nur für Vergleichsrechnungen)']],
   cellType: Object.entries(CELL_TYPES).map(([k, t]) => [k, t.name]),
   cellOrient: [['auto', 'Beste je Spalte'], ['span', 'Lange Kante in Spannweitenrichtung'], ['chord', 'Lange Kante in Flugrichtung']],
   tz: [['auto', 'MEZ/MESZ automatisch'], ['0', 'UTC'], ['1', 'UTC+1'], ['2', 'UTC+2'], ['3', 'UTC+3'], ['-3', 'UTC−3'], ['-5', 'UTC−5'], ['-7', 'UTC−7'], ['-8', 'UTC−8']],
