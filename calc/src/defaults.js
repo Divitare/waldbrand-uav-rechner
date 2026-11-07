@@ -8,7 +8,7 @@ const DEFAULT_PARAMS = {
   vH: 0.45, vV: 0.025, tailArm: 1.7, arH: 5, arV: 1.6,
   fusL: 1.3, fusD: 0.16, boomD: 0.03, fusFlow: 'turb', kInt: 10, kDrag: 5, zTail: 0.15, etaTail: 90,
   // Anordnung: Rumpf, Leitwerk, Motor; Längsaufteilung und Trimmung
-  fusType: 'pod', tailType: 'cross', motorPos: 'nose', coneD: 0.05, wCone: 0.45,
+  fusType: 'pod', tailType: 'cross', motorPos: 'nose', coneD: 0.05, wCone: 0.45, clrRad: 25.4, clrAx: 12.7,
   xWingLE: 0.5, trimMode: 'battery', smTarget: 10, xBatt: 0.45, zBatt: 0, htSolar: 0, payloadExtra: 0,
   // Verkabelung
   wireModel: 'model', mWireFix: 0.3, wireExtra: 15, wireDropSol: 1.5,
@@ -32,9 +32,9 @@ const DEFAULT_PARAMS = {
   // Akku
   mBatt: 3.0, battSpec: 230, reserve: 20, etaCharge: 95, etaDischarge: 97, battHealth: 100, battTempCoef: 0.6, battHeat: 8, chargeC: 0.5, noColdCharge: true, battRAh: 0.15, hStore: 0,
   // Solar
-  solarMode: 'fill', cellType: 'c60h', cellA: 125, cellB: 62.5, cellVmp: 0.58, cellOrient: 'auto', nCellsWing: 100, cellGap: 2,
+  solarMode: 'fill', cellType: 'c60', cellA: 125, cellD: 160, cellThk: 165, cellVmp: 0.58, cellOrient: 'auto', nCellsWing: 100, cellGap: 2, cellBend: 10, cellStrain: 0.1, bypass: 'cell',
   cellRootGap: 0.1, cellTipGap: 0.03, cellJointGap: 0.04, cellsOnCtrl: false,
-  solarArea: 1.0, cellEff: 23, solarAreal: 0.7, solarGeom: 'profil', cellX0: 8, cellX1: 85, stringLayout: 'span', camberEta: 95,
+  solarArea: 1.0, cellEff: 23, solarAreal: 0.7, solarGeom: 'profil', cellX0: 0, cellX1: 90, stringLayout: 'span', camberEta: 95,
   mpptEff: 97, laminateLoss: 3, wiringLoss: 2, soiling: 1, tempCoef: 0.32, cellHeat: 0.02, albedo: 0.15,
   // Umgebung
   date: '2026-06-21', lat: 47.5, lon: 14.5, tz: 'auto', tMax: 25, tMin: 12, sky: 100, weather: 'clear', genYears: 20, genSeed: 7,

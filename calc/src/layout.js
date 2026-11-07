@@ -17,9 +17,11 @@ const TAIL_TYPES = {
 };
 const MOTOR_POS = {
   nose: { name: 'Zugpropeller in der Nase', short: 'Nase (Zug)', eta: 1.0, nProp: 1, note: 'Bewährt und einfach: kurzes Kabel, Motor kühlt im Fahrtwind. Der Strahl umströmt Gondel und Flügelwurzel (mehr Reibung), Bugkameras blicken durch den Propellerkreis, der Propeller muss bei der Bauchlandung gefaltet stehen.' },
-  pusher: { name: 'Druckpropeller am Rumpfende', short: 'Heck (Druck)', eta: 0.97, nProp: 1, note: 'Nase frei für Sensoren, kein Strahl auf der Gondel. Der Propeller arbeitet im Nachlauf von Gondel und Flügel (2–5 % Verlust, Schwingungsanregung). Mit einem Rohrträger nicht baubar (Rohr läuft durch den Propellerkreis): zwischen zwei Trägern oder beim Seglerrumpf auf einem Pylon hinter dem Flügel.' },
-  fin: { name: 'Zugpropeller oben am Seitenleitwerk', short: 'Leitwerk (Zug)', eta: 0.98, nProp: 1, note: 'Propeller hoch über Gras und Steinen, Nase frei, der Strahl bläst das Seitenleitwerk an (Seitenruder wirkt auch langsam). Große Masse weit hinten und oben: Akku nach vorn, kräftigeres Seitenleitwerk und Träger, Schublinie hoch über dem Schwerpunkt (kopflastig bei Gas), langes Motorkabel.' }
+  pusher: { name: 'Druckpropeller hinter dem Flügel', short: 'Heck (Druck)', eta: 0.97, nProp: 1, note: 'Nase frei für Sensoren, kein Strahl auf der Gondel. Der Propeller arbeitet im Nachlauf von Gondel und Flügel (2–5 % Verlust, Schwingungsanregung). Doppelträger: am Gondelende zwischen den Trägern. Rohrträger und Seglerrumpf: auf einem Pylon hinter dem Flügel, so hoch, dass der Propellerkreis über Rohr bzw. Rumpf frei dreht (hohe Schublinie).' },
+  fin: { name: 'Zugpropeller oben am Seitenleitwerk', short: 'Leitwerk (Zug)', eta: 0.98, nProp: 1, note: 'Propeller hoch über Gras und Steinen, Nase frei, der Strahl bläst das Seitenleitwerk an (Seitenruder wirkt auch langsam). Große Masse weit hinten und oben: Akku nach vorn, kräftigeres Seitenleitwerk und Träger, Schublinie hoch über dem Schwerpunkt (kopflastig bei Gas), langes Motorkabel. Die Motorgondel reicht so weit vor die Seitenleitwerksspitze, dass die Blätter vor der gepfeilten Vorderkante und dem Höhenleitwerk drehen; das Seitenleitwerk muss höher sein als der Propellerradius.' }
 };
+// Motorgondel und Pylon: Durchmesser, Pylontiefe, größter Überstand der Gondel vor der Seitenleitwerksspitze (m)
+const NAC_D = 0.07, PYL_C = 0.12, NAC_MAX = 0.35;
 // Wirksame Anordnung: unmögliche Kombinationen werden ersetzt und gemeldet
 function configOf(P) {
   const fus = FUS_TYPES[P.fusType] ? P.fusType : 'pod', tail = P.tailType === 'T' ? 'T' : 'cross';
@@ -28,6 +30,17 @@ function configOf(P) {
   return { fus, tail, mot, nBoom: FUS_TYPES[fus].nBoom, nFin: FUS_TYPES[fus].nFin, notes };
 }
 const propRadius = P => (P.propGeom === 'apc10x7' ? 0.127 : P.propD / 2);
+// Mindestabstände des Propellers nach 14 CFR 23.925(d): radial c_r zwischen Blattspitzen und Struktur,
+// axial c_a zwischen Blättern und feststehenden Teilen. Die Blätter selbst reichen um e vor und hinter die
+// Blattebene: e = 0,6·max(c·sin β) (Blatttiefe mal Einstellwinkel, Drehachse nahe 40 % der Tiefe).
+const clrRadOf = P => clamp((P.clrRad ?? 25.4) / 1000, 0, 0.3), clrAxOf = P => clamp((P.clrAx ?? 12.7) / 1000, 0, 0.3);
+function propClr(C) {
+  if (C._clr) return C._clr;
+  const P = C.P, R = propRadius(P);
+  let d = 0;
+  try { const pg = propGeometry(P); for (let i = 3; i <= 20; i++) { const x = i / 20; d = Math.max(d, pg.c(x) * Math.sin(pg.beta(x))); } } catch (e) { d = 0.08 * R; }
+  return (C._clr = { R, e: 0.6 * d, r: clrRadOf(P), a: clrAxOf(P) });
+}
 
 /* ---------- Leitwerk aus Volumenbeiwerten ----------
    Doppelträger: Höhenleitwerk spannt zwischen den Trägern, deren Abstand
@@ -37,19 +50,21 @@ function tailGeom(P, pf, cf) {
   const lt = Math.max(0.3, P.tailArm), Sh = P.vH * pf.S * pf.mac / lt, Sv = P.vV * pf.S * pf.b / lt, nF = cf.nFin;
   let ch = Math.sqrt(Sh / P.arH), bh = Sh / ch, yB = 0;
   const Svf = Sv / nF, cv = Math.sqrt(Svf / P.arV), bv = Svf / cv;
-  if (cf.fus === 'twin') { yB = Math.max(bh / 2, cf.mot === 'pusher' ? propRadius(P) + P.boomD / 2 + 0.05 : 0.15); bh = 2 * yB; ch = Sh / bh; }
+  // Druckpropeller zwischen den Trägern: Blattspitzen mindestens c_r + 2,5 cm vom Rohr
+  if (cf.fus === 'twin') { yB = Math.max(bh / 2, cf.mot === 'pusher' ? propRadius(P) + clrRadOf(P) + P.boomD / 2 + 0.025 : 0.15); bh = 2 * yB; ch = Sh / bh; }
   return { lt, Sh, Sv, Svf, ch, cv, bh, bv, arH: bh / ch, nFin: nF, yB, lBoom: Math.max(0, lt - 0.35 * P.fusL) };
 }
 
 /* ---------- Rumpfkontur ----------
    Rotationskörper mit elliptischer Nase, zylindrischem Mittelteil und Heck.
    Gondel: Heck läuft auf 25 % des Durchmessers aus. Seglerrumpf: Röhre
-   verjüngt sich bis zum Leitwerk auf coneD, Oberkante steigt glatt auf die
-   Höhe des Leitwerksfußes. Liefert Stationen, benetzte Fläche, Volumen,
-   ∫d²dx (Rumpf-Nickmoment) und die Flächenmomente der Schale. */
+   verjüngt sich bis zum Leitwerk auf coneD und endet dort (am Seitenleitwerk),
+   Oberkante steigt glatt auf die Höhe des Leitwerksfußes. Liefert Stationen,
+   benetzte Fläche, Volumen, ∫d²dx (Rumpf-Nickmoment) und die Flächenmomente
+   der Schale. Ein zu steiler Heckkegel wird in der Bauraumprüfung gemeldet. */
 function fuselageShape(P, cf, xTail, zRoot) {
   const D = P.fusD, r = D / 2, L1 = Math.max(0.2, P.fusL), n1 = Math.min(0.3 * L1, 2.2 * D), t0 = 0.72 * L1, N = 64;
-  const glider = cf.fus === 'glider', L = glider ? Math.max(xTail, L1 + 0.2) : L1, dE = glider ? clamp(P.coneD, 0.015, D) : 0.25 * D;
+  const glider = cf.fus === 'glider', L = glider ? Math.max(xTail, t0 + 0.05) : L1, dE = glider ? clamp(P.coneD, 0.015, D) : 0.25 * D;
   const st = [];
   for (let i = 0; i <= N; i++) {
     const x = L * i / N; let top, bot;
@@ -68,7 +83,7 @@ function fuselageShape(P, cf, xTail, zRoot) {
     const sh = xm < L1 ? pod : cone;
     sh.S += dS; sh.Sx += dS * xm; sh.Sz += dS * zm; sh.Sxx += dS * xm * xm; sh.Syy += dS * rr; sh.Szz += dS * (zm * zm + rr); sh.Sxz += dS * xm * zm;
   }
-  return { st, L, D, L1, Swet, Vol, W2, Smax, pod, cone, glider, dE, fr: L / D };
+  return { st, L, D, L1, Swet, Vol, W2, Smax, pod, cone, glider, dE, fr: L / D, n1, t0 };
 }
 function fusAt(fus, x) {
   const st = fus.st; if (x <= 0) return st[0]; if (x >= fus.L) return st[st.length - 1];
@@ -96,21 +111,43 @@ function geomPositions(C, s) {
   const zB0 = cf.fus === 'twin' ? zw - 0.06 * pf.cr - P.boomD / 2 : zw - P.boomD / 2, zB1 = zRoot - P.boomD / 2, boom1 = xTail;
   const lBoom = cf.nBoom ? Math.max(0.1, Math.hypot(boom1 - boom0, zB1 - zB0)) : 0;
   const zBoomAt = x => zB0 + (zB1 - zB0) * clamp((x - boom0) / Math.max(1e-6, boom1 - boom0), 0, 1);
-  // Motor und Propellerebene
-  let xMot, xProp, zP, pylon = 0;
-  if (cf.mot === 'nose') { xMot = 0.05; xProp = -0.03; zP = 0; }
-  else if (cf.mot === 'fin') { xProp = xvLE + vSw * tg.bv - 0.08; xMot = xProp + 0.07; zP = zV1 + 0.02; }
-  else if (cf.fus === 'glider') {
-    xProp = xLE0 + pf.cr + 0.06; xMot = xProp - 0.07;
-    const top = Math.max(fusAt(fus, xProp).top, zw); zP = top + R + 0.04; pylon = zP - top;
-  } else { xMot = P.fusL + 0.03; xProp = P.fusL + 0.09; zP = 0; }
-  // Gondel + ein Rohr + Druckpropeller: Rohr muss über dem Propellerkreis liegen
-  const boomClear = cf.mot === 'pusher' && cf.fus === 'pod' ? (zBoomAt(xProp) - P.boomD / 2) - (zP + R) : Infinity;
+  // Motor und Propellerebene: so gelegt, dass die Blätter die Mindestabstände einhalten (14 CFR 23.925(d)).
+  // Gesperrt ist ein Zylinder um die Propellerachse mit Radius R + c_r und halber Länge e + c_a.
+  const cl = propClr(C), Rz = R + cl.r, ax = cl.e + cl.a;
+  const teAt = y => { const e = clamp(Math.abs(y) / (pf.b / 2), 0, 1); return xLE0 + pf.xLE(e) + pf.chordAt(e); };
+  const teMax = yMax => { let m = teAt(0); for (let k = 1; k <= 6; k++) m = Math.max(m, teAt(yMax * k / 6)); return m; };
+  let xMot, xProp, zP, pylon = 0, nac = null, pyl = null, finExt = 0;
+  if (cf.mot === 'nose') { xProp = -Math.max(0.03, ax); xMot = 0.05; zP = 0; }
+  else if (cf.mot === 'fin') {
+    // Gondel auf der Seitenleitwerksspitze, Nabe 2 cm darüber. Die Blattebene liegt um e + c_a vor allem, was im
+    // Propellerkreis steht: der gepfeilten Vorderkante (unten weiter vorn) und dem Höhenleitwerk. Träger und
+    // Rumpfröhre unter dem Leitwerk lassen sich so nicht freistellen; das prüft die Bauraumprüfung.
+    zP = zV1 + 0.02;
+    const tipLE = xvLE + vSw * tg.bv, zLo = Math.max(zV0, zP - Rz), tH = 0.5 * (C.tfoil ? C.tfoil.t : 0.1) * tg.ch;
+    let xp = tipLE - 0.08;
+    if (zLo < zV1) xp = Math.min(xp, xvLE + vSw * (zLo - zV0) - ax);
+    if (Math.abs(zP - zH) < Rz + tH) xp = Math.min(xp, xhLE - ax);
+    xProp = Math.max(xp, tipLE - NAC_MAX); xMot = xProp + 0.06; finExt = tipLE - xProp;
+    nac = { x0: xProp + 0.015, x1: tipLE + 0.25 * 0.62 * tg.cv, d: NAC_D, z: zP };
+  } else if (cf.fus === 'twin') {
+    // Gondelende zwischen den Trägern; die Blattebene liegt hinter der Flügelendleiste, soweit diese im Propellerkreis liegt
+    xProp = Math.max(P.fusL + 0.09, teMax(Rz) + ax); xMot = xProp - 0.06; zP = 0;
+  } else {
+    // Pylon hinter dem Flügel (Gondel mit Rohr oder Seglerrumpf): Propellerkreis über Rumpf- bzw. Rohroberkante
+    xProp = Math.max(xLE0 + pf.cr + 0.06, teMax(Rz) + ax); xMot = xProp - 0.06;
+    const topAt = x => Math.max(x <= fus.L ? fusAt(fus, x).top : -Infinity, cf.nBoom && x >= boom0 - 1e-9 && x <= boom1 ? zBoomAt(x) + P.boomD / 2 : -Infinity);
+    let top = zw; for (let k = -2; k <= 2; k++) top = Math.max(top, topAt(xProp + k * ax / 2));
+    zP = top + Rz + 0.015;
+    const pTE = xProp - ax - 0.005, pLE = pTE - PYL_C, base = Math.max(topAt((pLE + pTE) / 2), zw - 0.02);
+    pylon = Math.max(0.02, zP - NAC_D / 2 - base);
+    pyl = { x0: pLE, x1: pTE, z0: zP - NAC_D / 2 - pylon, z1: zP - NAC_D / 2, c: PYL_C };
+    nac = { x0: pLE - 0.03, x1: xProp - 0.01, d: NAC_D, z: zP };
+  }
   // Landekufe unter dem Holm
   const xSkid = xLE0 + 0.25 * pf.cr, zLow = -r - (P.landGear === 'skid' ? 0.05 : 0);
   return {
     s, xLE0, xqc0, xacw, xact, xhLE, xhTE, xvLE, xvTE, vSw, zw, zRoot, zH, zV0, zV1, xTail, fus, yB,
-    boom0, boom1, zB0, zB1, lBoom, zBoomAt, xMot, xProp, zP, R, pylon, boomClear, xSkid, zLow, xmac: xLE0 + pf.xLEmac,
+    boom0, boom1, zB0, zB1, lBoom, zBoomAt, xMot, xProp, zP, R, pylon, nac, pyl, finExt, cl, xSkid, zLow, xmac: xLE0 + pf.xLEmac,
     tanG: Math.tan((P.dihedral || 0) * DEG), yK: pf.type === 'rect_taper' ? pf.e * pf.b / 2 : 0
   };
 }
@@ -183,10 +220,12 @@ function massItems(C, g, xBatt, ballast, xBal) {
     if (cf.fus === 'glider') addShell('cone', 'Rumpfröhre zum Leitwerk', 'wing', (ts.cone ? ts.cone.wEff : P.wCone) * kR, g.fus.cone);
     add('fusfix', 'Rumpf-Einbauten', 'pod', 'struct', P.mFusFix * kR, 0.5 * P.fusL);
     if (pp.land > 0) add('land', P.landGear === 'skid' ? 'Landekufe' : 'Verstärkter Rumpfboden', 'pod', 'struct', pp.land * kR, P.landGear === 'skid' ? g.xSkid : 0.45 * P.fusL, 0, P.landGear === 'skid' ? g.zLow + 0.02 : -P.fusD / 2);
-    if (pp.pylon > 0) add('pylon', 'Motorpylon', 'pod', 'struct', pp.pylon * kR, g.xMot, 0, g.zP - g.pylon / 2);
+    // Pylon und Motorgondel wandern mit dem Flügel bzw. Leitwerk (ihre Lage folgt der Flügelendleiste bzw. dem Seitenleitwerk)
+    if (pp.pylon > 0 && g.pyl) add('pylon', 'Motorpylon', 'wing', 'struct', pp.pylon * kR, (g.pyl.x0 + g.pyl.x1) / 2, 0, (g.pyl.z0 + g.pyl.z1) / 2);
+    if (pp.nacelle > 0 && g.nac) add('nacelle', 'Motorgondel', 'wing', 'struct', pp.nacelle * kR, (g.nac.x0 + g.nac.x1) / 2, 0, g.nac.z);
   }
-  // Solarmodule Flügel: von der Wurzel bis etaC, zwischen cellX0 und cellX1, auf der Oberseite
-  const x0 = P.cellX0 / 100, x1 = P.cellX1 / 100, etaC = C.solarEta || 0.8;
+  // Solarmodule Flügel: von der Wurzel bis etaC, im mittleren Zellband (solar.js), auf der Oberseite
+  const x0 = C.solar ? C.solar.x0 : 0.1, x1 = C.solar ? C.solar.x1 : 0.85, etaC = C.solarEta || 0.8;
   if (C.mass.solar > 0) {
     const N = 20, pts = []; let wsum = 0;
     for (let i = 0; i < N; i++) { const eta = (i + 0.5) / N * etaC, c = pf.chordAt(eta); wsum += c; pts.push([c, wingX(eta * h, (x0 + x1) / 2), eta * h, zWingAt(g, eta * h) + 0.6 * C.foil.t * c]); }
@@ -194,8 +233,8 @@ function massItems(C, g, xBatt, ballast, xBal) {
   }
   if (C.mass.solarHT > 0) add('solarht', 'Solarmodule Höhenleitwerk', 'wing', 'solar', C.mass.solarHT, g.xhLE + 0.45 * tg.ch, 0, g.zH + 0.01, { xx: C.mass.solarHT * tg.bh ** 2 / 12, zz: C.mass.solarHT * tg.bh ** 2 / 12 });
   // Antrieb: Motor, Regler, Propeller (Regler sitzt beim Motor)
-  const mp = cf.mot, mM = C.mass.prop;
-  add('motor', 'Motor, Regler, Propeller', mp === 'nose' ? 'pod' : 'wing', 'prop', mM, g.xMot, 0, g.zP, { xx: 0.25 * mM * (0.4 * g.R) ** 2 });
+  const mp = cf.mot, mM = C.mass.prop, onPod = mp === 'nose' || (mp === 'pusher' && cf.fus === 'twin');
+  add('motor', 'Motor, Regler, Propeller', onPod ? 'pod' : 'wing', 'prop', mM, g.xMot, 0, g.zP, { xx: 0.25 * mM * (0.4 * g.R) ** 2 });
   // Akku
   if (P.battInWing) {
     const N = 12, pts = [];
@@ -263,13 +302,4 @@ function tailLoad(C, n, q, cmac, dM) {
   const b = C.bal; if (!b) return null;
   const W = C.m * G, M0 = q * C.pf.S * C.pf.mac * cmac + (dM || 0);
   return (n * W * (b.xcg - b.np.xacw) + M0) / (b.np.xact - b.np.xacw);
-}
-// Höhenleitwerk: Schattenwurf des Seitenleitwerks über alle Kurse gemittelt (Anteil der Zellfläche).
-// T-Leitwerk: kein Schatten, das Seitenleitwerk steht unter der Fläche.
-function finShade(tg, elevDeg, cf) {
-  if (cf && cf.tail === 'T') return 0;
-  if (elevDeg <= 0.5) return 0.5;
-  const ct = 1 / Math.tan(elevDeg * DEG), hv = tg.bv, half = tg.bh / 2; let s = 0; const n = 36;
-  for (let i = 0; i < n; i++) { const ps = (i + 0.5) / n * Math.PI * 2; s += Math.min(hv * ct * Math.abs(Math.sin(ps)), half) / tg.bh; }
-  return s / n * Math.min(1, tg.cv / tg.ch) * (tg.nFin || 1);
 }

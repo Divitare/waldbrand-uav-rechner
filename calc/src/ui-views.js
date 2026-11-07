@@ -27,6 +27,7 @@ function renderStrip(R) {
 /* ---------- Übersicht ---------- */
 function verdictOf(R) {
   const { P, mis, per, C } = R, date = fmtDoy(R.n, R.y);
+  if (C.bau && !C.bau.ok) return ['crit', 'So nicht baubar', C.bau.crit.map(i => i.txt).join(' · ') + '. Einzelheiten in der Ansicht Konfiguration (Bauraum und Freigang).'];
   if (!mis) return ['crit', 'Keine Berechnung möglich', 'Start- und Landezeit und Akku prüfen.'];
   const endur = mis.endur != null ? fmtDur(mis.endur) : 'über 48 h';
   if (per.reason === 'ok' && per.tExc >= P.tExcReq) return ['good', `Dauerflug am ${date} mit Reserve möglich`, `Excess Time ${nf(per.tExc, 1)} h (gefordert ${nf(P.tExcReq, 1)} h), Akku ${fmtDur(per.tCm)} lang voll. Einsatz ${P.tStart}–${P.tEnd}: mindestens ${nf(mis.minE / mis.cap * 100, 0)} % Akku.`];
@@ -39,6 +40,7 @@ function verdictOf(R) {
 }
 function flagsOf(R) {
   const { P, C, mis, so, mp } = R, f = [];
+  if (C.bau) f.push(C.bau.ok ? pillF('good', 'Baubar: Propeller frei, Heck stimmig', 'bau-zone') : pillF('crit', `Nicht baubar: ${C.bau.crit[0].txt}`, 'bau-zone'));
   if (C.m > P.mtomLimit) f.push(pillF('crit', `Abflugmasse ${nf(C.m, 2)} kg über ${nf(P.mtomLimit, 1)} kg`, 'mass-loop', 'mass'));
   else f.push(pillF('good', `Abflugmasse ${nf(C.m / P.mtomLimit * 100, 0)} % der zulässigen`, 'mass-loop', 'mass'));
   const vr = P.v / C.vs, vrt = P.v / C.vsTurn;
@@ -224,14 +226,14 @@ RENDER.profile = (R, force) => {
   const best = list.reduce((m, r) => (r.pCruise < m.pCruise ? r : m), list[0]);
   $('#af-sub').textContent = `Jedes Profil im kompletten Flugzeug gerechnet: gleiche Geometrie, Masse und Bordlast, Reise ${nf(P.v, 1)} m/s. Bestes Profil bei dieser Geschwindigkeit: ${best.name} (${nf(best.pCruise, 1)} W). Spaltenkopf anklicken zum Sortieren.`;
   const th = (k, l, n = true) => `<th class="sort${n ? ' n' : ''}" data-sort="${k}"${sk === k ? ` aria-sort="${sd > 0 ? 'ascending' : 'descending'}"` : ''}>${l}${sk === k ? (sd > 0 ? ' ↑' : ' ↓') : ''}</th>`;
-  $('#tbl-af').innerHTML = `<thead><tr><th>Wahl</th><th>Vgl.</th>${th('name', 'Profil', false)}${th('cat', 'Art', false)}${th('t', 'Dicke')}${th('f', 'Wölbung')}${th('pCruise', 'P Reise')}<th class="n">Δ</th>${th('cdp', 'c_W,p')}${th('vMinP', 'V P_min')}${th('pMinP', 'P_min')}${th('vs', 'V_min')}${th('tExc', 'Excess')}${th('conf', 'Konf.')}</tr></thead><tbody>` +
+  $('#tbl-af').innerHTML = `<thead><tr><th>Wahl</th><th>Vgl.</th>${th('name', 'Profil', false)}${th('cat', 'Art', false)}${th('t', 'Dicke')}${th('f', 'Wölbung')}${th('pCruise', 'P Reise')}<th class="n">Δ</th>${th('cdp', 'c_W,p')}${th('vMinP', 'V P_min')}${th('pMinP', 'P_min')}${th('vs', 'V_min')}${th('nSol', 'Zellen')}${th('tExc', 'Excess')}${th('conf', 'Konf.')}</tr></thead><tbody>` +
     rows.map(r => {
       const sel = r.key === P.airfoil && r.mode === (P.transition === 'trip' ? 'trip' : 'free'), cmp = UI.afSel.includes(r.key);
       return `<tr class="${sel ? 'sel' : ''}"><td><input type="radio" name="af-pick" data-pick="${esc(r.key)}" data-mode="${r.mode}" ${sel ? 'checked' : ''} aria-label="${esc(r.name)} als Auslegungsprofil"></td><td><input type="checkbox" data-cmp="${esc(r.key)}" ${cmp ? 'checked' : ''} aria-label="${esc(r.name)} vergleichen"></td>` +
         `<td>${esc(r.name)}${r.src !== 'NeuralFoil' ? ` <span class="muted small">${esc(r.src)}</span>` : ''}${r.mode === 'trip' ? ' <span class="muted small">Umschlag</span>' : ''}</td><td>${esc(r.cat)}</td><td class="n">${nf(r.t * 100, 1)} %</td><td class="n">${nf(r.f * 100, 1)} %</td>` +
-        `<td class="n">${nf(r.pCruise, 1)} W</td><td class="n ${r.pCruise - cur.pCruise < -0.05 ? 'good' : r.pCruise - cur.pCruise > 0.05 ? 'crit' : ''}">${nfs(r.pCruise - cur.pCruise, 1)}</td><td class="n">${nf(r.cdp * 1e4, 0)}</td><td class="n">${nf(r.vMinP, 1)}</td><td class="n">${nf(r.pMinP, 1)} W</td><td class="n">${nf(r.vs, 1)}</td>` +
+        `<td class="n">${nf(r.pCruise, 1)} W</td><td class="n ${r.pCruise - cur.pCruise < -0.05 ? 'good' : r.pCruise - cur.pCruise > 0.05 ? 'crit' : ''}">${nfs(r.pCruise - cur.pCruise, 1)}</td><td class="n">${nf(r.cdp * 1e4, 0)}</td><td class="n">${nf(r.vMinP, 1)}</td><td class="n">${nf(r.pMinP, 1)} W</td><td class="n">${nf(r.vs, 1)}</td><td class="n"${r.band ? ` title="Zellband an der Wurzel ${nf(r.band.x0 * 100, 1)}–${nf(r.band.x1 * 100, 1)} % der Tiefe"` : ''}>${fin(r.nSol) ? nf(r.nSol, 0) : '–'}</td>` +
         `<td class="n ${r.tExc >= 0 ? 'good' : ''}">${fin(r.tExc) ? nfs(r.tExc, 1) + ' h' : '–'}</td><td class="n ${r.conf < 0.8 ? 'warn' : ''}">${nf(r.conf, 2)}</td></tr>`;
-    }).join('') + `</tbody><caption>P Reise: elektrische Antriebsleistung bei ${nf(P.v, 1)} m/s. c_W,p: Profilwiderstand des Flügels in 10⁻⁴. V P_min: Geschwindigkeit geringster Leistung. Excess Time am Auslegungstag. Konf.: Vertrauen von NeuralFoil in die Vorhersage (unter 0,8 vorsichtig).</caption>`;
+    }).join('') + `</tbody><caption>P Reise: elektrische Antriebsleistung bei ${nf(P.v, 1)} m/s. c_W,p: Profilwiderstand des Flügels in 10⁻⁴. V P_min: Geschwindigkeit geringster Leistung. Zellen: ganze Zellen auf dem Flügel; das Zellband hängt über die zulässige Biegung vom Profil ab. Excess Time am Auslegungstag. Konf.: Vertrauen von NeuralFoil in die Vorhersage (unter 0,8 vorsichtig).</caption>`;
   renderPolars(list);
 };
 function renderPolars(list) {
@@ -248,7 +250,12 @@ function renderPolars(list) {
   lineChart($('#ch-polar'), { h: 240, title: 'Widerstandspolare', x: { min: 0, max: Math.min(400, niceRange(allcd, 0.02)[1]), fmt: v => nf(v, 0), title: 'Profilwiderstand c_w in 10⁻⁴' }, y: { min: -0.2, max: 1.8, fmt: v => nf(v, 1) }, series: ser.map(s => ({ ...s, pts: s.pts.filter(p => p[0] < 400) })), marks: f0 ? [{ x: profileCd(f0, mode, Re, clW) * 1e4, y: clW, c: 1, label: 'Reise' }] : [], legend: true });
   lineChart($('#ch-polar2'), { h: 200, title: 'Gleitzahl des Profils', x: { min: -0.2, max: 1.8, fmt: v => nf(v, 1), title: 'Auftriebsbeiwert c_a' }, y: { min: 0, max: niceRange(ser2.flatMap(s => s.pts.map(p => p[1])), 0.05, true)[1], fmt: v => nf(v, 0) }, series: ser2, vlines: [{ x: clW, label: 'Reise' }] });
   shapesSVG($('#svg-shapes'), keys, P);
-  $('#tbl-afsel').innerHTML = `<thead><tr><th>Profil</th><th class="n">Dicke</th><th class="n">bei</th><th class="n">Wölbung</th><th class="n">bei</th><th class="n">c_a,max</th><th class="n">c_m</th><th class="n">α₀</th></tr></thead><tbody>` + keys.map(k => { const f = foilByKey(k), m = foilMeta(f, mode, Re); return `<tr><td>${esc(f.name)}</td><td class="n">${nf(f.t * 100, 1)} %</td><td class="n">${nf(f.xt * 100, 0)} %</td><td class="n">${nf(f.f * 100, 1)} %</td><td class="n">${nf(f.xf * 100, 0)} %</td><td class="n">${nf(m.clmax, 2)}</td><td class="n">${nf(m.cm, 3)}</td><td class="n">${nf(m.a0, 1)}°</td></tr>`; }).join('') + `</tbody><caption>${keys.map(k => { const f = foilByKey(k); return `${f.name}: ${f.desc || ''}`; }).map(esc).join(' · ')}</caption>`;
+  // Zellband je Profil an Wurzel und Spitze: so weit vorn und hinten, wie Stich und Dehnung der Zellen es erlauben
+  const spec = cellSpec(P), lim = bendLimits(P, spec), g = clamp((P.cellGap ?? 2) / 1000, 0, 0.03), pf = C.pf, area = P.solarMode === 'area';
+  const why = { bend: 'Stich', strain: 'Dehnung', limit: 'Grenze', ctrl: 'Ruder' };
+  const bandTxt = (f, c) => { if (area) return '–'; const b = cellBand(f, c, spec, lim, g, null); return b ? `<span title="vorn begrenzt durch ${why[b.why0]}, hinten durch ${why[b.why1]}; ${b.n} Zelle(n) in Flugrichtung">${nf(b.x0 * 100, 0)}–${nf(b.x1 * 100, 0)} % (${b.n})</span>` : '<span class="crit">keine</span>'; };
+  $('#shapes-sub').textContent = `Bis zu vier Profile aus der Tabelle markieren. Über jeder Kontur in ihrer Farbe die Zellen (${spec.name}) an der Flügelwurzel (Tiefe ${nf(pf.cr * 100, 0)} cm): so weit vorn und hinten, wie es Stich (höchstens ${nf(lim.beta * 100, 1)} % je Zelle) und Dehnung (${nf(lim.eps * 100, 2)} %) erlauben.`;
+  $('#tbl-afsel').innerHTML = `<thead><tr><th>Profil</th><th class="n">Dicke</th><th class="n">bei</th><th class="n">Wölbung</th><th class="n">bei</th><th class="n">c_a,max</th><th class="n">c_m</th><th class="n">α₀</th><th class="n">Zellen Wurzel</th><th class="n">Spitze</th></tr></thead><tbody>` + keys.map(k => { const f = foilByKey(k), m = foilMeta(f, mode, Re); return `<tr><td>${esc(f.name)}</td><td class="n">${nf(f.t * 100, 1)} %</td><td class="n">${nf(f.xt * 100, 0)} %</td><td class="n">${nf(f.f * 100, 1)} %</td><td class="n">${nf(f.xf * 100, 0)} %</td><td class="n">${nf(m.clmax, 2)}</td><td class="n">${nf(m.cm, 3)}</td><td class="n">${nf(m.a0, 1)}°</td><td class="n">${bandTxt(f, pf.cr)}</td><td class="n">${bandTxt(f, pf.ct)}</td></tr>`; }).join('') + `</tbody><caption>Zellen: vordere und hintere Zellkante in % der Tiefe (begrenzt durch Stich, Dehnung oder die eingegebene Grenze), in Klammern Zellen in Flugrichtung; ohne Ruderachsen. Wurzel ${nf(pf.cr * 100, 0)} cm, Spitze ${nf(pf.ct * 100, 0)} cm tief. ${keys.map(k => { const f = foilByKey(k); return `${f.name}: ${f.desc || ''}`; }).map(esc).join(' · ')}</caption>`;
 }
 $('#v-profile').addEventListener('click', e => {
   const c = e.target.closest('[data-cat]'); if (c) { UI.afCat = c.dataset.cat; RENDER.profile(R); return; }

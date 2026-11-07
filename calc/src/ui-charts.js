@@ -161,6 +161,15 @@ function tornadoHTML(rows, unit, d = 1) {
   }).join('');
 }
 
+/* ---------- Eine Zelle von oben: Quadrat mit vom Ingot-Kreis abgeschnittenen Ecken (pseudoquadratisch) ----------
+   Mitte (cx, cy) in px, Breite w und Höhe hgt in px; in Flugrichtung um den Bogenfaktor k verkürzt (Projektion). */
+function cellPath(cx, cy, w, hgt, spec, sc, k, attrs) {
+  const f = v => v.toFixed(1), hx = w / 2, hy = hgt / 2, h = spec.s / 2, R = (spec.d || spec.s * Math.SQRT2) / 2;
+  if (R >= h * Math.SQRT2 - 1e-9 || hx < 3) return `<rect x="${f(cx - hx)}" y="${f(cy - hy)}" width="${f(Math.max(0.6, w))}" height="${f(Math.max(0.6, hgt))}" ${attrs}/>`;
+  const x0 = Math.sqrt(R * R - h * h), ax = x0 / h * hx, ay = x0 / h * hy, rx = R / h * hx, ry = R / h * hy;
+  return `<path d="M${f(cx - ax)} ${f(cy - hy)}L${f(cx + ax)} ${f(cy - hy)}A${f(rx)} ${f(ry)} 0 0 1 ${f(cx + hx)} ${f(cy - ay)}L${f(cx + hx)} ${f(cy + ay)}A${f(rx)} ${f(ry)} 0 0 1 ${f(cx + ax)} ${f(cy + hy)}L${f(cx - ax)} ${f(cy + hy)}A${f(rx)} ${f(ry)} 0 0 1 ${f(cx - hx)} ${f(cy + ay)}L${f(cx - hx)} ${f(cy - ay)}A${f(rx)} ${f(ry)} 0 0 1 ${f(cx - ax)} ${f(cy - hy)}Z" ${attrs}/>`;
+}
+
 /* ---------- Grundriss von oben (mit Pfeilung, Motoren, Schwerpunkt und Neutralpunkt) ---------- */
 function planformSVG(el, C) {
   el._cfg = C; el._fn = planformSVG;
@@ -174,15 +183,15 @@ function planformSVG(el, C) {
   const N = 60, up = [], lo = [];
   for (let i = 0; i <= N; i++) { const eta = i / N, y = eta * b / 2; up.push([y, xLE(eta)]); lo.push([y, xLE(eta) + pf.chordAt(eta)]); }
   const half = sgn => 'M' + up.map(([y, x]) => `${X(sgn * y).toFixed(1)} ${Y(x).toFixed(1)}`).join('L') + 'L' + lo.slice().reverse().map(([y, x]) => `${X(sgn * y).toFixed(1)} ${Y(x).toFixed(1)}`).join('L') + 'Z';
-  const x0c = P.cellX0 / 100, x1c = P.cellX1 / 100, so = C.solar, full = !so.fits;
+  const so = C.solar, x0c = so.x0, x1c = so.x1, full = !so.fits;
   // frei eingegebene Fläche: Zellzone von der Wurzel bis etaC; ganze Zellen: jede Zelle als Rechteck
   const etaC = so.eta, dE = 0.002;
   const cell = sgn => { const pts = []; for (let e = 0; e <= etaC + 1e-9; e += Math.max(dE, etaC / 40)) pts.push(e); pts.push(Math.min(1, etaC)); return 'M' + pts.map(e => `${X(sgn * e * b / 2).toFixed(1)} ${Y(xLE(e) + x0c * pf.chordAt(e)).toFixed(1)}`).join('L') + 'L' + pts.slice().reverse().map(e => `${X(sgn * e * b / 2).toFixed(1)} ${Y(xLE(e) + x1c * pf.chordAt(e)).toFixed(1)}`).join('L') + 'Z'; };
   const cellsSVG = () => {
     let r = '';
     for (const c of so.colsHalf) for (let i = 0; i < c.n; i++) {
-      const xa = c.x0 + i * (c.l + so.g) / so.arc, hgt = c.l / so.arc;
-      for (const sgn of [1, -1]) { const ya = sgn > 0 ? c.y0 : -c.y1; r += `<rect x="${X(ya).toFixed(1)}" y="${Y(xa).toFixed(1)}" width="${Math.max(0.6, c.w * sc).toFixed(1)}" height="${Math.max(0.6, hgt * sc).toFixed(1)}" fill="var(--c2)" fill-opacity="0.45" stroke="var(--c2)" stroke-width="0.6"/>`; }
+      const xa = c.x0 + i * (c.l + so.g) / c.k, hgt = c.l / c.k;
+      for (const sgn of [1, -1]) { const ya = sgn > 0 ? c.y0 : -c.y1; r += cellPath(X(ya + c.w / 2), Y(xa + hgt / 2), c.w * sc, hgt * sc, so.spec, sc, c.k, 'fill="var(--c2)" fill-opacity="0.45" stroke="var(--c2)" stroke-width="0.6"'); }
     }
     return r;
   };
@@ -198,7 +207,7 @@ function planformSVG(el, C) {
   const propL = (yc, x) => `<line x1="${X(yc - Dp / 2)}" x2="${X(yc + Dp / 2)}" y1="${Y(x)}" y2="${Y(x)}" stroke="var(--c4)" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>`;
   let mot = '';
   if (g) {
-    if (cfg.mot === 'fin' || g.pylon > 0) mot += `<rect x="${X(-0.035)}" y="${Y(rel(g.xMot) - 0.06)}" width="${0.07 * sc}" height="${0.2 * sc}" rx="${0.035 * sc}" fill="var(--sunken)" stroke="var(--ink-2)"/>`;
+    if (g.nac) mot += `<rect x="${X(-g.nac.d / 2)}" y="${Y(rel(g.nac.x0))}" width="${g.nac.d * sc}" height="${Math.max(2, (g.nac.x1 - g.nac.x0) * sc)}" rx="${g.nac.d / 2 * sc}" fill="var(--sunken)" stroke="var(--ink-2)"/>`;
     mot += propL(0, rel(g.xProp));
   }
   const lab = (x, y, t, a = 'middle') => `<text class="tick" x="${x}" y="${y}" text-anchor="${a}">${esc(t)}</text>`;
@@ -245,13 +254,15 @@ function cellsSVG(el, C) {
   // Querruder
   const a0 = clamp(P.ailEta0, 0.1, 0.95), a1 = clamp(P.ailEta1, a0 + 0.02, 1), cfA = clamp(P.ailCf, 0.05, 0.6);
   s += `<path d="${poly(edge(() => 1 - cfA, a0, a1), edge(() => 1, a0, a1))}" fill="var(--c5)" fill-opacity="0.18" stroke="var(--c5)" stroke-width="1"/>`;
-  // Zellzone (Grenzen in Tiefe)
-  s += `<path d="M${edge(() => so.x0).map(([y, x]) => `${f1(X(y))} ${f1(Y(x))}`).join('L')}" fill="none" stroke="var(--muted)" stroke-dasharray="3 4"/>`;
-  s += `<path d="M${edge(() => so.x1).map(([y, x]) => `${f1(X(y))} ${f1(Y(x))}`).join('L')}" fill="none" stroke="var(--muted)" stroke-dasharray="3 4"/>`;
+  // Zellband: vordere und hintere Grenze aus der Biegung der Zellen (je Flügeltiefe), Lücken ohne Band
+  const bandLine = j => { let d = '', pen = false; for (const e of so.edge) { if (e[j] == null) { pen = false; continue; } const y = e[0] * h, x = pf.xLE(e[0]) + e[j] * pf.chordAt(e[0]); d += `${pen ? 'L' : 'M'}${f1(X(y))} ${f1(Y(x))}`; pen = true; } return d ? `<path d="${d}" fill="none" stroke="var(--c2)" stroke-width="1" stroke-dasharray="4 3" opacity="0.8"/>` : ''; };
   if (so.mode === 'area') s += `<path d="${poly(edge(() => so.x0, 0, Math.min(1, so.eta)), edge(() => so.x1, 0, Math.min(1, so.eta)))}" fill="var(--c2)" fill-opacity="0.3" stroke="var(--c2)"/>`;
-  else for (const c of so.colsHalf) for (let i = 0; i < c.n; i++) {
-    const xa = c.x0 + i * (c.l + so.g) / so.arc;
-    s += `<rect x="${f1(X(c.y0))}" y="${f1(Y(xa))}" width="${f1(Math.max(0.8, c.w * sc))}" height="${f1(Math.max(0.8, c.l / so.arc * sc))}" fill="var(--c2)" fill-opacity="0.5" stroke="var(--c2)" stroke-width="0.8"/>`;
+  else {
+    s += bandLine(1) + bandLine(2);
+    for (const c of so.colsHalf) for (let i = 0; i < c.n; i++) {
+      const xa = c.x0 + i * (c.l + so.g) / c.k, hgt = c.l / c.k;
+      s += cellPath(X(c.y0 + c.w / 2), Y(xa + hgt / 2), c.w * sc, hgt * sc, so.spec, sc, c.k, 'fill="var(--c2)" fill-opacity="0.5" stroke="var(--c2)" stroke-width="0.8"');
+    }
   }
   // Freiräume: Wurzel, Spitze, Außenteilung
   const yR = so.mode === 'area' ? 0 : clamp(P.cellRootGap, 0, h), yT = h - clamp(P.cellTipGap, 0, h);
@@ -276,9 +287,13 @@ function shapesSVG(el, keys, P) {
     const f = foilByKey(k); if (!f) return;
     const sh = f.shape, pts = sh.x.map((x, j) => [x, sh.yu[j]]).concat(sh.x.map((x, j) => [x, sh.yl[j]]).reverse());
     s += `<path class="line s${sCls(i + 1)}" d="M${pts.map(([x, y]) => `${(10 + x * sc).toFixed(1)} ${(y0 - y * sc).toFixed(1)}`).join('L')}Z" style="stroke-width:1.6"/>`;
-    if (i === 0 && P.solarGeom !== 'flach') {
-      const a = P.cellX0 / 100, b = P.cellX1 / 100, seg = sh.x.map((x, j) => [x, sh.yu[j]]).filter(([x]) => x >= a && x <= b);
-      if (seg.length > 1) s += `<path d="M${seg.map(([x, y]) => `${(10 + x * sc).toFixed(1)} ${(y0 - y * sc - 4).toFixed(1)}`).join('L')}" fill="none" stroke="var(--c2)" stroke-width="2.5" stroke-dasharray="5 3"/>`;
+    // Zellen an der Flügelwurzel: Band aus der Biegung, jede Zelle als Bogen auf der Oberseite (versetzt je Profil)
+    if (P.solarMode !== 'area') {
+      const spec = cellSpec(P), lim = bendLimits(P, spec), cr = planform(P).cr, g = clamp((P.cellGap ?? 2) / 1000, 0, 0.03), bd = cellBand(f, cr, spec, lim, g, null);
+      if (bd) {
+        const U = foilUpper(f), off = 3 + 3 * i, seg = (sa, sb) => { const pts = []; for (let q = 0; q <= 16; q++) { const p = upPt(U, sa + (sb - sa) * q / 16); pts.push(`${(10 + p[0] * sc).toFixed(1)} ${(y0 - p[1] * sc - off).toFixed(1)}`); } return 'M' + pts.join('L'); };
+        for (let k = 0; k < bd.n; k++) { const sa = bd.s0 + k * (spec.s + g) / cr; s += `<path d="${seg(sa, sa + spec.s / cr)}" fill="none" class="s${sCls(i + 1)}" stroke-width="3.5" stroke-linecap="butt"/>`; }
+      }
     }
   });
   s += '</svg>';
@@ -302,8 +317,13 @@ function aircraftSide(C, X, Z, sc, opt = {}) {
     const sh = foil.shape, up = sh.x.map((x, i) => `${f1(X(x0 + x * c))} ${f1(Z(z0 + sh.yu[i] * c))}`), lo = sh.x.map((x, i) => `${f1(X(x0 + x * c))} ${f1(Z(z0 + sh.yl[i] * c))}`).reverse();
     return 'M' + up.join('L') + 'L' + lo.join('L') + 'Z';
   };
-  const Dp = 2 * g.R, prop = (x, z) => `<ellipse cx="${f1(X(x))}" cy="${f1(Z(z))}" rx="3" ry="${f1(Dp / 2 * sc)}" fill="var(--c4)" fill-opacity="0.16" stroke="var(--c4)" stroke-dasharray="4 3"/>`;
-  const nacelle = (x, z) => `<ellipse cx="${f1(X(x))}" cy="${f1(Z(z))}" rx="${f1(0.1 * sc)}" ry="${f1(Math.max(2.5, 0.032 * sc))}" fill="var(--sunken)" ${stroke}/>`;
+  const Dp = 2 * g.R;
+  // Propellerkreis von der Seite; dazu der gesperrte Bereich nach 14 CFR 23.925 (Radius R + c_r, Länge ±(e + c_a)),
+  // rot gefüllt, wenn ein Teil hineinragt
+  const bz = C.bau, zoneBad = !!(bz && bz.zone.some(z => !z.ok));
+  const prop = (x, z) => (opt.zone !== false && bz ? `<rect x="${f1(X(x - bz.hx))}" y="${f1(Z(z + bz.Rz))}" width="${f1(Math.max(2, 2 * bz.hx * sc))}" height="${f1(2 * bz.Rz * sc)}" fill="${zoneBad ? 'var(--crit)' : 'none'}" fill-opacity="${zoneBad ? 0.2 : 0}" stroke="${zoneBad ? 'var(--crit)' : 'var(--c4)'}" stroke-width="1"${zoneBad ? '' : ' stroke-dasharray="2 2" stroke-opacity="0.7"'}/>` : '')
+    + `<ellipse cx="${f1(X(x))}" cy="${f1(Z(z))}" rx="3" ry="${f1(Dp / 2 * sc)}" fill="var(--c4)" fill-opacity="0.16" stroke="${zoneBad ? 'var(--crit)' : 'var(--c4)'}" stroke-dasharray="4 3"/>`;
+  const nacelle = n => `<rect x="${f1(X(n.x0))}" y="${f1(Z(n.z + n.d / 2))}" width="${f1(Math.max(3, (n.x1 - n.x0) * sc))}" height="${f1(Math.max(3, n.d * sc))}" rx="${f1(Math.max(1.5, n.d / 2 * sc))}" fill="var(--sunken)" ${stroke}/>`;
   let back = '', body = '', wing = '';
   // Propellerstrahl als Band: Achse z_s(x) ± Strahlradius R_s(x) im Reiseflug
   if (opt.slip !== false && C.slip && C.slip.zs) {
@@ -326,7 +346,7 @@ function aircraftSide(C, X, Z, sc, opt = {}) {
   const xTip = g.xLE0 + pf.xLE(1), zTip = zWingAt(g, pf.b / 2);
   wing += `<path d="${foilPath(C.foil, xTip, zTip, pf.ct)}" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>`;
   wing += `<path d="${foilPath(C.foil, g.xLE0, g.zw, pf.cr)}" fill="var(--panel)" ${stroke}/>`;
-  const sx0 = g.xLE0 + P.cellX0 / 100 * pf.cr, sx1 = g.xLE0 + P.cellX1 / 100 * pf.cr;
+  const b0 = C.solar.bands && C.solar.bands[0] && C.solar.bands[0].b, sx0 = g.xLE0 + (b0 ? b0.x0 : C.solar.x0) * pf.cr, sx1 = g.xLE0 + (b0 ? b0.x1 : C.solar.x1) * pf.cr;
   if (P.solarArea > 0) wing += `<line x1="${f1(X(sx0))}" x2="${f1(X(sx1))}" y1="${f1(Z(g.zw + C.foil.t * pf.cr * 0.75) - 3)}" y2="${f1(Z(g.zw + C.foil.t * pf.cr * 0.75) - 3)}" stroke="var(--c2)" stroke-width="3"/>`;
   // Seitenleitwerk (Vorderkante zurückgesetzt, Spitzentiefe 62 %)
   const xv0 = g.xvLE, xvt = xv0 + g.vSw * tg.bv;
@@ -335,8 +355,8 @@ function aircraftSide(C, X, Z, sc, opt = {}) {
   wing += `<path d="${foilPath(C.tfoil, g.xhLE, g.zH, tg.ch)}" fill="var(--panel)" ${stroke}/>`;
   if (C.mass.solarHT > 0) wing += `<line x1="${f1(X(g.xhLE + 0.08 * tg.ch))}" x2="${f1(X(g.xhLE + 0.85 * tg.ch))}" y1="${f1(Z(g.zH) - 3)}" y2="${f1(Z(g.zH) - 3)}" stroke="var(--c2)" stroke-width="3"/>`;
   // Motor oben am Seitenleitwerk oder auf dem Pylon hinter dem Flügel
-  if (cf.mot === 'fin') wing += nacelle(g.xMot + 0.03, g.zP) + prop(g.xProp, g.zP);
-  if (g.pylon > 0) wing += `<path d="M${f1(X(g.xMot - 0.04))} ${f1(Z(g.zP - g.pylon))}L${f1(X(g.xMot - 0.01))} ${f1(Z(g.zP))}L${f1(X(g.xMot + 0.06))} ${f1(Z(g.zP))}L${f1(X(g.xMot + 0.08))} ${f1(Z(g.zP - g.pylon))}Z" fill="var(--sunken)" ${stroke}/>` + nacelle(g.xMot, g.zP) + prop(g.xProp, g.zP);
+  if (cf.mot === 'fin' && g.nac) wing += nacelle(g.nac) + prop(g.xProp, g.zP);
+  if (g.pylon > 0 && g.pyl) { const y = g.pyl; wing += `<path d="M${f1(X(y.x0))} ${f1(Z(y.z0))}L${f1(X(y.x0 + 0.03))} ${f1(Z(y.z1 + 0.01))}L${f1(X(y.x1))} ${f1(Z(y.z1 + 0.01))}L${f1(X(y.x1))} ${f1(Z(y.z0))}Z" fill="var(--sunken)" ${stroke}/>` + (g.nac ? nacelle(g.nac) : '') + prop(g.xProp, g.zP); }
   // Mittlere aerodynamische Flügeltiefe
   if (opt.mac !== false) {
     const yMac = Z(g.zw + C.foil.t * pf.cr + 0.03);
@@ -348,8 +368,9 @@ function aircraftSide(C, X, Z, sc, opt = {}) {
 // Kleine Seitenansicht ohne Wägediagramm (Konfigurationsvergleich)
 function sideThumbSVG(C, W, Hmax) {
   const P = C.P, g = C.bal.g, tg = C.tail, bal = C.bal;
-  const xs0 = Math.min(-0.06, g.xProp - 0.04), xs1 = Math.max(g.xTail, g.xvTE, g.xProp, P.fusL) + 0.04;
-  const zTop = Math.max(g.zV1 + 0.03, g.zH + 0.04, g.zP + g.R + 0.02), zBot = Math.min(g.zLow - 0.02, g.zP - g.R - 0.02);
+  const Rz = C.bau ? C.bau.Rz : g.R, hx = C.bau ? C.bau.hx : 0.03;
+  const xs0 = Math.min(-0.06, g.xProp - hx - 0.02), xs1 = Math.max(g.xTail, g.xvTE, g.xProp + hx, P.fusL) + 0.04;
+  const zTop = Math.max(g.zV1 + 0.03, g.zH + 0.04, g.zP + Rz + 0.01), zBot = Math.min(g.zLow - 0.02, g.zP - Rz - 0.01);
   const sc = Math.min((W - 8) / (xs1 - xs0), (Hmax - 8) / (zTop - zBot)), H = Math.round((zTop - zBot) * sc) + 8;
   const X = x => 4 + (x - xs0) * sc, Z = z => 4 + (zTop - z) * sc, p = aircraftSide(C, X, Z, sc, { mac: false });
   const cg = `<circle cx="${X(bal.xcg).toFixed(1)}" cy="${Z(bal.zcg).toFixed(1)}" r="4" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.3"/><path d="M${X(bal.xcg).toFixed(1)} ${Z(bal.zcg).toFixed(1)}l4 0a4 4 0 0 0 -4 -4zm0 0l-4 0a4 4 0 0 0 4 4z" fill="var(--ink)"/>`;

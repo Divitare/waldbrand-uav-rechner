@@ -21,8 +21,8 @@ function trimInfo(C) {
 function sideViewSVG(el, C) {
   el._fn = e => sideViewSVG(e, R.C); el._cfg = C;
   const P = C.P, pf = C.pf, tg = C.tail, bal = C.bal, g = bal.g, mi = bal.mi, W = cw(el), cf = C.cfg;
-  const zw = g.zw, Rp = g.R, zTip = zWingAt(g, pf.b / 2);
-  const xs0 = Math.min(-0.08, g.xProp - 0.06), xs1 = Math.max(g.xTail, g.xhTE, g.xvTE, g.xProp, P.fusL) + 0.08;
+  const zw = g.zw, Rp = C.bau ? C.bau.Rz : g.R, zTip = zWingAt(g, pf.b / 2), hx = C.bau ? C.bau.hx : 0.03;
+  const xs0 = Math.min(-0.08, g.xProp - hx - 0.04), xs1 = Math.max(g.xTail, g.xhTE, g.xvTE, g.xProp + hx, P.fusL) + 0.08;
   const zTop = Math.max(g.zV1 + 0.04, g.zH + 0.05, g.zP + Rp + 0.03, zTip + 0.06, zw + 0.1), zBot = Math.min(g.zLow - 0.03, g.zP - Rp - 0.03);
   const sc = (W - 20) / (xs1 - xs0), H1 = Math.round((zTop - zBot) * sc) + 12, H2 = Math.max(130, Math.min(190, W * 0.2)), base = H1 + H2, H = base + 30;
   const X = x => 10 + (x - xs0) * sc, Z = z => 6 + (zTop - z) * sc, f1 = v => v.toFixed(1);
@@ -127,7 +127,7 @@ function motorStudy(P, comps) {
   return Object.keys(MOTOR_POS).map(k => {
     const P2 = { ...P, motorPos: k };
     const C = buildCase(P2, comps), n = dayOfYear(P2.date), y = yearOf(P2.date), ser = daySeries(C, envClear(P2, n, y)), mis = mission(C, ser, ser, false);
-    return { k, C, mis, ok: C.cfg.mot === k && !(C.bal.g.boomClear < 0) };
+    return { k, C, mis, ok: C.cfg.mot === k && (!C.bau || C.bau.ok) };
   });
 }
 function sweepStudy(P, comps) {
@@ -163,7 +163,7 @@ RENDER.schwerpunkt = (R) => {
   if (!msg.length) msg.push(pillF('good', `Schwerpunkt ${nf(sm, 1)} % MAC vor dem Neutralpunkt${bal.ballast > 0 ? '' : ', ohne Ballast'}`, 'mass-np', 'sm'));
   for (const n of C.cfg.notes) msg.push(pill('warn', n.t));
   for (const o of wingCompOff(C)) msg.push(pill('warn', wingCompMsg(o)));
-  if (bal.g.boomClear < 0) msg.push(pill('crit', `Rohrträger läuft ${nf(-bal.g.boomClear * 100, 0)} cm tief durch den Propellerkreis: so nicht baubar. Zwei Träger oder Seglerrumpf mit Pylon wählen.`));
+  if (C.bau && !C.bau.ok) msg.push(pillF('crit', `So nicht baubar: ${C.bau.crit[0].txt}${C.bau.crit.length > 1 ? ` (und ${C.bau.crit.length - 1} weitere, Ansicht Konfiguration)` : ''}`, 'bau-zone'));
   if (C.cfg.mot !== 'nose') msg.push(pill('info', `Motor ${nf(bal.g.xMot - bal.xcg, 2)} m hinter und ${nf((bal.g.zP - bal.zcg) * 100, 0)} cm über dem Schwerpunkt · Antriebsleitung ${nf((C.harness.byKey.wmot || 0) * 1000, 0)} g`));
   $('#cg-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   $('#kpis-cg').innerHTML = [
@@ -238,11 +238,11 @@ function renderSweepStudy(R) {
 }
 function renderHtStudy(R) {
   const P = S.params, list = cached('htsol', () => htStudy(P, S.comps)), b0 = list[0];
-  $('#hts-sub').textContent = `Waagerechte Zellen auf dem Höhenleitwerk (${nf(R.C.tail.Sh, 3)} m²) am Auslegungstag ${fmtDoy(R.n, R.y)}. Gleiche Wirkungsgradkette wie am Flügel, Schatten des Seitenleitwerks über alle Kurse gemittelt. Die Zusatzmasse sitzt weit hinten und muss ausgetrimmt werden.`;
+  $('#hts-sub').textContent = `Waagerechte Zellen auf dem Höhenleitwerk (${nf(R.C.tail.Sh, 3)} m²) am Auslegungstag ${fmtDoy(R.n, R.y)}. Gleiche Wirkungsgradkette wie am Flügel, Schatten von Seitenleitwerk, Motorgondel und Propeller über alle Kurse gemittelt (Verschaltung: ${P.bypass === 'none' ? 'ohne Bypassdioden' : 'Bypassdiode je Zelle'}). Nur ganze Zellen, die mit ihrer Biegung vor das Höhenruder passen. Die Zusatzmasse sitzt weit hinten und muss ausgetrimmt werden.`;
   $('#tbl-hts').innerHTML = `<thead><tr><th>Belegung</th><th class="n">Zellfläche</th><th class="n">Masse Zellen</th><th class="n">Solarertrag</th><th class="n">Mehrertrag</th><th class="n">Schattenverlust</th><th class="n">Ballast</th><th class="n">Akku x</th><th class="n">Abflugmasse</th><th class="n">Excess Time</th><th class="n">Einsatz min. SoC</th></tr></thead><tbody>` +
     list.map(r => `<tr class="${Math.abs(r.h - P.htSolar) < 0.5 ? 'sel' : ''}"><td>${esc(r.lab)}</td><td class="n">${nf(r.area, 3)} m²</td><td class="n">${nf(r.mSol * 1000, 0)} g</td><td class="n">${nf(r.eS, 0)} Wh</td><td class="n ${r.dE > 0 ? 'good' : ''}">${r.h ? nfs(r.dE, 0) + ' Wh (' + nfs(r.dE / Math.max(1, b0.eS) * 100, 1) + ' %)' : '–'}</td><td class="n">${r.h ? nf(r.shade * 100, 0) + ' %' : '–'}</td>` +
       `<td class="n">${nf(r.ballast * 1000, 0)} g</td><td class="n">${P.battInWing ? 'Flügel' : nf(r.xBatt, 2) + ' m'}</td><td class="n">${nf(r.m, 2)} kg</td><td class="n">${fin(r.per.tExc) ? nfs(r.per.tExc, 1) + ' h' : '–'}</td><td class="n">${r.mis ? nf(r.mis.minE / r.mis.cap * 100, 0) + ' %' : '–'}</td></tr>`).join('') +
-    `</tbody><caption>Schattenverlust: Anteil der Einstrahlung auf die Leitwerkszellen, die das Seitenleitwerk im Tagesmittel abschattet. Mehr Fläche am Leitwerk brächte auch mehr Leitwerkswiderstand; ein höher gesetztes Höhenleitwerk (T-Leitwerk) wäre schattenfrei, ist hier aber nicht vorgesehen.</caption>`;
+    `</tbody><caption>Schattenverlust: Anteil der Einstrahlung auf die Leitwerkszellen, die im Tagesmittel abgeschattet wird. Beim T-Leitwerk liegt das Höhenleitwerk über dem Seitenleitwerk und bleibt schattenfrei. Passt keine ganze Zelle vor das Höhenruder, bleibt die Fläche null (Zellen auf den Rudern erlauben oder tieferes Höhenleitwerk).</caption>`;
 }
 
 /* ---------- Ansicht Struktur ---------- */

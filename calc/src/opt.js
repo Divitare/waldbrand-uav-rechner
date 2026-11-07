@@ -51,8 +51,6 @@ const OPT_CAT = [
   { k: 'nCells', g: 'prop', lo: 3, hi: 12, st: 1, int: true, when: P => P.propModel === 'bemt' },
   { k: 'mBatt', g: 'energy', lo: 0.5, hi: 8, st: 0.05 },
   { k: 'htSolar', g: 'energy', lo: 0, hi: 90, st: 5 },
-  { k: 'cellX0', g: 'energy', lo: 0, hi: 30, st: 1, when: P => P.solarGeom !== 'flach' || P.solarMode !== 'area' },
-  { k: 'cellX1', g: 'energy', lo: 60, hi: 98, st: 1, when: P => P.solarGeom !== 'flach' || P.solarMode !== 'area' },
   { k: 'nCellsWing', g: 'energy', lo: 20, hi: 800, st: 2, int: true, when: P => P.solarMode === 'count' },
   { k: 'solarArea', g: 'energy', lo: 0.3, hi: 2.5, st: 0.01, when: P => P.solarMode === 'area' },
   { k: 'sparType', g: 'struct', opts: () => ['caps', 'tube'], when: P => P.structMode !== 'fix' },

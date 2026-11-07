@@ -20,7 +20,7 @@ function optCfgLoad() {
     obj: objs.includes(c.obj) ? c.obj : 'mass',
     groups: Array.isArray(c.groups) ? c.groups.filter(g => OPT_GROUP_L[g]) : OPT_GROUPS.filter(g => g[2]).map(g => g[0]),
     off: Array.isArray(c.off) ? c.off.filter(k => OPT_CAT_BY[k] || PM[k]) : [],
-    checks: Array.isArray(c.checks) ? c.checks.filter(k => DESIGN_CHECKS.some(d => d.key === k)) : DESIGN_CHECKS.filter(d => d.on).map(d => d.key),
+    checks: [...new Set([...(Array.isArray(c.checks) ? c.checks.filter(k => DESIGN_CHECKS.some(d => d.key === k)) : DESIGN_CHECKS.filter(d => d.on).map(d => d.key)), ...DESIGN_CHECKS.filter(d => d.fixed).map(d => d.key)])],
     reserve: !!c.reserve, effort: OPT_EFFORT[c.effort] ? c.effort : 'normal'
   };
 }
@@ -77,7 +77,7 @@ function optRenderSide() {
   $('#op-cons').innerHTML = b.cons.length
     ? `<ul class="op-conlist">${b.cons.map(c => { const it = RQ.by['m:' + c.key]; return `<li><span>${esc(c.l)}</span><b>${esc(c.txt)}</b>${it ? `<span class="rq-st ${it.st}">${esc(RQ_LABEL[it.st])}</span>` : ''}</li>`; }).join('')}</ul>`
     : '<p class="note">Keine Anforderungen an Ergebnisse. Ohne sie findet die Suche oft sehr kleine oder sehr große Entwürfe – etwa Grenzen für Excess Time, Spannweite oder SAIL festlegen.</p>';
-  $('#op-checks').innerHTML = DESIGN_CHECKS.map(d => `<label><input type="checkbox" data-opchk="${d.key}"${cfg.checks.includes(d.key) ? ' checked' : ''}> <span>${esc(d.l)}${d.key === 'exc' ? ` (${nf(S.params.tExcReq, 1)} h)` : ''}</span></label>`).join('');
+  $('#op-checks').innerHTML = DESIGN_CHECKS.map(d => `<label><input type="checkbox" data-opchk="${d.key}"${cfg.checks.includes(d.key) || d.fixed ? ' checked' : ''}${d.fixed ? ' disabled' : ''}> <span>${esc(d.l)}${d.key === 'exc' ? ` (${nf(S.params.tExcReq, 1)} h)` : ''}${d.fixed ? ' <span class="muted small">(immer)</span>' : ''}</span></label>`).join('');
   $('#op-reserve').checked = cfg.reserve; $('#op-knapp').textContent = nf(S.meta.knapp || 5, 1) + ' %';
   const nR = optRuns(), sec = n => { const s = n * 0.014 * 1.15; return s < 60 ? `${nf(Math.max(5, Math.round(s / 5) * 5), 0)} s` : `${nf(s / 60, 1)} min`; };
   $('#op-effort').innerHTML = Object.entries(OPT_EFFORT).map(([k, [l, n]]) => `<label><input type="radio" name="op-effort" value="${k}"${cfg.effort === k ? ' checked' : ''}> <span><b>${esc(l)}</b> <span class="muted">etwa ${sec(n)}</span></span></label>`).join('');

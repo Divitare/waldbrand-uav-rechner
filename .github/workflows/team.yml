@@ -1,0 +1,52 @@
+# Teamarbeit gegen die echte Cloudflare-Laufzeit: wrangler dev startet workerd im Runner (Durable Objects mit
+# SQLite, D1 lokal, Seiten aus public/), zwei Browser prüfen Anmelden, Live-Änderungen, gleichzeitige
+# Änderungen, Anwesenheit, Verlauf, Stände, Verbindungsabbruch, Umbenennen, Papierkorb und Datei-Import
+# (calc/tests/t16.cjs). Das Passwort „test“ gilt nur in diesem Lauf (.dev.vars), nicht für die veröffentlichte Seite.
+name: Teamarbeit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'worker/**'
+      - 'calc/src/team.*'
+      - 'calc/tests/t16.cjs'
+      - 'wrangler.jsonc'
+      - 'package.json'
+      - '.github/workflows/team.yml'
+jobs:
+  team:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Playwright mit Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Cloudflare-Laufzeit lokal starten (wrangler dev)
+        run: |
+          printf 'TEAM_KEY=test\n' > .dev.vars
+          nohup npx wrangler dev --ip 127.0.0.1 --port 8787 > wrangler.log 2>&1 &
+          for i in $(seq 1 90); do curl -sf http://127.0.0.1:8787/ > /dev/null && break; sleep 2; done
+          curl -sf http://127.0.0.1:8787/ > /dev/null
+          head -n 40 wrangler.log
+      - name: Zwei Browser im Teammodell
+        run: node calc/tests/t16.cjs
+        env:
+          TEAM_BASE: http://127.0.0.1:8787
+      - name: Protokoll der Laufzeit
+        if: always()
+        run: tail -n 150 wrangler.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: team-screenshots
+          path: calc/tests/out/
+          if-no-files-found: ignore

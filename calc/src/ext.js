@@ -208,7 +208,7 @@ function compareAirfoils(P, comps) {
     for (const mode of f.trip ? ['free', 'trip'] : ['free']) {
       if (mode === 'trip' && P.transition !== 'trip') continue;
       const Q = { ...P, airfoil: f.key, transition: mode }, r = studyPoint(Q, comps, n, y), C = r.C, pc = powerCurve(C);
-      out.push({ key: f.key, name: f.name, cat: f.cat, mode, t: f.t, f: f.f, src: f.src, pCruise: C.lvl.pel, cdp: C.lvl.cdp, alpha: C.lvl.alpha, vMinP: pc.minP.V, pMinP: pc.minP.pel, vs: C.vs, CLmax: C.CLmaxW, tExc: r.tExc, soc: r.soc, m: r.m, conf: foilMeta(f, mode, P.v * C.pf.mac / C.nu).conf, cm: C.lvl.cm });
+      out.push({ key: f.key, name: f.name, cat: f.cat, mode, t: f.t, f: f.f, src: f.src, pCruise: C.lvl.pel, cdp: C.lvl.cdp, alpha: C.lvl.alpha, vMinP: pc.minP.V, pMinP: pc.minP.pel, vs: C.vs, CLmax: C.CLmaxW, tExc: r.tExc, soc: r.soc, m: r.m, conf: foilMeta(f, mode, P.v * C.pf.mac / C.nu).conf, cm: C.lvl.cm, nSol: C.solar.mode === 'area' ? NaN : C.solar.n, band: C.solar.bands && C.solar.bands[0] ? C.solar.bands[0].b : null });
     }
   }
   return out;

@@ -38,7 +38,7 @@ const SEL = {
   powerModel: [['physik', 'Physik (Polaren, Traglinie)'], ['mess', 'Messpunkt (ETH-Skalierung)'], ['fit', 'Ausgleichskurve eigener Flugdaten']],
   propModel: [['model', 'Impulstheorie + Wirkungsgradkette'], ['bemt', 'Propeller-Kennfeld (Blattelemente) + Motormodell'], ['eta', 'fester Gesamtwirkungsgrad']],
   propGeom: [['design', 'eigener Propeller (APC-Blattform skaliert)'], ['apc10x7', 'APC 10x7E (Messvergleich)']],
-  motorPos: [['nose', 'Zugpropeller in der Nase'], ['pusher', 'Druckpropeller am Rumpfende'], ['fin', 'Zugpropeller oben am Seitenleitwerk']],
+  motorPos: [['nose', 'Zugpropeller in der Nase'], ['pusher', 'Druckpropeller hinter dem Flügel (Pylon bzw. Gondelende)'], ['fin', 'Zugpropeller oben am Seitenleitwerk']],
   fusType: [['pod', 'Gondel mit Rohrträger'], ['glider', 'Segelflugzeugrumpf (Schale bis zum Leitwerk)'], ['twin', 'Gondel mit zwei Leitwerksträgern']],
   tailType: [['cross', 'Normalleitwerk (Höhenleitwerk am Fuß)'], ['T', 'T-Leitwerk (Höhenleitwerk oben)']],
   landGear: [['skid', 'Kufe unter dem Rumpf (GFK-Blattfeder)'], ['belly', 'Bauchlandung auf verstärktem Rumpfboden']],
@@ -50,6 +50,7 @@ const SEL = {
   sparType: [['caps', 'Gurte mit Steg'], ['tube', 'Rohrholm']],
   solarGeom: [['profil', 'aus Profilkontur (Wölbung, Einfallswinkel)'], ['flach', 'waagerecht mit Pauschalfaktor (ETH)']],
   stringLayout: [['span', 'Strings in Spannweitenrichtung'], ['chord', 'Strings in Tiefenrichtung']],
+  bypass: [['cell', 'Bypassdiode je Zelle'], ['none', 'ohne Bypassdioden (Grenzfall)']],
   solarMode: [['fill', 'Ganze Zellen, so viele wie passen'], ['count', 'Ganze Zellen, feste Anzahl'], ['area', 'Zellfläche frei eingeben (ohne Zellraster)']],
   cellType: Object.entries(CELL_TYPES).map(([k, t]) => [k, t.name]),
   cellOrient: [['auto', 'Beste je Spalte'], ['span', 'Lange Kante in Spannweitenrichtung'], ['chord', 'Lange Kante in Flugrichtung']],
@@ -72,6 +73,8 @@ const PM = {};
   ['arH', 'Streckung Höhenleitwerk', '', 0.5, 2, 10], ['arV', 'Streckung Seitenleitwerk', '', 0.1, 0.8, 4],
   ['fusL', 'Rumpfgondel Länge', 'm', 0.05, 0.2, 3], ['fusD', 'Rumpfgondel Durchmesser', 'm', 0.01, 0.04, 0.5], ['boomD', 'Leitwerksträger Durchmesser', 'm', 0.002, 0.008, 0.08],
   ['zTail', 'Leitwerksfuß über Flügelebene', 'm', 0.01, -0.5, 1, null, 'Höhe von Trägerende bzw. Rumpfröhre am Leitwerk. Beim Normalleitwerk sitzt dort das Höhenleitwerk, beim T-Leitwerk eine Seitenleitwerkshöhe darüber. Bestimmt den Abwind am Höhenleitwerk (DATCOM).'],
+  ['clrRad', 'Freigang Blattspitze – Struktur', 'mm', 0.5, 0, 200, null, '14 CFR 23.925(d)(1): mindestens 1 Zoll (25,4 mm) zwischen den Blattspitzen und jedem feststehenden Teil, mehr, wenn Schwingungen es verlangen. Bestimmt Pylonhöhe, Trägerabstand und die Bauraumprüfung.'],
+  ['clrAx', 'Freigang Blattebene – feste Teile', 'mm', 0.5, 0, 200, null, '14 CFR 23.925(d)(2): mindestens ½ Zoll (12,7 mm) in Längsrichtung zwischen den Blättern und feststehenden Teilen. Die Blätter selbst reichen je nach Tiefe und Einstellwinkel 1–2 cm vor und hinter die Blattebene; das rechnet das Modell dazu.'],
   ['etaTail', 'Staudruckverhältnis am Leitwerk', '%', 1, 60, 110, null, 'Rumpf- und Flügelnachlauf senken den Staudruck. Freies Leitwerk 90–95 %, im Propellerstrahl über 100 %.'],
   ['fusFlow', 'Grenzschicht Rumpf', '', 0, 0, 0, 'fusFlow'], ['kInt', 'Interferenz und Spalte', '%', 1, 0, 50, null, 'Zuschlag auf Rumpf, Leitwerk und Anbauten für Übergänge, Spalte, Antennen.'],
   ['kDrag', 'Widerstandsreserve gesamt', '%', 1, 0, 50],
@@ -148,9 +151,11 @@ const PM = {};
   ['hStore', 'Energie in der Höhe speichern bis', 'm über Einsatzhöhe', 10, 0, 2000, null, 'Solarüberschuss, den der Akku nicht mehr aufnimmt, hebt das Flugzeug; abends gleitet es zurück, bevor der Akku entladen wird. 0 heißt aus. Höhengrenze der Betriebsgenehmigung beachten.'],
   ['chargeC', 'Max. Laderate', 'C', 0.05, 0.1, 3], ['noColdCharge', 'Nicht unter 0 °C laden', '', 0, 0, 0, 'bool'],
   // Solar
-  ['solarMode', 'Zellbelegung', '', 0, 0, 0, 'solarMode', 'Ganze Zellen: so viele, wie zwischen den gewählten Tiefen und Freiräumen auf Flügel passen (Rechteckraster). Feste Anzahl: von der Wurzel nach außen. Fläche frei: wie bis Version 7, ohne Prüfung auf ganze Zellen.'],
-  ['cellType', 'Zellformat', '', 0, 0, 0, 'cellType', 'SunPower C60: 125 × 125 mm, Ecken vom 160-mm-Ingot abgeschnitten (153,3 cm²), 21,8–22,5 %. Halbe und Viertelzellen haben die gleiche Spannung und anteilig weniger Strom. AZUR SPACE 3G30C: Dreifachzelle 80 × 40 mm, 30,18 cm², 29,5 % (AM0).'],
-  ['cellA', 'Zellkante a', 'mm', 0.5, 5, 600], ['cellB', 'Zellkante b', 'mm', 0.5, 5, 600], ['cellVmp', 'Zellspannung im MPP', 'V', 0.01, 0.1, 5],
+  ['solarMode', 'Zellbelegung', '', 0, 0, 0, 'solarMode', 'Ganze Zellen: so viele, wie im Zellband und zwischen den Freiräumen auf den Flügel passen. Das Zellband folgt aus der zulässigen Biegung der Zellen auf der Profiloberseite (je Profil und Flügeltiefe). Feste Anzahl: von der Wurzel nach außen. Fläche frei: nur für Vergleichsrechnungen, ohne Prüfung auf ganze Zellen.'],
+  ['cellType', 'Zelle', '', 0, 0, 0, 'cellType', 'Nur quadratische Zellen, wie man sie bekommt. SunPower C60: 125 × 125 mm, Ecken vom 160-mm-Ingot abgeschnitten (153,3 cm²), 165 µm dick, 21,8–22,5 %, U_MPP 0,574–0,582 V. Eigene Zelle: Kantenlänge, Ingot-Durchmesser und Dicke eingeben.'],
+  ['cellA', 'Kantenlänge der Zelle', 'mm', 0.5, 20, 300], ['cellD', 'Ingot-Durchmesser', 'mm', 1, 0, 425, null, 'Pseudoquadratische Zellen: Durchmesser des Kreises, der die Ecken abschneidet. 0 heißt volles Quadrat.'], ['cellThk', 'Zelldicke', 'µm', 5, 30, 1000], ['cellVmp', 'Zellspannung im MPP', 'V', 0.01, 0.1, 5],
+  ['cellBend', 'Biegung je Zelle höchstens', '% Stich/Länge', 0.5, 0.5, 50, null, 'Stich der gebogenen Zelle (größter Abstand von der Sehne) bezogen auf ihre Länge in Flugrichtung. 10 % entspricht einem Biegeradius von 1,25 Zelllängen (156 mm bei 125 mm). Bestimmt mit der Dehnung, wie weit vorn und hinten auf jedem Profil Zellen liegen können.'],
+  ['cellStrain', 'Zulässige Randdehnung der Zelle', '%', 0.01, 0.01, 2, null, 'Örtliche Biegung: ε = κ·t/2 mit der Krümmung κ über ein Zwölftel der Zelllänge (rund 1 cm). 0,10 % entspricht 136 MPa bei E = 130 GPa, der Spannung, die 95 % der Siliziumzellen aushalten (Rion u. a. 2009); bei 165 µm Dicke ein Biegeradius von 83 mm. Begrenzt die Zellen vor allem an der Profilnase.'],
   ['cellOrient', 'Ausrichtung der Zellen', '', 0, 0, 0, 'cellOrient'],
   ['nCellsWing', 'Zellen auf dem Flügel (gesamt)', '', 2, 0, 4000, null, 'Beide Hälften zusammen, von der Wurzel nach außen belegt.'],
   ['cellGap', 'Zellabstand', 'mm', 0.5, 0, 20, null, 'Platz für Verbinder und Wärmedehnung, laminiert meist 1–3 mm.'],
@@ -159,7 +164,8 @@ const PM = {};
   ['cellsOnCtrl', 'Zellen auch auf Quer- und Höhenruder', '', 0, 0, 0, 'bool'],
   ['solarArea', 'Zellfläche Flügel', 'm²', 0.01, 0, 6], ['cellEff', 'Zellwirkungsgrad', '%', 0.1, 5, 35], ['solarAreal', 'Flächengewicht Modul', 'kg/m²', 0.01, 0.1, 3, null, 'Zellen mit Einbettung. AtlantikSolar: 0,62 kg/m².'],
   ['solarGeom', 'Einstrahlungsmodell', '', 0, 0, 0, 'solarGeom'], ['camberEta', 'Pauschaler Wölbungsfaktor', '%', 0.5, 50, 100],
-  ['cellX0', 'Zellen ab Flügeltiefe', '%', 1, 0, 60], ['cellX1', 'Zellen bis Flügeltiefe', '%', 1, 30, 100], ['stringLayout', 'Verschaltung', '', 0, 0, 0, 'stringLayout', 'In Tiefenrichtung verschaltete Strings begrenzt die schlechtest beschienene Zelle.'],
+  ['cellX0', 'Zellen frühestens ab Tiefe', '%', 1, 0, 60, null, 'Zusätzliche Grenze vorn, z. B. für einen Nasenkasten. 0 heißt: nur die Biegung begrenzt.'], ['cellX1', 'Zellen spätestens bis Tiefe', '%', 1, 30, 100, null, 'Hinterste Zellkante, z. B. vor der Endleiste. Ohne Freigabe enden die Zellen außerdem vor der Querruderachse.'], ['stringLayout', 'Verschaltung', '', 0, 0, 0, 'stringLayout', 'In Tiefenrichtung verschaltete Strings begrenzt die schlechtest beschienene Zelle.'],
+  ['bypass', 'Verschattete Zellen', '', 0, 0, 0, 'bypass', 'Mit Bypassdiode je Zelle verliert ein Strang etwa die verschattete Fläche. Ohne Bypassdioden bestimmt die am stärksten verschattete Zelle den Strom des ganzen Strangs (je Flügelhälfte bzw. Höhenleitwerk ein Strang); das ist der ungünstigste Fall.'],
   ['mpptEff', 'MPPT-Wirkungsgrad', '%', 0.5, 80, 100], ['laminateLoss', 'Verlust Laminat/Folie', '%', 0.5, 0, 20], ['wiringLoss', 'Verlust Leitungen, Fehlanpassung', '%', 0.5, 0, 20], ['soiling', 'Verschmutzung', '%', 0.5, 0, 20],
   ['tempCoef', 'Temperaturkoeffizient', '%/K', 0.01, 0, 1], ['cellHeat', 'Zellerwärmung', 'K/(W/m²)', 0.005, 0, 0.06, null, '0,02 heißt 20 K über Luft bei 1000 W/m². Fahrtwind kühlt die Zellen.'], ['albedo', 'Bodenreflexion (Albedo)', '', 0.01, 0, 0.9],
   // Umgebung
@@ -189,7 +195,7 @@ const FORMS = {
   quick: ['span', 'area', 'airfoil', 'v', 'mBatt', 'cellType', 'solarArea', 'date', 'lat', 'tStart', 'tEnd', 'tMax', 'tMin'],
   wing: ['span', 'area', 'planform', 'taper', 'centerFrac', 'washout', 'dihedral', 'sweep', 'airfoil', 'transition'],
   tail: ['tailAirfoil', 'tailArm', 'vH', 'vV', 'arH', 'arV', 'zTail', 'etaTail', 'fusL', 'fusD', 'boomD', 'fusFlow', 'kInt', 'kDrag'],
-  config: ['fusType', 'motorPos', 'tailType', 'zTail', 'fusL', 'fusD', 'coneD', 'boomD', 'tailArm'],
+  config: ['fusType', 'motorPos', 'tailType', 'zTail', 'fusL', 'fusD', 'coneD', 'boomD', 'tailArm', 'clrRad', 'clrAx'],
   layout: ['trimMode', 'smTarget', 'xWingLE', 'xBatt', 'zBatt', 'battInWing', 'mAntrieb', 'payloadExtra'],
   layout2: ['htSolar', 'zTail', 'etaTail', 'tailArm', 'vH', 'fusL'],
   wire: ['wireModel', 'mWireFix', 'wireExtra', 'wireDropSol', 'nAilSeg', 'ailEta0', 'ailEta1'],
@@ -207,7 +213,7 @@ const FORMS = {
   vib: ['wCtrl', 'ctrlXcg', 'ctrlBal', 'kServo', 'gvtAil', 'gvtElev', 'gvtRud', 'gvtB1', 'gvtT1', 'gvtFin', 'gvtHT'],
   env: ['date', 'tz', 'lat', 'lon', 'alt', 'hAGL', 'tMax', 'tMin', 'sky'],
   batt: ['mBatt', 'battSpec', 'reserve', 'battHealth', 'etaCharge', 'etaDischarge', 'battTempCoef', 'battHeat', 'chargeC', 'noColdCharge', 'nCells', 'cellV', 'battRAh', 'hStore'],
-  solar: ['solarMode', 'cellType', 'cellA', 'cellB', 'cellVmp', 'cellOrient', 'nCellsWing', 'solarArea', 'cellX0', 'cellX1', 'cellGap', 'cellRootGap', 'cellTipGap', 'cellJointGap', 'cellsOnCtrl', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'stringLayout'],
+  solar: ['solarMode', 'cellType', 'cellA', 'cellD', 'cellThk', 'cellVmp', 'nCellsWing', 'solarArea', 'cellBend', 'cellStrain', 'cellX0', 'cellX1', 'cellGap', 'cellRootGap', 'cellTipGap', 'cellJointGap', 'cellsOnCtrl', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'stringLayout', 'bypass'],
   solar2: ['mpptEff', 'laminateLoss', 'wiringLoss', 'soiling', 'tempCoef', 'cellHeat', 'albedo'],
   wx: ['weather', 'genYears', 'genSeed'],
   wind: ['wind10', 'hellmann', 'weibullK'],
@@ -227,7 +233,8 @@ const SHOW_IF = {
   camberEta: P => P.solarGeom === 'flach', stringLayout: P => P.solarGeom !== 'flach',
   cellX0: P => P.solarGeom !== 'flach' || P.solarMode !== 'area', cellX1: P => P.solarGeom !== 'flach' || P.solarMode !== 'area',
   solarArea: P => P.solarMode === 'area', nCellsWing: P => P.solarMode === 'count',
-  cellA: P => P.cellType === 'custom', cellB: P => P.cellType === 'custom', cellVmp: P => P.cellType === 'custom',
+  cellA: P => P.cellType === 'custom', cellD: P => P.cellType === 'custom', cellThk: P => P.cellType === 'custom', cellVmp: P => P.cellType === 'custom',
+  cellBend: P => P.solarMode !== 'area', cellStrain: P => P.solarMode !== 'area',
   cellOrient: P => P.solarMode !== 'area', cellGap: P => P.solarMode !== 'area', cellRootGap: P => P.solarMode !== 'area', cellTipGap: P => P.solarMode !== 'area',
   cellJointGap: P => P.solarMode !== 'area' && (P.splits === 'outer' || P.splits === 'both'), cellsOnCtrl: P => P.solarMode !== 'area',
   genYears: P => P.weather === 'gen', genSeed: P => P.weather === 'gen',
@@ -257,7 +264,7 @@ function fieldHTML(k, form) {
   const id = `f-${form}-${k}`, help = m.help ? `<span class="help">${esc(m.help)}</span>` : '';
   const lab = `${esc(m.l)}${m.u ? ` <span class="u">${esc(m.u)}</span>` : ''}`;
   const rq = `<button type="button" class="rq-btn" data-rq="${k}" aria-label="Anforderung oder Kommentar: ${esc(m.l)}"></button>`;
-  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'solarMode', 'cellType', 'cellOrient', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
+  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'solarMode', 'cellType', 'cellOrient', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'bypass', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
   if (m.sel === 'bool') return `<div class="field chk wide" data-fk="${k}"><input type="checkbox" id="${id}" data-k="${k}"><label for="${id}">${lab}</label>${rq}${help}</div>`;
   if (m.sel === 'date') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="date" id="${id}" data-k="${k}"></div>`;
   if (m.sel === 'time') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="time" id="${id}" data-k="${k}"></div>`;
@@ -347,6 +354,9 @@ function migrateParams(p) {
   else if (o.motorPos === 'tail') o.motorPos = 'fin';
   else if (o.motorPos === 'wing') o.motorPos = 'nose';
   if (o.mGear !== undefined && o.landGear === undefined) o.landGear = Number(o.mGear) > 0 ? 'skid' : 'belly';
+  // bis Version 8: halbe und Viertelzellen sowie AZUR-Rechteckzellen → ganze C60; eigene Rechteckzelle → Quadrat mit der längeren Kante
+  if (CELL_OLD[o.cellType]) o.cellType = 'c60';
+  if (o.cellType === 'custom' && o.cellB !== undefined && o.cellD === undefined) { o.cellA = Math.max(Number(o.cellA) || 125, Number(o.cellB) || 125); o.cellD = 0; }
   return o;
 }
 function sanitizeComp(c) {

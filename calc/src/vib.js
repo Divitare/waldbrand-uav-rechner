@@ -252,7 +252,11 @@ function finModel(C, opt = {}) {
   const mH = P.wTail * tg.Sh * kR + (C.mass.solarHT || 0), bhs = tg.bh / nb, xH = g.xhLE + 0.4 * tg.ch, pts = [];
   const ht = { key: 'ht', m: mH / nb, J: mH / nb * (bhs ** 2 + tg.ch ** 2) / 12, Jb: mH / nb * bhs ** 2 / 12 };
   pts.push(cf.tail === 'T' ? { ...ht, y: tg.bv, dx: xH - xeaT } : { ...ht, y: 0, dx: xH - xeaR });
-  if (cf.mot === 'fin') { const mM = C.mass.prop; pts.push({ key: 'mot', y: tg.bv, m: mM, dx: g.xMot - xeaT, J: mM * 0.06 ** 2, Jb: mM * 0.03 ** 2 }); }
+  if (cf.mot === 'fin') {
+    const mM = C.mass.prop; pts.push({ key: 'mot', y: tg.bv, m: mM, dx: g.xMot - xeaT, J: mM * 0.06 ** 2, Jb: mM * 0.03 ** 2 });
+    // Motorgondel (Schale vor der Seitenleitwerksspitze)
+    const mN = ts ? ts.nacelle || 0 : 0, n = g.nac; if (mN > 0 && n) { const ln = n.x1 - n.x0; pts.push({ key: 'nac', y: tg.bv, m: mN, dx: (n.x0 + n.x1) / 2 - xeaT, J: mN * ln * ln / 12, Jb: mN * n.d * n.d / 8 }); }
+  }
   pts.push({ key: 'boom', y: 0, m: sp.mLump, dx: sp.xb - xeaR, J: 0, Jb: sp.Jlump });
   const ms = tailServoMass(C, 'rud') / Math.max(1, tg.nFin); if (ms > 0) pts.push({ key: 'servo', y: 0.15 * tg.bv, m: ms, dx: -0.05 * tg.cv, J: 0 });
   if (opt.extra) pts.push(...opt.extra);
@@ -271,7 +275,7 @@ function htModel(C, opt = {}) {
   const mV = (C.struct ? C.struct.parts.fin : P.wTail * tg.Sv) * kR, xV = g.xvLE + 0.4 * tg.cv + g.vSw * 0.42 * tg.bv, zV = g.zV0 + 0.42 * tg.bv;
   // Massen am Trägerende (Halbmodell: halbe Masse); Lage dx hinter der Drehachse der Fläche, Höhe über der Trägerachse
   const tip = [['fin', mV, xV, zV], ['boom', nb * sp.mLump, sp.xb, zR]];
-  if (cf.mot === 'fin') tip.push(['mot', C.mass.prop, g.xMot, g.zP]);
+  if (cf.mot === 'fin') { tip.push(['mot', C.mass.prop, g.xMot, g.zP]); const ts = C.struct && C.struct.tail; if (ts && ts.nacelle > 0 && g.nac) tip.push(['nac', ts.nacelle, (g.nac.x0 + g.nac.x1) / 2, g.nac.z]); }
   const mse = tailServoMass(C, 'elev'); if (mse > 0) tip.push(['servo', mse, g.xhLE + 0.3 * tg.ch, g.zH]);
   const tipPts = tip.map(([key, m, x, z]) => ({ key, y: 0, m: m / 2, dx: x - xeaR, J: m / 2 * (z - zR) ** 2 }));
   const mH2 = (P.wTail * tg.Sh * kR + (C.mass.solarHT || 0)) / 2, Jt = cf.tail === 'T' ? mH2 * (g.zH - zR) ** 2 : 0;   // T-Leitwerk: Fläche über der Trägerachse
@@ -330,6 +334,108 @@ function tailCase(C, which, kB, vD, vMax, sV) {
   const fNom = ctrlFreq(P, ctrlProps(P, cF, P.ctrlBal / 100), isFin ? span : tg.bh, isFin ? P.gvtRud : P.gvtElev);
   return { ...ctrlCase(make, fNom.f, C.rho, vD, vMax, sV, { vMin: vMinOf(C) }), E, cF, span, modes: base.modes, M: base, fNom };
 }
+/* ---------- Wirbelflattern (Whirl Flutter) des Propellers oben am Seitenleitwerk ----------
+   Starre Propellerscheibe an der Seitenleitwerksspitze, bewegt in den Eigenformen von
+   - Seitenleitwerk auf dem Träger (finModel): Gieren ψ der Propellerachse und Querverschiebung v der Nabe,
+     ψ = θ·cos Λ − w′·sin Λ (Drehung eines Längsstrichs am Spitzenschnitt), v = w + f·ψ + Δz·w′
+     (f: Nabe vor der elastischen Achse, Δz: Nabe über der Spitze);
+   - Höhenleitwerk und Träger (htModel, Halbmodell, daher Formen ÷ √2): Nicken θ und Hub u der Nabe am Trägerende.
+   Luftkräfte quasistationär aus der Blattelementtheorie (Ribner 1945; Houbolt & Reed 1962): Querströmung in der
+   Scheibenebene w = V·(ψ, −θ) − (v̇, −u̇), Drehgeschwindigkeit der Scheibe Ω_b = (θ̇, ψ̇);
+     Kraft  F = ½·I_Bt·w + ½·s·I_Bar·Ω_b + T·(ψ, −θ)   (mitgedrehter Schub)
+     Moment M = ½·s·I_Atr·w + ½·I_Aarr·Ω_b
+   mit I_Bt = ∫∂F′/∂U_t dr, I_Bar = ∫r·∂F′/∂U_a dr, I_Atr = ∫r·∂T′/∂U_t dr, I_Aarr = ∫r²·∂T′/∂U_a dr
+   (alle Blätter, F′ = dQ′/r, Blattelemente im Impulsgleichgewicht, Mittelwert über den Umlauf).
+   Kreiselmoment der drehenden Teile M_g = s·J_X·Ω·(−ψ̇, θ̇). Modal: q̈ + (C − D_a − G)q̇ + (Ω² − K_a)q = 0;
+   Eigenwerte über der Fahrt bei Vollgasdrehzahl. Luftkräfte der Leitwerksflächen sind nicht enthalten (vorsichtig). */
+// Ableitungen der Blattkräfte, über den Radius integriert (Vorzeichen: Achse nach vorn, Querkraft gegen die Drehrichtung)
+function whirlDerivs(g, V, n, rho, nu, Ns = 12) {
+  const Om = 2 * Math.PI * n, dr = (g.R - g.Rh) / Ns, out = { IBt: 0, IBar: 0, IAtr: 0, IAarr: 0 };
+  for (let i = 0; i < Ns; i++) {
+    const r = g.Rh + (i + 0.5) * dr, dt = 0.03 * Om * r, da = 0.03 * Math.max(V, 2);
+    const tp = bemtElem(g, V, Om + dt / r, r, rho, nu), tm = bemtElem(g, V, Om - dt / r, r, rho, nu);
+    const ap = bemtElem(g, V + da, Om, r, rho, nu), am = bemtElem(g, Math.max(0.1, V - da), Om, r, rho, nu), dV = V + da - Math.max(0.1, V - da);
+    const At = (tp.dT - tm.dT) / (2 * dt), Bt = (tp.dQ - tm.dQ) / r / (2 * dt), Aa = (ap.dT - am.dT) / dV, Ba = (ap.dQ - am.dQ) / r / dV;
+    out.IBt += Bt * dr; out.IBar += r * Ba * dr; out.IAtr += r * At * dr; out.IAarr += r * r * Aa * dr;
+  }
+  return out;
+}
+// Drehträgheit der drehenden Teile: Blätter (Masse ∝ D^2,5, 0,1 kg bei 0,6 m und zwei Blättern, J = 0,2·m·R²) und Glocke des Motors
+function propSpinInertia(P, g) {
+  const mP = 0.1 * Math.pow(2 * g.R / 0.6, 2.5) * Math.max(2, g.B) / 2, mR = 0.2 * Math.max(0, P.mAntrieb);
+  return { mP, J: 0.2 * mP * g.R * g.R + 0.5 * mR * 0.025 ** 2 * Math.max(1, P.gearRatio) };
+}
+function whirlModel(C, opt = {}) {
+  const P = C.P, g = C.bal.g, cf = C.cfg; if (cf.mot !== 'fin') return null;
+  const fm = finModel(C, { kB: opt.kL || 1 }), hm = htModel(C, { kB: opt.kV || 1 }), sL = Math.sin(Math.atan(fm.bm.tanL)), cL = Math.cos(Math.atan(fm.bm.tanL));
+  const f = fm.xeaT - g.xProp, dz = g.zP - g.zV1, modes = [], k2 = 1 / Math.SQRT2;
+  for (const m of fm.modes.filter(m => m.omega > 0).slice(0, 4)) {
+    const [w, wp, th] = beamNode(fm.bm, m.phi, fm.bm.nEl), psi = th * cL - wp * sL;
+    modes.push({ src: 'fin', label: 'Seitenleitwerk ' + m.label, omega: m.omega, psi, v: w + f * psi + dz * wp, th: 0, u: 0 });
+  }
+  for (const m of hm.modes.filter(m => m.omega > 0).slice(0, 3)) {
+    const [w0, , t0] = beamNode(hm.bm, m.phi, 0), tb = hm.all ? m.phi[hm.bm.n - 1] : t0;
+    modes.push({ src: 'ht', label: 'Höhenleitwerk/Träger ' + m.label, omega: m.omega, psi: 0, v: 0, th: tb * k2, u: (w0 - (g.xProp - hm.xeaR) * tb) * k2 });
+  }
+  return { fm, hm, modes, f, dz };
+}
+// Systemmatrix bei Fahrt V: Zustand [q; q̇]
+function whirlMatrix(M, d, V, T, Om, JX, s = 1, zeta = VIB_ZETA) {
+  const md = M.modes, n = md.length, A = zeros(2 * n, 2 * n);
+  const tau = m => [m.psi, -m.th], h = m => [m.v, -m.u], R = m => [m.th, m.psi], dot = (a, b) => a[0] * b[0] + a[1] * b[1];
+  for (let i = 0; i < n; i++) {
+    A[i][n + i] = 1;
+    for (let j = 0; j < n; j++) {
+      const mi = md[i], mj = md[j];
+      const Ka = (0.5 * d.IBt * V + T) * dot(h(mi), tau(mj)) + 0.5 * s * d.IAtr * V * dot(R(mi), tau(mj));
+      const Da = -0.5 * d.IBt * dot(h(mi), h(mj)) + 0.5 * s * d.IBar * dot(h(mi), R(mj)) - 0.5 * s * d.IAtr * dot(R(mi), h(mj)) + 0.5 * d.IAarr * dot(R(mi), R(mj));
+      const Gy = s * JX * Om * (mi.psi * mj.th - mi.th * mj.psi);
+      A[n + i][j] = Ka - (i === j ? mi.omega * mi.omega : 0);
+      A[n + i][n + j] = Da + Gy - (i === j ? 2 * zeta * mi.omega : 0);
+    }
+  }
+  return A;
+}
+function whirlCase(C, opt = {}) {
+  const M = whirlModel(C, opt); if (!M || !M.modes.length) return null;
+  const P = C.P, g0 = propGeometry(P), sp = propSpinInertia(P, g0), vS = vMinOf(C), vMax = opt.vMax || Math.max(2.2 * 1.2 * P.vmax, 60), N = opt.nStep || 28, s = 1;
+  const scan = [];
+  let vf = null, wf = null, kind = null, crit = null, prev = null;
+  for (let k = 0; k <= N; k++) {
+    const V = vS + (vMax - vS) * k / N, mt = propMaxThrust(C, V, C.rho), n = mt.n, Om = 2 * Math.PI * n;
+    const d = whirlDerivs(g0, V, n, C.rho, C.nu), A = whirlMatrix(M, d, V, mt.T, Om, sp.J, s);
+    let worst = null;
+    for (const z of eigReal(A)) { if (!(z.im > 1e-6)) continue; const om = Math.hypot(z.re, z.im), ze = -z.re / om; if (!worst || ze < worst.zeta) worst = { zeta: ze, re: z.re, im: z.im }; }
+    const row = { V, rpm: n * 60, T: mt.T, zeta: worst ? worst.zeta : NaN, f: worst ? worst.im / (2 * Math.PI) : NaN, d };
+    scan.push(row);
+    if (!vf && worst && worst.zeta < 0) {
+      if (prev && fin(prev.zeta) && prev.zeta >= 0) { const t = prev.zeta / (prev.zeta - worst.zeta); vf = prev.V + (V - prev.V) * t; wf = 2 * Math.PI * (prev.f + (row.f - prev.f) * t); }
+      else { vf = V; wf = worst.im; }
+      crit = row;
+    }
+    prev = row;
+  }
+  // Drehsinn der kritischen Bewegung gegenüber dem Propeller (rückwärts: gegen die Drehrichtung)
+  if (crit) {
+    const A = whirlMatrix(M, crit.d, crit.V, crit.T, 2 * Math.PI * crit.rpm / 60, sp.J, s), ev = eigReal(A).filter(z => z.im > 1e-6).sort((a, b) => b.re / Math.hypot(b.re, b.im) - a.re / Math.hypot(a.re, a.im))[0];
+    kind = ev ? whirlSense(A, ev, M, s) : null;
+  }
+  // Sicherheitsabstand bei 1,2·V_D: kleinste Dämpfung im Betrieb
+  const op = scan.filter(r => r.V <= 1.2 * P.vmax + 1e-9 && fin(r.zeta)), zMin = op.length ? Math.min(...op.map(r => r.zeta)) : NaN;
+  return { vf, wf, kind, scan, M, JX: sp.J, mProp: sp.mP, zMin, vS, vMax, atMin: !!(vf && vf <= vS + 1e-6) };
+}
+// Rückwärts- oder Vorwärtswirbel: Umlaufsinn der Achsenspitze (ψ, −θ) aus dem Eigenvektor (inverse Iteration, komplex)
+function whirlSense(A, ev, M, s) {
+  const n = A.length, re = A.map((r, i) => r.map((v, j) => v - (i === j ? ev.re : 0))), im = A.map((r, i) => r.map((v, j) => (i === j ? -ev.im : 0)));
+  // (A − λI)x = b als reelles System doppelter Größe, leicht verschoben gegen Singularität
+  const big = zeros(2 * n, 2 * n); for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const a = re[i][j] + (i === j ? 1e-7 : 0), b = im[i][j]; big[i][j] = a; big[i][n + j] = -b; big[n + i][j] = b; big[n + i][n + j] = a; }
+  let x = new Array(2 * n).fill(0).map((_, i) => (i % 3 === 0 ? 1 : 0.3));
+  for (let it = 0; it < 3; it++) { const y = solveLin(big, x), nn = Math.hypot(...y) || 1; x = y.map(v => v / nn); }
+  const nm = M.modes.length; let Ar = 0, Ai = 0, Br = 0, Bi = 0;
+  for (let j = 0; j < nm; j++) { const qr = x[j], qi = x[n + j], m = M.modes[j]; Ar += m.psi * qr; Ai += m.psi * qi; Br += -m.th * qr; Bi += -m.th * qi; }
+  const L = -ev.im * (Ar * Bi - Ai * Br);   // −ω·Im(conj(A)·B): positiv = Umlauf im Drehsinn um die Vorwärtsachse
+  return Math.abs(L) < 1e-12 ? null : L * s > 0 ? 'vorwärts' : 'rückwärts';
+}
 // Eichung aus dem Standschwingversuch: Faktor k so, dass die Modellfrequenz die gemessene trifft (k ∝ f²)
 function calibrate(fModel, fMeas, k0 = 1) { return fMeas > 0 && fModel > 0 ? k0 * (fMeas / fModel) ** 2 : k0; }
 // Gesamtauswertung (rechenintensiv, für die Ansicht Struktur)
@@ -363,13 +469,16 @@ function vibAnalysis(C) {
   out.kL = kL; out.kV = kV;
   out.fin = tailCase(C, 'fin', kL, P.vmax, vMax, sl.V);
   out.ht = tailCase(C, 'ht', kV, P.vmax, vMax, sl.H);
+  // Motor auf dem Seitenleitwerk: Wirbelflattern des Propellers
+  out.whirl = C.cfg.mot === 'fin' ? whirlCase(C, { kL, kV, vMax }) : null;
   // Zusammenfassung
   const cases = [
     { k: 'wing', name: 'Flügel (Biegung–Torsion)', vf: out.wing.vf, kind: out.wing.kind, atMin: out.wing.atMin },
     { k: 'bff', name: out.bff.type === 'bff' ? 'Freies Flugzeug (Body-Freedom)' : 'Freies Flugzeug (symmetrisch)', vf: out.bff.vf, kind: out.bff.kind, atMin: out.bff.atMin },
     { k: 'ail', name: 'Querruder', vf: out.ail.vf, kind: out.ail.kindF, atMin: out.ail.atMin, free: out.ail.free.vf, kindFree: out.ail.free.kind },
     { k: 'fin', name: 'Seitenleitwerk mit Seitenruder', vf: out.fin.vf, kind: out.fin.kindF, atMin: out.fin.atMin, free: out.fin.free.vf, kindFree: out.fin.free.kind },
-    { k: 'ht', name: out.ht.all ? 'Höhenleitwerk (Pendelruder)' : 'Höhenleitwerk mit Höhenruder', vf: out.ht.vf, kind: out.ht.kindF, atMin: out.ht.atMin, free: out.ht.free.vf, kindFree: out.ht.free.kind }
+    { k: 'ht', name: out.ht.all ? 'Höhenleitwerk (Pendelruder)' : 'Höhenleitwerk mit Höhenruder', vf: out.ht.vf, kind: out.ht.kindF, atMin: out.ht.atMin, free: out.ht.free.vf, kindFree: out.ht.free.kind },
+    ...(out.whirl ? [{ k: 'whirl', name: 'Propeller-Wirbelflattern (Motor am Seitenleitwerk)', vf: out.whirl.vf, kind: 'whirl', atMin: out.whirl.atMin }] : [])
   ];
   cases.forEach(c => { c.ok = !(c.vf && c.vf < vReq); c.okFree = !(c.free && c.free < P.vmax); });
   out.cases = cases; out.vfMin = cases.reduce((a, c) => (c.vf && (!a || c.vf < a) ? c.vf : a), null);

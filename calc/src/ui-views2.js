@@ -110,13 +110,45 @@ RENDER.energie = (R) => {
   if (sg.flat) ser.push({ name: 'Pauschal (ETH)', c: 1, pts: ex.map(k => [k, Math.sin(k * DEG) * P.camberEta / 100]), fmt: v => nf(v, 3) });
   else { ser.push({ name: 'Gewölbt, Geradeausflug', c: 1, pts: ex.map(k => [k, sg.lvl.Fb[k]]), fmt: v => nf(v, 3) }); if (P.turnFrac > 0) ser.push({ name: `Gewölbt, Kurve ${nf(P.bank, 0)}°`, c: 2, pts: ex.map(k => [k, sg.turn.Fb[k]]), fmt: v => nf(v, 3) }); }
   lineChart($('#ch-solgeo'), { h: 200, title: 'Direktstrahlung auf die Zellen je W/m² senkrechter Einstrahlung', x: { min: 0, max: 90, fmt: v => nf(v, 0) + '°', title: 'Sonnenhöhe' }, y: { min: 0, max: 1, fmt: v => nf(v, 1) }, series: ser });
-  $('#sol-sub').textContent = sg.flat ? 'Pauschaler Wölbungsfaktor wie im ETH-Werkzeug.' : `Mittel über alle Kurse zur Sonne. Anstellwinkel ${nf(sg.pitch, 1)}°, Zellen ${nf(P.cellX0, 0)}–${nf(P.cellX1, 0)} % der Tiefe auf ${C.foil.name}. Diffus ${nf(sg.Fd * 100, 1)} %, Bodenreflexion ${nf(sg.Fg * 100, 1)} % der jeweiligen Strahlung.`;
+  $('#sol-sub').textContent = sg.flat ? 'Pauschaler Wölbungsfaktor wie im ETH-Werkzeug.' : `Mittel über alle Kurse zur Sonne. Anstellwinkel ${nf(sg.pitch, 1)}°, Zellen im Mittel ${nf(C.solar.x0 * 100, 0)}–${nf(C.solar.x1 * 100, 0)} % der Tiefe auf ${C.foil.name}. Diffus ${nf(sg.Fd * 100, 1)} %, Bodenreflexion ${nf(sg.Fg * 100, 1)} % der jeweiligen Strahlung.`;
 };
-// Zellbelegung: ganze Rechteckzellen auf Flügel und Höhenleitwerk (solar.js)
+// Schatten auf Flügel- und Leitwerkszellen (shade.js): Verlust der Direktstrahlung über der Sonnenhöhe und am Auslegungstag
+function renderShade(R) {
+  const { C, P, e } = R, sh = C.shade, s = C.sol, area = C.solar.mode === 'area';
+  const byp = sh.bypass ? 'mit Bypassdiode je Zelle (Verlust etwa die verschattete Fläche)' : 'ohne Bypassdioden: die am stärksten verschattete Zelle bestimmt den Strom des Strangs (je Flügelhälfte bzw. Höhenleitwerk)';
+  $('#shade-sub').textContent = area ? 'Bei frei eingegebener Zellfläche gibt es keine Zelllagen; Schatten werden nicht gerechnet.' : `Seitenleitwerk, Motorgondel, Pylon und Propellerkreis (deckt im Mittel ${nf(sh.sig * 100, 1)} %, die Blattfläche je Kreisfläche) werfen Schatten, gemittelt über alle Kurse zur Sonne. Verschaltung ${byp}. Der Schatten nimmt die Direktstrahlung weg, die diffuse bleibt.`;
+  // Tagesverlust: Direktstrahlung mit und ohne Schatten (ohne Temperatureinfluss)
+  let eW = 0, eW0 = 0, eH = 0, eH0 = 0, eAll = 0;
+  const kW = C.solKW, kH = C.solKH;
+  for (let i = 0; i < NSTEP; i++) {
+    const se = e.sinE[i]; if (se <= 0) continue;
+    const bW0 = e.dni[i] * fbAt(s.FbW0 || s.Fb, se) * kW, bW = e.dni[i] * fbAt(s.FbW || s.Fb, se) * kW;
+    eW0 += bW0; eW += bW; eAll += e.dni[i] * fbAt(s.Fb, se) * (kW + kH) + (e.dhi[i] * s.Fd + e.ghi[i] * P.albedo * s.Fg) * (kW + kH);
+    if (kH > 0 && s.FbH) { eH0 += e.dni[i] * fbAt(s.FbH0, se) * kH; eH += e.dni[i] * fbAt(s.FbH, se) * kH; }
+  }
+  const lossW = eW0 - eW, lossH = eH0 - eH, tot = eAll + lossW + lossH;
+  $('#kpis-shade').innerHTML = area ? '' : [
+    kpi('Verlust Flügel', nf(tot > 0 ? lossW / tot * 100 : 0, 1), '%', `${nf(lossW * DT, 0)} Wh am ${fmtDoy(R.n, R.y)} · ${sh.nW} Zellen`),
+    kpi('Verlust Höhenleitwerk', sh.nH ? nf(eH0 > 0 ? lossH / eH0 * 100 : 0, 1) : '–', sh.nH ? '%' : '', sh.nH ? `der Direktstrahlung auf ${sh.nH} Leitwerkszellen · ${nf(lossH * DT, 0)} Wh` : 'keine Zellen auf dem Höhenleitwerk'),
+    kpi('Verschaltung', sh.bypass ? 'Bypass' : 'ohne', '', sh.bypass ? 'Diode je Zelle' : 'schwächste Zelle bestimmt den Strang', sh.bypass ? '' : 'bad')
+  ].join('');
+  if (area) { $('#ch-shade').innerHTML = ''; $('#tbl-shade').innerHTML = ''; return; }
+  const ex = []; for (let d = 5; d <= 90; d += 1) ex.push(d);
+  const ser = [{ name: 'Flügel', c: 2, pts: ex.map(d => [d, sh.W[d] * 100]), fmt: v => nf(v, 1) + ' %' }];
+  if (sh.nH) ser.push({ name: 'Höhenleitwerk', c: 1, pts: ex.map(d => [d, sh.H[d] * 100]), fmt: v => nf(v, 1) + ' %' });
+  lineChart($('#ch-shade'), { h: 190, title: 'Verlust der Direktstrahlung durch Schatten', x: { min: 5, max: 90, fmt: v => nf(v, 0) + '°', title: 'Sonnenhöhe' }, y: { min: 0, max: Math.max(5, ...ser.flatMap(q => q.pts.map(p => p[1]))) * 1.1, fmt: v => nf(v, 0) + ' %' }, series: ser, legend: ser.length > 1 });
+  // Beitrag je Schattenwerfer (verschattete Fläche, ohne Verschaltung) bei 20° und 45°
+  const at = (pts, d) => { const p = pts.find(q => q[0] >= d) || pts[pts.length - 1]; return p[1]; };
+  const rows = [];
+  for (const [g, lab] of [['W', 'Flügel'], ['H', 'Höhenleitwerk']]) for (const [k, pts] of Object.entries(sh.by[g] || {})) { const a = at(pts, 17), b = at(pts, 40); if (a > 1e-4 || b > 1e-4) rows.push(`<tr><td>${esc(sh.names[k] || k)}</td><td>${lab}</td><td class="n">${nf(a * 100, 2)} %</td><td class="n">${nf(b * 100, 2)} %</td></tr>`); }
+  $('#tbl-shade').innerHTML = rows.length ? `<thead><tr><th>Schattenwerfer</th><th>auf</th><th class="n">bei 17°</th><th class="n">bei 40°</th></tr></thead><tbody>${rows.join('')}</tbody><caption>Verschattete Zellfläche im Mittel über alle Kurse, ohne den Einfluss der Verschaltung.</caption>` : '';
+}
+// Zellbelegung: ganze Zellen auf Flügel und Höhenleitwerk (solar.js)
 function renderCells(R) {
   const { C, P } = R, so = C.solar, sp = so.spec, pf = C.pf, area = so.mode === 'area';
   const uFull = Math.max(1, Math.round(P.nCells)) * cellOCV(P, 1);
-  $('#cells-sub').textContent = area ? `Fläche frei eingegeben. Zum Vergleich das Raster mit ${sp.name}.` : `${sp.name}, ${nf(P.cellGap, 1)} mm Abstand, ${nf(P.cellX0, 0)}–${nf(P.cellX1, 0)} % der Tiefe${P.cellsOnCtrl ? ', auch auf den Rudern' : ', vor den Ruderachsen'}. Spalten in Flugrichtung, je Spalte ${P.cellOrient === 'auto' ? 'die günstigere Ausrichtung' : 'feste Ausrichtung'}.`;
+  const lim = so.lim;
+  $('#cells-sub').textContent = area ? `Fläche frei eingegeben (nur für Vergleiche). Zum Vergleich das Raster mit ${sp.name}.` : `${sp.name}, ${nf(P.cellGap, 1)} mm Abstand. Jede Zelle folgt der gewölbten Oberseite: Stich höchstens ${nf(lim.beta * 100, 1)} % der Zelllänge (Biegeradius ≥ ${nf(sp.s / (8 * lim.beta) * 1000, 0)} mm), Randdehnung höchstens ${nf(lim.eps * 100, 2)} % (${nf(sp.t * 1e6, 0)} µm dick). Daraus das Zellband je Flügeltiefe (gestrichelt)${lim.x0 > 0 || lim.x1 < 1 ? `, dazu die Grenzen ${nf(lim.x0 * 100, 0)}–${nf(lim.x1 * 100, 0)} %` : ''}${P.cellsOnCtrl ? ', auch auf den Rudern' : ', vor den Ruderachsen'}. Spalten in Flugrichtung von der Wurzel nach außen.`;
   $('#kpis-cells').innerHTML = [
     kpi('Zellen Flügel', (area ? '≈ ' : '') + nf(so.n, 0), '', area ? `aus ${nf(so.a, 2)} m² und ${nf(sp.A * 1e4, 1)} cm² je Zelle` : `${nf(so.nHalf, 0)} je Hälfte · ${nf(sp.A * 1e4, 1)} cm² je Zelle`, !so.fits ? 'bad' : ''),
     kpi('Aktive Zellfläche', nf(so.a, 3), 'm²', `${pct(so.a / pf.S)} der Flügelfläche · Modul mit Fugen ${nf(so.aMod, 3)} m²`),
@@ -130,8 +162,17 @@ function renderCells(R) {
   else if (area && so.overMax) msg.push(pillF('info', `Mit ganzen Zellen (${sp.name}) passen höchstens ${nf(so.max.a, 2)} m²; die eingegebene Fläche ist zu optimistisch`, 'sol-pack'));
   if (so.ht.want > 0 && !so.ht.fits) msg.push(pillF('info', `Auf dem Höhenleitwerk passen höchstens ${nf(so.ht.max, 3)} m² ganze Zellen; gerechnet wird damit`, 'sol-pack'));
   if (!area && so.nHalf * sp.vmp < uFull * 1.05) msg.push(pillF('info', `Eine Flügelhälfte in Reihe liefert ${nf(so.nHalf * sp.vmp, 1)} V, der volle Akku ${nf(uFull, 1)} V: ein Abwärtswandler-MPPT braucht mehr Spannung, also Aufwärtswandler oder beide Hälften in Reihe`, 'sol-pack'));
+  if (sp.old) msg.push(pill('info', 'Halbe und Viertelzellen sowie Rechteckzellen gibt es nicht mehr: gerechnet mit ganzen C60-Zellen.'));
+  if (!area && so.bands.some(b => !b.b)) msg.push(pillF('info', `Ohne Zellen: ${so.bands.filter(b => !b.b).map(b => `${b.l} (${nf(b.c * 100, 0)} cm tief)`).join(', ')} – dort ist das Profil für eine ${nf(sp.s * 1000, 0)}-mm-Zelle zu stark gewölbt oder zu kurz`, 'sol-bend'));
   $('#cells-msg').innerHTML = msg.join('');
   cellsSVG($('#svg-cells'), C);
+  renderShade(R);
+  // Zellband an ausgewählten Stellen der Spannweite
+  const why = { bend: 'Stich', strain: 'Dehnung', limit: 'Eingabe', ctrl: 'Ruderachse' };
+  $('#tbl-band').innerHTML = area ? '' : `<thead><tr><th>Stelle</th><th class="n">Tiefe</th><th class="n">vorn</th><th class="n">hinten</th><th class="n">Zellen in Flugrichtung</th><th>begrenzt durch</th><th class="n">Stich max.</th><th class="n">Dehnung max.</th></tr></thead><tbody>` +
+    so.bands.map(r => { const b = r.b; return `<tr><td>${esc(r.l)} <span class="muted small">η ${nf(r.eta, 2)}</span></td><td class="n">${nf(r.c * 100, 1)} cm</td>` + (b ? `<td class="n">${nf(b.x0 * 100, 1)} %</td><td class="n">${nf(b.x1 * 100, 1)} %</td><td class="n">${b.n}</td><td>${why[b.why0]} / ${why[b.why1]}</td><td class="n">${nf(b.fMax * 100, 1)} %</td><td class="n">${nf(b.eps * 100, 3)} %</td>` : `<td class="n crit" colspan="3">keine Zelle</td><td colspan="3" class="muted">Profil zu stark gewölbt oder Tiefe zu klein</td>`) + '</tr>'; }).join('') +
+    (so.bandH ? `<tr><td>Höhenleitwerk</td><td class="n">${nf(C.tail.ch * 100, 1)} cm</td><td class="n">${nf(so.bandH.x0 * 100, 1)} %</td><td class="n">${nf(so.bandH.x1 * 100, 1)} %</td><td class="n">${so.bandH.n}</td><td>${why[so.bandH.why0]} / ${why[so.bandH.why1]}</td><td class="n">${nf(so.bandH.fMax * 100, 1)} %</td><td class="n">${nf(so.bandH.eps * 100, 3)} %</td></tr>` : '') +
+    `</tbody><caption>Vorn und hinten: erste und letzte Zellkante in % der örtlichen Tiefe. Stich: größter Abstand der Kontur von der Sehne einer Zelle, bezogen auf ihre Länge. Dehnung: ε = κ·t/2 mit der Krümmung über rund 1 cm. Profil ${esc(C.foil.name)}.</caption>`;
 }
 function renderStudy(R) {
   const P = S.params, tabs = $('#study-tabs');

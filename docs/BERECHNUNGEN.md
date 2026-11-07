@@ -15,19 +15,20 @@ typischer Profilschnitt nach Hodges & Pierce (ohne und mit Ruder), Navion (Eigen
 - [Profile und Tragflügel](#profile-und-tragfluegel) (6)
 - [Widerstand und Flugleistung](#widerstand-und-flugleistung) (8)
 - [Anordnung, Massen und Schwerpunkt](#anordnung-massen-und-schwerpunkt) (6)
+- [Bauraum und Freigang](#bauraum-und-freigang) (3)
 - [Flügelstruktur und Lasten](#fluegelstruktur-und-lasten) (8)
 - [Leitwerk, Träger, Start und Landung](#leitwerk-traeger-start-und-landung) (9)
 - [Verkabelung](#verkabelung) (3)
 - [Antrieb und Propellerstrahl](#antrieb-und-propellerstrahl) (8)
 - [Stabilität und Flugdynamik](#stabilitaet-und-flugdynamik) (5)
 - [Ruder](#ruder) (7)
-- [Aeroelastik und Schwingungen](#aeroelastik-und-schwingungen) (13)
-- [Solarenergie und Wetter](#solarenergie-und-wetter) (8)
+- [Aeroelastik und Schwingungen](#aeroelastik-und-schwingungen) (14)
+- [Solarenergie und Wetter](#solarenergie-und-wetter) (10)
 - [Akku und Energiehaushalt](#akku-und-energiehaushalt) (7)
 - [Einsatz, Sensorik und Turbulenz](#einsatz-sensorik-und-turbulenz) (9)
 - [Betriebsrisiko (SORA)](#betriebsrisiko-sora) (2)
 - [Anforderungen und Entwurfsvorschläge](#anforderungen-und-entwurfsvorschlaege) (4)
-- [Literatur](#literatur) (79)
+- [Literatur](#literatur) (86)
 
 ## Atmosphäre
 
@@ -41,7 +42,7 @@ h Höhe über NN in m (Troposphäre)
 
 **Stellgrößen:** Geländehöhe über NN (`alt`), Flughöhe über Grund (`hAGL`)
 
-**Quelle:** [39] ISO 2533:1975
+**Quelle:** [41] ISO 2533:1975
 
 **Im Code:** `core.js · pressure`
 
@@ -55,7 +56,7 @@ T Lufttemperatur in Flughöhe: Tagesmittel am Boden minus 6,5 K/km
 
 **Stellgrößen:** Geländehöhe über NN (`alt`), Flughöhe über Grund (`hAGL`), Lufttemperatur Maximum (Boden) (`tMax`), Lufttemperatur Minimum (Boden) (`tMin`)
 
-**Quelle:** [39] ISO 2533:1975
+**Quelle:** [41] ISO 2533:1975
 
 **Im Code:** `core.js · rhoAt, buildCase`
 
@@ -67,7 +68,7 @@ T Lufttemperatur in Flughöhe: Tagesmittel am Boden minus 6,5 K/km
 
 **Stellgrößen:** Lufttemperatur Maximum (Boden) (`tMax`), Lufttemperatur Minimum (Boden) (`tMin`)
 
-**Quelle:** [73] Sutherland, W; [39] ISO 2533:1975
+**Quelle:** [78] Sutherland, W; [41] ISO 2533:1975
 
 **Im Code:** `core.js · muAir, nuAt`
 
@@ -83,7 +84,7 @@ Umschlag frei (N_krit 9) oder fest an der Zellkante
 
 **Stellgrößen:** Profil (`airfoil`), Grenzschicht Flügel (`transition`), Reisegeschwindigkeit (wahre Fahrt) (`v`)
 
-**Quelle:** [17] Drela, M
+**Quelle:** [18] Drela, M
 
 **Im Code:** `core.js · profileCd, rowCd`
 
@@ -98,7 +99,7 @@ a₀ Profilauftriebsanstieg, ε Schränkung, Spiegelung an der Symmetrieebene
 
 **Stellgrößen:** Spannweite (`span`), Flügelfläche (`area`), Grundriss (`planform`), Zuspitzung (Spitze/Wurzel) (`taper`), Anteil Rechteck-Mittelteil (`centerFrac`), Schränkung an der Spitze (`washout`), Pfeilung der t/4-Linie (`sweep`)
 
-**Quelle:** [76] Weissinger, J; [43] Katz, J., Plotkin, A, Kap. 12
+**Quelle:** [83] Weissinger, J; [45] Katz, J., Plotkin, A, Kap. 12
 
 **Im Code:** `vlm.js · vlmWing`
 
@@ -110,7 +111,7 @@ C_Di = Σ Γ_j·w_j·Δy_j / (½·V²·S),  w aus der Wirbelschleppe in der Tref
 
 **Stellgrößen:** Spannweite (`span`), Flügelfläche (`area`), Grundriss (`planform`), Zuspitzung (Spitze/Wurzel) (`taper`), Schränkung an der Spitze (`washout`)
 
-**Quelle:** [43] Katz, J., Plotkin, A, Kap. 8.4
+**Quelle:** [45] Katz, J., Plotkin, A, Kap. 8.4
 
 **Im Code:** `vlm.js · vlmWing`
 
@@ -122,7 +123,7 @@ c_l,Profil = c_l / cos²Λ (einfache Pfeilungstheorie)
 
 **Stellgrößen:** Pfeilung der t/4-Linie (`sweep`)
 
-**Quelle:** [64] Raymer, D, Kap. 12
+**Quelle:** [67] Raymer, D, Kap. 12
 
 **Im Code:** `core.js · aeroCore`
 
@@ -136,7 +137,7 @@ die erste Station, die c_l,max erreicht, begrenzt den Flügel
 
 **Stellgrößen:** Profil (`airfoil`), Grundriss (`planform`), Schränkung an der Spitze (`washout`), Zuspitzung (Spitze/Wurzel) (`taper`)
 
-**Quelle:** [64] Raymer, D, Kap. 12.4; [5] Anderson, J, Kap. 5
+**Quelle:** [67] Raymer, D, Kap. 12.4; [5] Anderson, J, Kap. 5
 
 **Im Code:** `core.js · wingClmax`
 
@@ -150,7 +151,7 @@ Leitwerke; Seitenleitwerk mit wirksamer Streckung k·Λ_S (Endscheibe Rumpf bzw.
 
 **Stellgrößen:** Streckung Höhenleitwerk (`arH`), Streckung Seitenleitwerk (`arV`), Leitwerksform (`tailType`), Rumpfform (`fusType`)
 
-**Quelle:** [33] Hoak, D, 4.1.3.2; [5] Anderson, J, Kap. 5.3
+**Quelle:** [34] Hoak, D, 4.1.3.2; [5] Anderson, J, Kap. 5.3
 
 **Im Code:** `dyn.js · helmbold; layout.js · neutralPoint`
 
@@ -166,7 +167,7 @@ q = ½ρV²; Anbauten mit Interferenzzuschlag k_I
 
 **Stellgrößen:** Interferenz und Spalte (`kInt`), Widerstandsreserve gesamt (`kDrag`), Reisegeschwindigkeit (wahre Fahrt) (`v`)
 
-**Quelle:** [64] Raymer, D, Kap. 12.5; [35] Hoerner, S
+**Quelle:** [67] Raymer, D, Kap. 12.5; [36] Hoerner, S
 
 **Im Code:** `core.js · aeroCore`
 
@@ -178,7 +179,7 @@ c_f,turb = 0,074·Re^−0,2;  teilweise laminar: c_f = 0,074·Re^−0,2 − 1742
 
 **Stellgrößen:** Grenzschicht Rumpf (`fusFlow`)
 
-**Quelle:** [69] Schlichting, H., Gersten, K, Kap. 21
+**Quelle:** [74] Schlichting, H., Gersten, K, Kap. 21
 
 **Im Code:** `core.js · cfFlat`
 
@@ -190,7 +191,7 @@ C_D·A = c_f·(1 + 60/f³ + f/400)·S_benetzt,  f = L/D
 
 **Stellgrößen:** Rumpfform (`fusType`), Rumpfgondel Länge (`fusL`), Rumpfgondel Durchmesser (`fusD`), Rumpfröhre am Leitwerk Durchmesser (`coneD`), Grenzschicht Rumpf (`fusFlow`)
 
-**Quelle:** [64] Raymer, D, Gl. 12.31
+**Quelle:** [67] Raymer, D, Gl. 12.31
 
 **Im Code:** `core.js · aeroCore`
 
@@ -204,7 +205,7 @@ q_H/q, q_S/q Staudruckverhältnis im Propellerstrahl
 
 **Stellgrößen:** Leitwerksprofil (`tailAirfoil`), Staudruckverhältnis am Leitwerk (`etaTail`), Streckung Höhenleitwerk (`arH`)
 
-**Quelle:** [64] Raymer, D, Kap. 12; [50] McCormick, B, Kap. 6
+**Quelle:** [67] Raymer, D, Kap. 12; [52] McCormick, B, Kap. 6
 
 **Im Code:** `core.js · aeroCore`
 
@@ -218,7 +219,7 @@ x_S Schwerpunkt, x_N,F und x_N,H Neutralpunkte von Flügel und Leitwerk; ΔM aus
 
 **Stellgrößen:** Ziel-Stabilitätsmaß (`smTarget`), Motoranordnung (`motorPos`), Flügelvorderkante an der Wurzel (`xWingLE`), Leitwerkshebelarm (`tailArm`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 2; [57] Nelson, R, Kap. 2
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 2; [59] Nelson, R, Kap. 2
 
 **Im Code:** `layout.js · tailLoad`
 
@@ -230,7 +231,7 @@ P_el = T·V/η_ges + I²·R_Leitung,  T = D (Kurvenflug: n = 1/cos φ)
 
 **Stellgrößen:** Reisegeschwindigkeit (wahre Fahrt) (`v`), Querneigung im Kurvenflug (`bank`), Anteil Kurvenflug (`turnFrac`), Antriebsmodell (`propModel`), Gesamtwirkungsgrad (`etaTotal`)
 
-**Quelle:** [59] Noth, A, Kap. 3; [48] Leutenegger, S., Jabas, M., Siegwart, R
+**Quelle:** [61] Noth, A, Kap. 3; [50] Leutenegger, S., Jabas, M., Siegwart, R
 
 **Im Code:** `core.js · flightPower`
 
@@ -270,7 +271,7 @@ Strukturmasse hängt über die Lasten von m ab: Iteration bis |Δm| < 1 mg
 
 **Stellgrößen:** Akkumasse (`mBatt`), Zellfläche Flügel (`solarArea`), Masse Antrieb (Motor, Regler, Propeller) (`mAntrieb`), Strukturmasse (`structMode`)
 
-**Quelle:** [59] Noth, A, Kap. 3; [48] Leutenegger, S., Jabas, M., Siegwart, R
+**Quelle:** [61] Noth, A, Kap. 3; [50] Leutenegger, S., Jabas, M., Siegwart, R
 
 **Im Code:** `core.js · buildCase`
 
@@ -283,7 +284,7 @@ I_yy = Σ(m_i(x_i² + z_i²)) − m(x_S² + z_S²) + ΣI_yy,0,i,  I_xz = Σm_i·
 
 **Stellgrößen:** Akku-Schwerpunkt (`xBatt`), Akku Höhe über Rumpfachse (`zBatt`), Flügelvorderkante an der Wurzel (`xWingLE`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 4.3
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 4.3
 
 **Im Code:** `layout.js · massItems`
 
@@ -297,7 +298,7 @@ a_F aus dem Wirbelgitter, V_H = S_H/S, k_el elastische Leitwerkswirksamkeit, C_N
 
 **Stellgrößen:** Leitwerkshebelarm (`tailArm`), Höhenleitwerksvolumen (`vH`), Streckung Höhenleitwerk (`arH`), Leitwerksfuß über Flügelebene (`zTail`), Staudruckverhältnis am Leitwerk (`etaTail`), Motoranordnung (`motorPos`), Rumpfform (`fusType`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 2.3; [64] Raymer, D, Kap. 16.3; [66] Ribner, H
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 2.3; [67] Raymer, D, Kap. 16.3; [70] Ribner, H
 
 **Im Code:** `layout.js · neutralPoint`
 
@@ -309,7 +310,7 @@ dε/dα = 4,44·[K_Λ·K_λ·K_H·√cos Λ_¼]^1,19,  K_Λ = 1/Λ − 1/(1 + Λ
 
 **Stellgrößen:** Spannweite (`span`), Flügelfläche (`area`), Zuspitzung (Spitze/Wurzel) (`taper`), Leitwerksfuß über Flügelebene (`zTail`), Leitwerkshebelarm (`tailArm`), Leitwerksform (`tailType`)
 
-**Quelle:** [33] Hoak, D, 4.4.1
+**Quelle:** [34] Hoak, D, 4.4.1
 
 **Im Code:** `layout.js · neutralPoint`
 
@@ -321,7 +322,7 @@ C_mα,Rumpf = K_f·W_f²·L_f / (c·S)  je Grad, K_f über der Lage der Flügelw
 
 **Stellgrößen:** Rumpfform (`fusType`), Rumpfgondel Länge (`fusL`), Rumpfgondel Durchmesser (`fusD`), Flügelvorderkante an der Wurzel (`xWingLE`)
 
-**Quelle:** [64] Raymer, D, Abb. 16.14, Gl. 16.25
+**Quelle:** [67] Raymer, D, Abb. 16.14, Gl. 16.25
 
 **Im Code:** `layout.js · kFus, neutralPoint`
 
@@ -333,9 +334,62 @@ Ziel x_S = x_N − σ·c;  Akku: x_A = (x_Ziel·m − Σ_übrige m_i·x_i)/m_A; 
 
 **Stellgrößen:** Schwerpunkt einstellen über (`trimMode`), Ziel-Stabilitätsmaß (`smTarget`), Akku-Schwerpunkt (`xBatt`), Flügelvorderkante an der Wurzel (`xWingLE`)
 
-**Quelle:** [64] Raymer, D, Kap. 16.3
+**Quelle:** [67] Raymer, D, Kap. 16.3
 
 **Im Code:** `layout.js · balance`
+
+## Bauraum und Freigang
+
+### Freigang des Propellers
+
+```
+gesperrt: Zylinder um die Propellerachse mit Radius R + c_r und Länge 2·(e + c_a),  e = 0,6·max_r(c(r)·sin β(r));
+axial  a = min |x − x_P| − e   über alle x mit d(x) < R + c_r;
+radial r = min d(x) − R         über alle x mit |x − x_P| ≤ e + c_a;
+frei, wenn a ≥ c_a (gleichbedeutend r ≥ c_r);  Boden bei der Landung: H = (z − z_B)·cos θ + (x_B − x)·sin θ
+```
+
+d(x) ist der kleinste Abstand eines Teils an der Längsstelle x von der Propellerachse: Rumpfquerschnitte aus der Kontur, Rohre, Profilschnitte von Flügel (beide Hälften, V-Form) und Höhenleitwerk, gepfeiltes Seitenleitwerk, Pylon. Motorgondel und Spinner gehören zum Antrieb. c_r = 25,4 mm und c_a = 12,7 mm nach 14 CFR 23.925(d); e ist die halbe Bautiefe der Blätter (Tiefe mal Sinus des Einstellwinkels, Drehachse bei etwa 40 % der Tiefe). Boden: Rumpf um den Landewinkel θ aufgerichtet, Bodenpunkt (x_B, z_B) unter Kufe bzw. Schwerpunkt; unter 3 cm braucht es einen Klapppropeller, der gefaltete Propeller muss frei bleiben (23.925(a), (b)).
+
+**Stellgrößen:** Freigang Blattspitze – Struktur (`clrRad`), Freigang Blattebene – feste Teile (`clrAx`), Propellerdurchmesser (`propD`), Steigung (`propPitch`), Blatttiefe relativ zu APC (`propChord`), Motoranordnung (`motorPos`), Lage beim Aufsetzen (Nase hoch) (`landPitch`)
+
+**Quelle:** [81] U.S
+
+**Im Code:** `bau.js · bauParts, propZone, bauraum; ground.js · propClearance`
+
+### Lage von Motor und Propeller
+
+```
+Nase: x_P = −max(3 cm, e + c_a);
+Seitenleitwerk: z_P = z_Spitze + 2 cm,  x_P = min(x_VK,Spitze − 8 cm,  x_VK(z_u) − e − c_a,  x_VK,HLW − e − c_a),  z_u = max(z_Fuß, z_P − R − c_r),  Überstand ≤ 35 cm;
+Pylon: x_P = max(x_HK,Wurzel + 6 cm,  max x_HK(|y| ≤ R + c_r) + e + c_a),  z_P = z_Oberkante + R + c_r + 1,5 cm;
+Doppelträger: x_P = max(L_Gondel + 9 cm,  max x_HK(|y| ≤ R + c_r) + e + c_a),  y_Träger ≥ R + c_r + d_Rohr/2 + 2,5 cm
+```
+
+x_VK(z) gepfeilte Vorderkante des Seitenleitwerks (unten weiter vorn), x_VK,HLW Nasenleiste des Höhenleitwerks, sofern es im Propellerkreis liegt (T-Leitwerk), x_HK Flügelendleiste, z_Oberkante Rumpf bzw. Rohr unter der Blattebene. Träger und Rumpfröhre unter einem Motor am Seitenleitwerk lassen sich nicht durch Verschieben freistellen: dann muss das Seitenleitwerk höher sein. Motorgondel (Ø 7 cm) und Pylon (Tiefe 12 cm): Masse als Schale mit dem Flächengewicht der Rumpfgondel, 85 % frei umströmt, Motorspant 15 g; Widerstand mit dem Formfaktor 1 + 0,35/f (Gondel, f = l/d) bzw. 1,3 (Pylonstrebe).
+
+**Stellgrößen:** Freigang Blattspitze – Struktur (`clrRad`), Freigang Blattebene – feste Teile (`clrAx`), Motoranordnung (`motorPos`), Rumpfform (`fusType`), Leitwerksform (`tailType`), Propellerdurchmesser (`propD`), Streckung Seitenleitwerk (`arV`), Seitenleitwerksvolumen (`vV`)
+
+**Quelle:** [81] U.S; [67] Raymer, D, Kap. 12.5
+
+**Im Code:** `layout.js · geomPositions; tail.js · tailStructure; core.js · aeroCore`
+
+### Heck, Leitwerk und Flügellage
+
+```
+Heck über Grund bei der Landung: H = (z_Heck − z_B)·cos θ + (x_B − x_Heck)·sin θ ≥ 2 cm;
+Leitwerk hinter der Gondel: min(x_VK,HLW, x_VK,SLW) − L_Gondel ≥ 5 cm;
+Heckkegel: max(arctan((z_Fuß − d_E + r)/l_K), arctan((r − z_Fuß)/l_K)) ≤ 15°,  l_K = L − 0,72·L_Gondel;
+Flügel auf dem Rumpf: Überdeckung der Wurzeltiefe ≥ 60 %;  Höhenleitwerk ≥ 5 cm hinter der Flügelendleiste
+```
+
+Der Seglerrumpf endet am Seitenleitwerk; seine Unterkante steigt zum Leitwerksfuß an, die Oberkante fällt, wenn der Fuß unter der Flügelebene liegt. Konische Heckkegel bleiben bei 10° anliegend, bei 14° bildet sich eine Ablöseblase (Tran et al. 2019); 15° ist hier die Grenze. Gondel mit Rohr und Doppelträger: das Leitwerk sitzt am Rohrende hinter der Gondel. Jede verletzte Prüfung zählt in der Grundbedingung „baubar“ der Entwurfsvorschläge als bezogener Abstand.
+
+**Stellgrößen:** Leitwerkshebelarm (`tailArm`), Leitwerksfuß über Flügelebene (`zTail`), Rumpfgondel Länge (`fusL`), Rumpfgondel Durchmesser (`fusD`), Rumpfröhre am Leitwerk Durchmesser (`coneD`), Lage beim Aufsetzen (Nase hoch) (`landPitch`), Flügelvorderkante an der Wurzel (`xWingLE`), Schwerpunkt einstellen über (`trimMode`)
+
+**Quelle:** [80] Tran, T; [81] U.S
+
+**Im Code:** `bau.js · bauraum; layout.js · fuselageShape`
 
 ## Flügelstruktur und Lasten
 
@@ -350,7 +404,7 @@ U_de Böengeschwindigkeit, V_B Böen-Auslegungsgeschwindigkeit; die Böe kann ni
 
 **Stellgrößen:** Böengeschwindigkeit (`gustU`), Böen-Auslegungsgeschwindigkeit (`vGust`), Manöver-Lastvielfaches (`nLimit`)
 
-**Quelle:** [62] Pratt, K; [22] EASA (2012), 23.341
+**Quelle:** [64] Pratt, K; [23] EASA (2012), 23.341
 
 **Im Code:** `core.js · gustLoad`
 
@@ -364,7 +418,7 @@ Entlastung durch Solarzellen, Akku im Flügel, Leitungen; n_u = j·n_lim, j = Si
 
 **Stellgrößen:** Sicherheitsfaktor (`safety`), Manöver-Lastvielfaches (`nLimit`), Akku im Flügel verteilt (entlastet den Holm) (`battInWing`)
 
-**Quelle:** [70] Schrenk, O; [22] EASA (2012), 23.303
+**Quelle:** [75] Schrenk, O; [23] EASA (2012), 23.303
 
 **Im Code:** `core.js · structureMass`
 
@@ -376,7 +430,7 @@ A_Gurt = 2M/(σ_zul·h) (zwei Gurte) bzw. 4M/(σ_zul·h) (Rohrholm),  σ_zul = �
 
 **Stellgrößen:** Holmgurte (`matCap`), Abminderung der Festigkeit (`matKnock`), Holmhöhe / Profildicke (`sparH`), Mindest-Gurtquerschnitt (`capMin`), Holmbauweise (`sparType`)
 
-**Quelle:** [53] Megson, T, Kap. 16; [68] SAE International (2012)
+**Quelle:** [55] Megson, T, Kap. 16; [73] SAE International (2012)
 
 **Im Code:** `core.js · structureMass`
 
@@ -388,7 +442,7 @@ w_Spitze = ∫∫ M(y)/(E·I) dy dy,  I = A·h²/4 (Gurte) bzw. A·h²/8 (Rohr);
 
 **Stellgrößen:** Max. Durchbiegung der Spitze bei 1 g (`deflMax`), Holmgurte (`matCap`)
 
-**Quelle:** [53] Megson, T, Kap. 16
+**Quelle:** [55] Megson, T, Kap. 16
 
 **Im Code:** `core.js · structureMass`
 
@@ -400,7 +454,7 @@ t·ρ ≥ Q/(h·τ_zul/ρ), mindestens Flächengewicht w_Steg
 
 **Stellgrößen:** Holmsteg (`matWeb`), Holmsteg Flächengewicht (`wWeb`)
 
-**Quelle:** [53] Megson, T, Kap. 17
+**Quelle:** [55] Megson, T, Kap. 17
 
 **Im Code:** `core.js · structureMass`
 
@@ -414,7 +468,7 @@ A_e eingeschlossene Fläche der Torsionsnase aus der Profilkontur
 
 **Stellgrößen:** Nasenbeplankung (Torsionsnase) (`matSkin`), Nasenbeplankung (`wLE`), Holmlage (`xSpar`)
 
-**Quelle:** [53] Megson, T, Kap. 18
+**Quelle:** [55] Megson, T, Kap. 18
 
 **Im Code:** `aeroel.js · wingSections`
 
@@ -426,7 +480,7 @@ A_Zunge = 2M/(σ·h),  m = A·24h·ρ·1,3 + m_Beschlag
 
 **Stellgrößen:** Flügelteilung (`splits`), Lage der Außenteilung (`splitEta`), Beschläge je Steckung (`mJoint`)
 
-**Quelle:** [53] Megson, T, Kap. 16
+**Quelle:** [55] Megson, T, Kap. 16
 
 **Im Code:** `core.js · structureMass`
 
@@ -440,7 +494,7 @@ typische Werte für Epoxid-Faserverbunde (Handlaminat bis Prepreg), Holz, Alumin
 
 **Stellgrößen:** Holmgurte (`matCap`), Holmsteg (`matWeb`), Nasenbeplankung (Torsionsnase) (`matSkin`), Leitwerksträger (`matBoom`), Abminderung der Festigkeit (`matKnock`)
 
-**Quelle:** [68] SAE International (2012)
+**Quelle:** [73] SAE International (2012)
 
 **Im Code:** `aeroel.js · MAT`
 
@@ -454,7 +508,7 @@ S_H = V_H·S·c/l_H,  S_S = V_S·S·b/l_S
 
 **Stellgrößen:** Höhenleitwerksvolumen (`vH`), Seitenleitwerksvolumen (`vV`), Leitwerkshebelarm (`tailArm`), Streckung Höhenleitwerk (`arH`), Streckung Seitenleitwerk (`arV`)
 
-**Quelle:** [64] Raymer, D, Kap. 6.4
+**Quelle:** [67] Raymer, D, Kap. 6.4
 
 **Im Code:** `layout.js · tailGeom`
 
@@ -466,7 +520,7 @@ L_H = max(q_A·S_H·0,9;  ½ρ₀·U·V_B·a_H·S_H·K_g·(1 − dε/dα)),  L_S
 
 **Stellgrößen:** Böengeschwindigkeit (`gustU`), Böen-Auslegungsgeschwindigkeit (`vGust`), Manöver-Lastvielfaches (`nLimit`), Sicherheitsfaktor (`safety`)
 
-**Quelle:** [22] EASA (2012), 23.421, 23.423, 23.425, 23.427, 23.441, 23.443
+**Quelle:** [23] EASA (2012), 23.421, 23.423, 23.425, 23.427, 23.441, 23.443
 
 **Im Code:** `tail.js · tailStructure`
 
@@ -478,7 +532,7 @@ L_H = max(q_A·S_H·0,9;  ½ρ₀·U·V_B·a_H·S_H·K_g·(1 − dε/dα)),  L_S
 
 **Stellgrößen:** Leitwerksträger Durchmesser (`boomD`), Leitwerksträger (`boomLin`), Leitwerksträger (`matBoom`)
 
-**Quelle:** [53] Megson, T, Kap. 16, 18
+**Quelle:** [55] Megson, T, Kap. 16, 18
 
 **Im Code:** `tail.js · tubeWall`
 
@@ -490,7 +544,7 @@ L_H = max(q_A·S_H·0,9;  ½ρ₀·U·V_B·a_H·S_H·K_g·(1 − dε/dα)),  L_S
 
 **Stellgrößen:** Leitwerksträger Durchmesser (`boomD`), Leitwerksträger (`boomLin`), Leitwerksträger (`matBoom`), Rumpfröhre Mindest-Flächengewicht (`wCone`)
 
-**Quelle:** [56] NASA SP-8007 (1968)
+**Quelle:** [58] NASA SP-8007 (1968)
 
 **Im Code:** `tail.js · tubeWall`
 
@@ -502,7 +556,7 @@ k_el = 1/(1 + q·S_H·a_H·l²/(2EI)) (Träger) bzw. 1/(1 + q·S_H·a_H·∫(x_L
 
 **Stellgrößen:** Leitwerksträger Durchmesser (`boomD`), Leitwerksträger (`boomLin`), Leitwerksträger (`matBoom`), Leitwerkshebelarm (`tailArm`)
 
-**Quelle:** [77] Wright, J, Kap. 8
+**Quelle:** [84] Wright, J, Kap. 8
 
 **Im Code:** `tail.js · tailStructure; layout.js · neutralPoint`
 
@@ -514,7 +568,7 @@ Holm für die Spitzenmomente; bei Motor zusätzlich f₁ = √(3EI/((m_Spitze + 
 
 **Stellgrößen:** Motoranordnung (`motorPos`), Leitwerksform (`tailType`), Holmgurte (`matCap`)
 
-**Quelle:** [53] Megson, T, Kap. 16; [34] Hodges, D, Kap. 3
+**Quelle:** [55] Megson, T, Kap. 16; [35] Hodges, D, Kap. 3
 
 **Im Code:** `tail.js · tailStructure`
 
@@ -528,7 +582,7 @@ E = m·(v²/2 + (1 − L/W)·g·δ),  N = E/(η·δ·W),  n_S = N + L/W,  L/W = 
 
 **Stellgrößen:** Landung (`landGear`), Sinkgeschwindigkeit beim Aufsetzen (`vSink`), Federweg der Kufe (`skidStroke`), Eindrückweg Rumpfboden (`bellyStroke`)
 
-**Quelle:** [13] Currey, N, Kap. 5; [22] EASA (2012), 23.473
+**Quelle:** [13] Currey, N, Kap. 5; [23] EASA (2012), 23.473
 
 **Im Code:** `ground.js · landingGear`
 
@@ -542,7 +596,7 @@ W_Stoß aufzunehmende Arbeit aus dem Landestoß, k Abminderung, j Sicherheitsfak
 
 **Stellgrößen:** Landung (`landGear`), Federweg der Kufe (`skidStroke`), Sinkgeschwindigkeit beim Aufsetzen (`vSink`), Abminderung der Festigkeit (`matKnock`), Sicherheitsfaktor (`safety`)
 
-**Quelle:** [13] Currey, N, Kap. 5; [53] Megson, T, Kap. 16; [68] SAE International (2012)
+**Quelle:** [13] Currey, N, Kap. 5; [55] Megson, T, Kap. 16; [73] SAE International (2012)
 
 **Im Code:** `ground.js · landingGear`
 
@@ -570,7 +624,7 @@ A ≥ max(2·L·I·ρ_Cu/(ΔU_zul), I/j_max),  ρ_Cu = 1/58 Ω·mm²/m,  j_max =
 
 **Stellgrößen:** Spannungsfall Solarleitungen (`wireDropSol`), Maximalstrom (`motImax`), Zellen in Reihe (`nCells`), Zellspannung (Mittel) (`cellV`), Motoranordnung (`motorPos`)
 
-**Quelle:** [28] FAA AC 43.13-1B (1998), Tab. 11-6; [38] IEC 60028 (1925)
+**Quelle:** [29] FAA AC 43.13-1B (1998), Tab. 11-6; [40] IEC 60028 (1925)
 
 **Im Code:** `harness.js · sizePair`
 
@@ -582,7 +636,7 @@ m′ = (8,89·A + 1,4·√A + 0,3) g/m  (A in mm²; Kupfer plus Dünnwand-Isolie
 
 **Stellgrößen:** Zuschlag Kabelbaum (`wireExtra`), Verkabelung (`wireModel`)
 
-**Quelle:** [67] SAE AS22759/32; [38] IEC 60028 (1925)
+**Quelle:** [72] SAE AS22759/32; [40] IEC 60028 (1925)
 
 **Im Code:** `harness.js · wireLinA`
 
@@ -594,7 +648,7 @@ P_V = I²·R_Leitung,  I = P_el/U_Akku
 
 **Stellgrößen:** Zellen in Reihe (`nCells`), Zellspannung (Mittel) (`cellV`)
 
-**Quelle:** [28] FAA AC 43.13-1B (1998)
+**Quelle:** [29] FAA AC 43.13-1B (1998)
 
 **Im Code:** `harness.js · wireLoss`
 
@@ -608,7 +662,7 @@ v_i = (−V + √(V² + 2T/(ρA)))/2,  η_i = V/(V + v_i)
 
 **Stellgrößen:** Propellerdurchmesser (`propD`), Antriebsmodell (`propModel`)
 
-**Quelle:** [30] Glauert, H, Kap. 15; [50] McCormick, B, Kap. 6
+**Quelle:** [31] Glauert, H, Kap. 15; [52] McCormick, B, Kap. 6
 
 **Im Code:** `core.js · propulsion`
 
@@ -621,7 +675,7 @@ Induktion aus dem Impulssatz mit Prandtl-Spitzen- und Nabenverlust F = (2/π)·a
 
 **Stellgrößen:** Propellerdurchmesser (`propD`), Steigung (`propPitch`), Blatttiefe relativ zu APC (`propChord`), Blattzahl (`propBlades`), Blattprofil (`propFoil`), Propeller (`propGeom`)
 
-**Quelle:** [18] Drela, M; [30] Glauert, H, Kap. 16; [51] McCrink, M
+**Quelle:** [19] Drela, M; [31] Glauert, H, Kap. 16; [53] McCrink, M
 
 **Im Code:** `prop.js · bemtElem, bemt`
 
@@ -633,7 +687,7 @@ U = Ω/K_v + I·R,  Q = (I − I₀)/K_v,  η_M = Q·Ω/(U·I)
 
 **Stellgrößen:** Motor-Drehzahlkonstante Kv (`motKv`), Wicklungswiderstand (`motR`), Leerlaufstrom (`motI0`), Maximalstrom (`motImax`), Getriebeuntersetzung (`gearRatio`)
 
-**Quelle:** [19] Drela, M
+**Quelle:** [20] Drela, M
 
 **Im Code:** `prop.js · motorAt`
 
@@ -645,7 +699,7 @@ Entwurf: β(r) = arctan(H/(2πr)) (gleiche Steigung H), c(r) = k·c_APC(r/R)·R;
 
 **Stellgrößen:** Propeller (`propGeom`), Propellerdurchmesser (`propD`), Steigung (`propPitch`), Blatttiefe relativ zu APC (`propChord`)
 
-**Quelle:** [2] Alvarez, E; [51] McCrink, M
+**Quelle:** [2] Alvarez, E; [53] McCrink, M
 
 **Im Code:** `prop.js · propGeometry`
 
@@ -659,7 +713,7 @@ Strahlachse hinter dem Flügel um ε = (dε/dα)·C_L/a_F abgelenkt
 
 **Stellgrößen:** Propellerdurchmesser (`propD`), Motoranordnung (`motorPos`), Leitwerksfuß über Flügelebene (`zTail`)
 
-**Quelle:** [50] McCormick, B, Kap. 6; [30] Glauert, H, Kap. 15
+**Quelle:** [52] McCormick, B, Kap. 6; [31] Glauert, H, Kap. 15
 
 **Im Code:** `power.js · slipGeom`
 
@@ -671,7 +725,7 @@ r·v_t = K = Q/(ρ·(V + v_i)·π·R²) (Potentialwirbel, Kern 0,2·R_s)
 
 **Stellgrößen:** Propellerdurchmesser (`propD`), Motoranordnung (`motorPos`)
 
-**Quelle:** [50] McCormick, B, Kap. 6
+**Quelle:** [52] McCormick, B, Kap. 6
 
 **Im Code:** `power.js · slipGeom`
 
@@ -683,7 +737,7 @@ N = ½·V·α_P·∫∂F_t/∂U_t dr (Blattelement-Ableitung),  α_P = α·(1 + 
 
 **Stellgrößen:** Propellerdurchmesser (`propD`), Blattzahl (`propBlades`), Motoranordnung (`motorPos`)
 
-**Quelle:** [66] Ribner, H
+**Quelle:** [70] Ribner, H
 
 **Im Code:** `prop.js · propNormalDeriv; power.js · powerEffects`
 
@@ -695,7 +749,7 @@ M_T = T·(z_S − z_P) + N·(x_S − x_P)  (Nase hoch positiv)
 
 **Stellgrößen:** Motoranordnung (`motorPos`), Akku Höhe über Rumpfachse (`zBatt`), Leitwerksfuß über Flügelebene (`zTail`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 3.4; [57] Nelson, R, Kap. 2
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 3.4; [59] Nelson, R, Kap. 2
 
 **Im Code:** `power.js · thrustMoment`
 
@@ -709,7 +763,7 @@ M_T = T·(z_S − z_P) + N·(x_S − x_P)  (Nase hoch positiv)
 
 **Stellgrößen:** Ziel-Stabilitätsmaß (`smTarget`), Höhenleitwerksvolumen (`vH`), Leitwerkshebelarm (`tailArm`), Reisegeschwindigkeit (wahre Fahrt) (`v`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 4, 5; [57] Nelson, R, Kap. 4
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 4, 5; [59] Nelson, R, Kap. 4
 
 **Im Code:** `dyn.js · lonMatrix`
 
@@ -721,7 +775,7 @@ M_T = T·(z_S − z_P) + N·(x_S − x_P)  (Nase hoch positiv)
 
 **Stellgrößen:** V-Form der Außenflügel (`dihedral`), Seitenleitwerksvolumen (`vV`), Streckung Seitenleitwerk (`arV`), Pfeilung der t/4-Linie (`sweep`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 4.9; [57] Nelson, R, Kap. 5
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 4.9; [59] Nelson, R, Kap. 5
 
 **Im Code:** `dyn.js · latMatrix`
 
@@ -734,7 +788,7 @@ C_nβ = a_S·η_S·S_S/S·l_S/b + C_nβ,Rumpf + C_nβ,P;  C_lβ = C_lβ,V-Form +
 
 **Stellgrößen:** Seitenleitwerksvolumen (`vV`), Streckung Seitenleitwerk (`arV`), V-Form der Außenflügel (`dihedral`), Pfeilung der t/4-Linie (`sweep`), Rumpfform (`fusType`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 5; [33] Hoak, D, 5.2.2.1; [64] Raymer, D, Gl. 16.48; [57] Nelson, R, Kap. 3
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 5; [34] Hoak, D, 5.2.2.1; [67] Raymer, D, Gl. 16.48; [59] Nelson, R, Kap. 3
 
 **Im Code:** `dyn.js · derivatives`
 
@@ -746,7 +800,7 @@ C_nβ = a_S·η_S·S_S/S·l_S/b + C_nβ,Rumpf + C_nβ,P;  C_lβ = C_lβ,V-Form +
 
 **Stellgrößen:** Max. Durchbiegung der Spitze bei 1 g (`deflMax`), Holmgurte (`matCap`), Holmhöhe / Profildicke (`sparH`)
 
-**Quelle:** [58] Noll, T
+**Quelle:** [60] Noll, T
 
 **Im Code:** `dyn.js · derivatives`
 
@@ -758,7 +812,7 @@ Anstellwinkelschwingung ζ 0,3–2; Phygoide ζ ≥ 0,04; Taumelschwingung ζ �
 
 **Stellgrößen:** Ziel-Stabilitätsmaß (`smTarget`), V-Form der Außenflügel (`dihedral`), Seitenleitwerksvolumen (`vV`)
 
-**Quelle:** [54] MIL-F-8785C (1980), 3.2, 3.3 (Klasse I, Kat. B)
+**Quelle:** [56] MIL-F-8785C (1980), 3.2, 3.3 (Klasse I, Kat. B)
 
 **Im Code:** `dyn.js · flightDynamics`
 
@@ -774,7 +828,7 @@ E Rudertiefe/Profiltiefe
 
 **Stellgrößen:** Querruder Tiefe (`ailCf`), Höhenruder Tiefe (`elevCf`), Seitenruder Tiefe (`rudCf`), Querruder Vollausschlag (`ailMax`), Höhenruder Vollausschlag (`elevMax`), Seitenruder Vollausschlag (`rudMax`)
 
-**Quelle:** [30] Glauert, H, Kap. 7; [33] Hoak, D, 6.1.1.1; [61] Olson, E
+**Quelle:** [31] Glauert, H, Kap. 7; [34] Hoak, D, 6.1.1.1; [63] Olson, E
 
 **Im Code:** `controls.js · flapTau, flapEta`
 
@@ -789,7 +843,7 @@ Der Mindesthebel von 2 % der Tiefe deckt die unsichere Lage des Neutralpunkts de
 
 **Stellgrößen:** Querruder Tiefe (`ailCf`), Höhenruder Tiefe (`elevCf`), Drehachse Pendelruder (`elevPivot`), Seitenruder Tiefe (`rudCf`), Höchstgeschwindigkeit (SORA) (`vmax`)
 
-**Quelle:** [31] Glauert, H; [74] Theodorsen, T; [5] Anderson, J, Kap. 4
+**Quelle:** [32] Glauert, H; [79] Theodorsen, T; [5] Anderson, J, Kap. 4
 
 **Im Code:** `controls.js · hingeCoef, controlSurfaces`
 
@@ -801,7 +855,7 @@ I_x·ṗ = q S b·(C_lδa·δ_a + C_lp·p·b/(2V)),  Forderung 60° in 1,7 s (Ka
 
 **Stellgrößen:** Querruder von (`ailEta0`), Querruder bis (`ailEta1`), Querruder Tiefe (`ailCf`), Querruder Vollausschlag (`ailMax`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 7; [54] MIL-F-8785C (1980), 3.3.4
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 7; [56] MIL-F-8785C (1980), 3.3.4
 
 **Im Code:** `controls.js · controlSurfaces`
 
@@ -813,7 +867,7 @@ C_n,δa = −2Σ(Γ₀·Δw + ΔΓ·w₀)·y·Δy/(S·b·V)  (Trefftz-Ebene, ant
 
 **Stellgrößen:** Querruder von (`ailEta0`), Querruder bis (`ailEta1`), Querruder Tiefe (`ailCf`)
 
-**Quelle:** [43] Katz, J., Plotkin, A, Kap. 8.4
+**Quelle:** [45] Katz, J., Plotkin, A, Kap. 8.4
 
 **Im Code:** `controls.js · aileronVLM`
 
@@ -825,7 +879,7 @@ stationäres Rollen am Biege-Torsions-Balken: Wirksamkeit = C_l,elastisch/C_l,st
 
 **Stellgrößen:** Querruder von (`ailEta0`), Querruder bis (`ailEta1`), Nasenbeplankung (Torsionsnase) (`matSkin`), Nasenbeplankung (`wLE`), Höchstgeschwindigkeit (SORA) (`vmax`)
 
-**Quelle:** [77] Wright, J, Kap. 8
+**Quelle:** [84] Wright, J, Kap. 8
 
 **Im Code:** `controls.js · aileronElastic, aileronReversal`
 
@@ -837,7 +891,7 @@ stationäres Rollen am Biege-Torsions-Balken: Wirksamkeit = C_l,elastisch/C_l,st
 
 **Stellgrößen:** Höhenruder Tiefe (`elevCf`), Höhenruder Vollausschlag (`elevMax`), Schwerpunkttoleranz (`cgTol`), Lastvielfaches für die Ruderauslegung (`nCtrl`), Höhenleitwerksvolumen (`vH`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 2.4, 3.1; [57] Nelson, R, Kap. 2
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 2.4, 3.1; [59] Nelson, R, Kap. 2
 
 **Im Code:** `controls.js · elevatorFor, controlSurfaces`
 
@@ -849,7 +903,7 @@ stationärer Schiebeflug: C_Y = 0, C_l = 0, C_n = 0 nach β, δ_a, δ_r, φ;  Se
 
 **Stellgrößen:** Seitenruder Tiefe (`rudCf`), Seitenruder Vollausschlag (`rudMax`), Seitenwind bei der Landung (`vCross`), Seitenleitwerksvolumen (`vV`)
 
-**Quelle:** [57] Nelson, R, Kap. 2.8; [22] EASA (2012), 23.233
+**Quelle:** [59] Nelson, R, Kap. 2.8; [23] EASA (2012), 23.233
 
 **Im Code:** `controls.js · controlSurfaces`
 
@@ -863,7 +917,7 @@ K·u + M·ü = F;  Hermite-Elemente für die Biegung, lineare für die Torsion, 
 
 **Stellgrößen:** Holmgurte (`matCap`), Nasenbeplankung (Torsionsnase) (`matSkin`), Nasenbeplankung (`wLE`), Holmlage (`xSpar`), Holmhöhe / Profildicke (`sparH`)
 
-**Quelle:** [63] Przemieniecki, J; [34] Hodges, D, Kap. 3, 4
+**Quelle:** [65] Przemieniecki, J; [35] Hodges, D, Kap. 3, 4
 
 **Im Code:** `aeroel.js · beamModel, beamModes`
 
@@ -875,7 +929,7 @@ K·u + M·ü = F;  Hermite-Elemente für die Biegung, lineare für die Torsion, 
 
 **Stellgrößen:** Pfeilung der t/4-Linie (`sweep`), Nasenbeplankung (Torsionsnase) (`matSkin`), Holmlage (`xSpar`)
 
-**Quelle:** [15] Diederich, F; [75] Weisshaar, T; [34] Hodges, D, Kap. 4
+**Quelle:** [16] Diederich, F; [82] Weisshaar, T; [35] Hodges, D, Kap. 4
 
 **Im Code:** `aeroel.js · divergence`
 
@@ -889,7 +943,7 @@ L nach oben, h nach unten, α Nase hoch; b halbe Profiltiefe, a Lage der Drehach
 
 **Stellgrößen:** Höchstgeschwindigkeit (SORA) (`vmax`), Nasenbeplankung (Torsionsnase) (`matSkin`), Holmlage (`xSpar`), Nasenbeplankung (`wLE`)
 
-**Quelle:** [74] Theodorsen, T; [42] Jones, R; [34] Hodges, D, Kap. 5; [9] Barmby, J; [78] Yates, E
+**Quelle:** [79] Theodorsen, T; [44] Jones, R; [35] Hodges, D, Kap. 5; [8] Barmby, J; [85] Yates, E
 
 **Im Code:** `aeroel.js · flutterMatrix, flutterSearch`
 
@@ -899,7 +953,7 @@ L nach oben, h nach unten, α Nase hoch; b halbe Profiltiefe, a Lage der Drehach
 V_F = 137,2 m/s, V_D = 252,8 m/s (Literatur); Rechner 137,4 bzw. 252,4 m/s
 ```
 
-**Quelle:** [32] Goland, M; [77] Wright, J, Kap. 10
+**Quelle:** [33] Goland, M; [84] Wright, J, Kap. 10
 
 **Im Code:** `aeroel.js · golandCheck`
 
@@ -913,7 +967,7 @@ V_S Abrissgeschwindigkeit bei 1 g. Darunter fliegt das Flugzeug nicht stationär
 
 **Stellgrößen:** Höchstgeschwindigkeit (SORA) (`vmax`)
 
-**Quelle:** [27] FAA AC 23.629-1B (2004); [7] ASTM F3093/F3093M-21, 4.3; [1] 14 CFR § 25.629 (CS-25.629), (b)(2)
+**Quelle:** [28] FAA AC 23.629-1B (2004); [7] ASTM F3093/F3093M-21, 4.3; [1] 14 CFR § 25.629 (CS-25.629), (b)(2)
 
 **Im Code:** `vib.js · VIB_G, vibAnalysis`
 
@@ -928,7 +982,7 @@ w′ Neigung entlang der gepfeilten Achse, θ Verdrehung um sie
 
 **Stellgrößen:** Gemessen: 1. symmetrische Flügelbiegung (`gvtB1`), Gemessen: 1. Flügeltorsion (`gvtT1`), Pfeilung der t/4-Linie (`sweep`)
 
-**Quelle:** [34] Hodges, D, Kap. 3; [77] Wright, J, Kap. 3, Anhang C
+**Quelle:** [35] Hodges, D, Kap. 3; [84] Wright, J, Kap. 3, Anhang C
 
 **Im Code:** `vib.js · freeModes, fuselageRigid`
 
@@ -943,7 +997,7 @@ Gegenprobe: quasistationäre Starrkörper-Anstellwinkelschwingung gegen die Flug
 
 **Stellgrößen:** Leitwerkshebelarm (`tailArm`), Höhenleitwerksvolumen (`vH`), Ziel-Stabilitätsmaß (`smTarget`), Pfeilung der t/4-Linie (`sweep`)
 
-**Quelle:** [26] Etkin, B., Reid, L, Kap. 5.4, 5.5; [78] Yates, E; [77] Wright, J, Kap. 13
+**Quelle:** [27] Etkin, B., Reid, L, Kap. 5.4, 5.5; [85] Yates, E; [84] Wright, J, Kap. 13
 
 **Im Code:** `vib.js · bodyFreedom`
 
@@ -955,7 +1009,7 @@ Ruder als Freiheitsgrad mit T-Funktionen; Kopplung M_rβ = ∫(−S_β·W_r + (I
 
 **Stellgrößen:** Steifigkeit Servo und Gestänge (`kServo`), Flächengewicht der Ruder (`wCtrl`), Ruderschwerpunkt hinter der Drehachse (`ctrlXcg`), Massenausgleich eingebaut (`ctrlBal`), Gemessen: Querruder-Drehfrequenz (`gvtAil`), Gemessen: Höhenruder-Drehfrequenz (`gvtElev`), Gemessen: Seitenruder-Drehfrequenz (`gvtRud`)
 
-**Quelle:** [74] Theodorsen, T; [27] FAA AC 23.629-1B (2004); [34] Hodges, D, Kap. 5
+**Quelle:** [79] Theodorsen, T; [28] FAA AC 23.629-1B (2004); [35] Hodges, D, Kap. 5
 
 **Im Code:** `vib.js · ctrlCase; aeroel.js · tFun`
 
@@ -967,7 +1021,7 @@ m_A = β·m_R·x_R/d (d = ¼ Rudertiefe vor der Achse),  S_β = m_R·x_R − m_A
 
 **Stellgrößen:** Massenausgleich eingebaut (`ctrlBal`), Flächengewicht der Ruder (`wCtrl`), Ruderschwerpunkt hinter der Drehachse (`ctrlXcg`)
 
-**Quelle:** [27] FAA AC 23.629-1B (2004), Anhang 1; [11] CAA/FAA (1955)
+**Quelle:** [28] FAA AC 23.629-1B (2004), Anhang 1; [10] CAA/FAA (1955)
 
 **Im Code:** `vib.js · ctrlProps, balancePoints`
 
@@ -982,7 +1036,7 @@ Seitenruder höchstens 0,9 der Tiefe; ein Pendelhöhenruder am Doppelträger wir
 
 **Stellgrößen:** Leitwerksträger Durchmesser (`boomD`), Leitwerksträger (`boomLin`), Leitwerksträger (`matBoom`), Gemessen: Seitenleitwerk quer (`gvtFin`), Gemessen: Höhenleitwerk auf und ab (`gvtHT`), Motoranordnung (`motorPos`), Leitwerksform (`tailType`), Rumpfform (`fusType`), Höhenruder Tiefe (`elevCf`), Drehachse Pendelruder (`elevPivot`)
 
-**Quelle:** [63] Przemieniecki, J; [77] Wright, J, Kap. 3
+**Quelle:** [65] Przemieniecki, J; [84] Wright, J, Kap. 3
 
 **Im Code:** `vib.js · boomSprings, finModel, htModel`
 
@@ -994,7 +1048,7 @@ k = (f_gemessen/f_Modell)², angewandt auf EI bzw. GJ (Flügel) oder die Träger
 
 **Stellgrößen:** Gemessen: 1. symmetrische Flügelbiegung (`gvtB1`), Gemessen: 1. Flügeltorsion (`gvtT1`), Gemessen: Seitenleitwerk quer (`gvtFin`), Gemessen: Höhenleitwerk auf und ab (`gvtHT`)
 
-**Quelle:** [77] Wright, J, Kap. 25
+**Quelle:** [84] Wright, J, Kap. 25
 
 **Im Code:** `vib.js · calibrate, vibAnalysis`
 
@@ -1008,7 +1062,7 @@ nur Orientierung: gilt für V_D < 260 kn ohne T-Leitwerk und ohne große Außenm
 
 **Stellgrößen:** Nasenbeplankung (Torsionsnase) (`matSkin`), Nasenbeplankung (`wLE`), Höchstgeschwindigkeit (SORA) (`vmax`)
 
-**Quelle:** [11] CAA/FAA (1955); [7] ASTM F3093/F3093M-21, 4.4
+**Quelle:** [10] CAA/FAA (1955); [7] ASTM F3093/F3093M-21, 4.4
 
 **Im Code:** `vib.js · wingTorsionFactor`
 
@@ -1020,9 +1074,26 @@ Anregung mit 1 × und B × Drehzahl; kritisch, wenn f_Eigen/k innerhalb ±12 % d
 
 **Stellgrößen:** Blattzahl (`propBlades`), Motor-Drehzahlkonstante Kv (`motKv`), Zellen in Reihe (`nCells`)
 
-**Quelle:** [77] Wright, J, Kap. 1
+**Quelle:** [84] Wright, J, Kap. 1
 
 **Im Code:** `aeroel.js · resonance`
+
+### Wirbelflattern des Propellers am Seitenleitwerk
+
+```
+Querströmung in der Scheibe w = V·(ψ, −θ) − (v̇, −u̇),  Drehgeschwindigkeit Ω_b = (θ̇, ψ̇);
+F = ½·I_Bt·w + ½·s·I_Bar·Ω_b + T·(ψ, −θ),   M = ½·s·I_Atr·w + ½·I_Aarr·Ω_b,   M_Kreisel = s·J_X·Ω·(−ψ̇, θ̇);
+I_Bt = ∫∂F′/∂U_t dr,  I_Bar = ∫r·∂F′/∂U_a dr,  I_Atr = ∫r·∂T′/∂U_t dr,  I_Aarr = ∫r²·∂T′/∂U_a dr;
+q̈ + (2ζω − D_a − G)·q̇ + (ω² − K_a)·q = 0  in den Eigenformen von Seitenleitwerk (ψ = θ_S·cos Λ − w′·sin Λ, v = w + f·ψ + Δz·w′) und Träger (θ, u, Halbmodell ÷ √2)
+```
+
+Starre Propellerscheibe an der Seitenleitwerksspitze; ψ Gieren, θ Nicken der Propellerachse, v und u Querverschiebung und Hub der Nabe, s Drehsinn, f Abstand der Nabe vor der elastischen Achse. F′ = dQ′/r ist die Umfangskraft, T′ der Schub je Meter Radius aller Blätter; die Ableitungen kommen aus den Blattelementen im Impulsgleichgewicht und sind über den Umlauf gemittelt (quasistationär). Probe: ½·V·I_Bt ist die Normalkraft-Ableitung des Propellers. Kreiselträgheit J_X aus Blättern (Masse ∝ D^2,5, J = 0,2·m·R²) und Motorglocke. Eigenwerte über der Fahrt bei Vollgasdrehzahl; instabil, sobald eine Dämpfung negativ wird. Erwartungsgemäß wird der rückwärts umlaufende Wirbel instabil, früher bei weicher, in Nicken und Gieren gleich steifer Lagerung, später mit mehr Dämpfung und ungleichen Steifigkeiten (Reed 1967). Luftkräfte der Leitwerksflächen sind nicht enthalten.
+
+**Stellgrößen:** Motoranordnung (`motorPos`), Propellerdurchmesser (`propD`), Steigung (`propPitch`), Blattzahl (`propBlades`), Streckung Seitenleitwerk (`arV`), Seitenleitwerksvolumen (`vV`), Leitwerksträger Durchmesser (`boomD`), Leitwerksträger (`boomLin`), Höchstgeschwindigkeit (SORA) (`vmax`)
+
+**Quelle:** [69] Reed, W; [38] Houbolt, J; [70] Ribner, H; [11] Čečrdle, J
+
+**Im Code:** `vib.js · whirlDerivs, whirlModel, whirlMatrix, whirlCase`
 
 ## Solarenergie und Wetter
 
@@ -1035,7 +1106,7 @@ Zeitgleichung E = 9,87·sin 2B − 7,53·cos B − 1,5·sin B (min), B = 360°·
 
 **Stellgrößen:** Breite (`lat`), Länge (`lon`), Auslegungstag (`date`), Zeitzone (`tz`)
 
-**Quelle:** [21] Duffie, J, Kap. 1.5, 1.6
+**Quelle:** [22] Duffie, J, Kap. 1.5, 1.6
 
 **Im Code:** `sim.js · sunDay, sinElev`
 
@@ -1049,7 +1120,7 @@ A, B, C monatsweise nach ASHRAE; GHI = DNI·(sin h + C)
 
 **Stellgrößen:** Geländehöhe über NN (`alt`), Einstrahlung relativ zu klarem Himmel (`sky`)
 
-**Quelle:** [6] ASHRAE (1985); [47] Kreith, F., Kreider, J; [48] Leutenegger, S., Jabas, M., Siegwart, R
+**Quelle:** [6] ASHRAE (1985); [49] Kreith, F., Kreider, J; [50] Leutenegger, S., Jabas, M., Siegwart, R
 
 **Im Code:** `sim.js · clearSky, sunDay`
 
@@ -1059,27 +1130,61 @@ A, B, C monatsweise nach ASHRAE; GHI = DNI·(sin h + C)
 G_Zellen = DNI·F_b(h) + DHI·F_d + GHI·ρ_Boden·F_g;  F_b über Kurs, Lage und Wölbung gemittelt, Einfallswinkel-Faktor IAM = 1 − b₀·(1/cos θ − 1), b₀ = 0,05
 ```
 
-**Stellgrößen:** Einstrahlungsmodell (`solarGeom`), Zellen ab Flügeltiefe (`cellX0`), Zellen bis Flügeltiefe (`cellX1`), V-Form der Außenflügel (`dihedral`), Bodenreflexion (Albedo) (`albedo`)
+**Stellgrößen:** Einstrahlungsmodell (`solarGeom`), Biegung je Zelle höchstens (`cellBend`), Zulässige Randdehnung der Zelle (`cellStrain`), V-Form der Außenflügel (`dihedral`), Bodenreflexion (Albedo) (`albedo`)
 
-**Quelle:** [21] Duffie, J, Kap. 5; [59] Noth, A, Kap. 4
+**Quelle:** [22] Duffie, J, Kap. 5; [61] Noth, A, Kap. 4
 
 **Im Code:** `sim.js · cellPanels, geomFactors`
 
 ### Belegung mit ganzen Zellen
 
 ```
-je Spalte der Breite w: n = ⌊(L·k_B + g)/(l + g)⌋,  L = min x_Ende − max x_Anfang über die Spaltenbreite;
-A_Zellen = Σ n·A_Zelle,  A_Modul = Σ n·(w + g)(l + g);
+je Spalte der Breite s: n = ⌊(L_B + g)/(s + g)⌋,  L_B Bogenlänge des über die Spaltenbreite gemeinsamen Zellbands;
+A_Zellen = Σ n·A_Zelle,  A_Modul = Σ n·(s + g)²;
 pseudoquadratisch (Seite s, Ingot-Radius R, h = s/2, x₀ = √(R² − h²)): A = 4·(h·x₀ + F(h) − F(x₀)),  F(x) = ½·(x·√(R² − x²) + R²·arcsin(x/R))
 ```
 
-k_B Bogenlänge der Profiloberseite je Tiefe zwischen Zellbeginn und Zellende, g Fuge, l Zelllänge in Flugrichtung. Spalten von der Wurzel nach außen, je Spalte die Ausrichtung mit der größten Zellfläche je Spannweite. Freiräume an Wurzel, Spitze und Außenteilung; ohne Freigabe enden die Zellen vor den Ruderachsen. Halbe und Viertelzellen haben anteilig die Fläche der ganzen Zelle. Probe: C60 mit 125 mm und 160 mm Durchmesser ergibt 153,3 cm².
+Nur ganze quadratische Zellen, wie man sie bekommt: SunPower C60 (125 mm, Ingot 160 mm, 165 µm) oder eine eigene quadratische Zelle. Das Zellband jeder Station folgt aus der Biegung (nächster Eintrag), hinten zusätzlich vor der Ruderachse; je Spalte zählt der Bereich, den alle Stationen über die Spaltenbreite gemeinsam haben (Zuspitzung, Pfeilung). Spalten von der Wurzel nach außen, Freiräume an Wurzel, Spitze und Außenteilung. Probe: C60 mit 125 mm und 160 mm Durchmesser ergibt 153,3 cm².
 
-**Stellgrößen:** Zellbelegung (`solarMode`), Zellformat (`cellType`), Ausrichtung der Zellen (`cellOrient`), Zellabstand (`cellGap`), Zellen ab Flügeltiefe (`cellX0`), Zellen bis Flügeltiefe (`cellX1`), Freiraum an der Wurzel (`cellRootGap`), Freiraum an der Spitze (`cellTipGap`), Freiraum an der Außenteilung (`cellJointGap`), Zellen auch auf Quer- und Höhenruder (`cellsOnCtrl`), Zellen auf dem Flügel (gesamt) (`nCellsWing`), Querruder Tiefe (`ailCf`), Höhenruder Tiefe (`elevCf`)
+**Stellgrößen:** Zellbelegung (`solarMode`), Zelle (`cellType`), Kantenlänge der Zelle (`cellA`), Ingot-Durchmesser (`cellD`), Zellabstand (`cellGap`), Freiraum an der Wurzel (`cellRootGap`), Freiraum an der Spitze (`cellTipGap`), Freiraum an der Außenteilung (`cellJointGap`), Zellen auch auf Quer- und Höhenruder (`cellsOnCtrl`), Zellen auf dem Flügel (gesamt) (`nCellsWing`), Querruder Tiefe (`ailCf`), Höhenruder Tiefe (`elevCf`)
 
-**Quelle:** [72] SunPower Corporation (2010); [8] AZUR SPACE Solar Power (2025); [23] Eigene Herleitung im Rechner aus Geometrie bzw
+**Quelle:** [77] SunPower Corporation (2010); [24] Eigene Herleitung im Rechner aus Geometrie bzw
 
-**Im Code:** `solar.js · solarLayout, packColumns`
+**Im Code:** `solar.js · solarLayout, packColumns, cellSpec`
+
+### Biegung der Zellen auf der Profiloberseite
+
+```
+Stich je Zelle: f = max Abstand der Kontur von der Sehne zwischen Zellanfang und -ende,  f/l ≤ β (Vorgabe 10 %);
+örtliche Randdehnung: ε = κ·t/2 ≤ ε_zul,  κ = 8·f_s/s²  über s = l/12;
+gleichwertiger Biegeradius ρ = l²/(8f);  bei f = β·l: ρ = l/(8β),  ε = 4·β·t/l;
+Zellband: größter zusammenhängender Bereich zulässiger Zellanfänge auf der Oberseite (je Profil und örtlicher Tiefe c, λ = l/c)
+```
+
+Die Zelle wird beim Laminieren auf die gewölbte Oberseite gebogen. β begrenzt die Biegung der ganzen Zelle (Stich bezogen auf die Länge), ε_zul die örtliche Biegung: 0,10 % entspricht 136 MPa bei E = 130 GPa, der Zugspannung, die 95 % der geprüften Siliziumzellen aushalten (Rion u. a. 2009). Bei 165 µm Dicke heißt das ρ ≥ 83 mm; 10 % Stich bei 125 mm Länge heißt ρ ≥ 156 mm und ε = 0,05 %. Kontur der Oberseite als natürlicher kubischer Spline in Parameterform (krümmungsstetig), 801 Stützstellen. Vorn begrenzt meist die Dehnung an der Profilnase, hinten die Eingabe oder die Ruderachse; bei kleinen Tiefen und stark gewölbten Profilen passt keine Zelle mehr.
+
+**Stellgrößen:** Biegung je Zelle höchstens (`cellBend`), Zulässige Randdehnung der Zelle (`cellStrain`), Zelldicke (`cellThk`), Zellen frühestens ab Tiefe (`cellX0`), Zellen spätestens bis Tiefe (`cellX1`), Profil (`airfoil`), Zellen auch auf Quer- und Höhenruder (`cellsOnCtrl`), Querruder Tiefe (`ailCf`)
+
+**Quelle:** [71] Rion, J., Leterrier, Y., Månson, J.-A; [77] SunPower Corporation (2010); [14] de Boor, C
+
+**Im Code:** `solar.js · bendScan, cellBand, foilUpper`
+
+### Schatten auf den Zellen
+
+```
+Sonne s = (−cos h·cos ψ, cos h·sin ψ, sin h) (Körperachsen, ψ gegen die Flugrichtung, 16 Kurse);
+Schatten eines Punkts auf der Zellebene z₀: P′ = P − s·(P_z − z₀)/s_z;  Anteil je Zelle f_k = Σ_Werfer w·A(Schatten ∩ Zelle)/A_Zelle;
+mit Bypassdiode je Zelle: Verlust = Σ f_k·A_k/Σ A_k,  ohne: Verlust = max f_k  (je Strang);
+F_b,Schatten(h) = F_b(h)·(1 − S(h)),  S über alle Kurse gemittelt
+```
+
+Schattenwerfer: Seitenleitwerk(e) als ebene Vierecke, Motorgondel als Quader (konvexe Hülle der Projektion), Pylon, Propellerscheibe mit dem Gewicht w = σ = B·∫c dr/(πR²) (sie deckt im Mittel die Blattfläche). Nur der Teil über der Zellebene wirft Schatten; Schnitt mit den Zellrechtecken nach Sutherland–Hodgman. Stränge: je Flügelhälfte einer, Höhenleitwerk einer (Zellen von außen nach innen belegt, weg vom Seitenleitwerk). Ohne Bypassdioden begrenzt die am stärksten verschattete Zelle den Strom des Strangs; der Schatten nimmt nur die Direktstrahlung, die diffuse Strahlung bleibt. Höhenleitwerkszellen diffus 97 % (Seitenleitwerk verdeckt einen Teil des Himmels).
+
+**Stellgrößen:** Verschattete Zellen (`bypass`), Zellen auf dem Höhenleitwerk (`htSolar`), Leitwerksform (`tailType`), Motoranordnung (`motorPos`), Rumpfform (`fusType`), Propellerdurchmesser (`propD`), Zellen auch auf Quer- und Höhenruder (`cellsOnCtrl`)
+
+**Quelle:** [66] Quaschning, V., Hanitsch, R; [22] Duffie, J, Kap. 1.9, 2.15
+
+**Im Code:** `shade.js · shadeCasters, shadowOn, shadeFactors; core.js · buildCase`
 
 ### Solarleistung
 
@@ -1087,9 +1192,9 @@ k_B Bogenlänge der Profiloberseite je Tiefe zwischen Zellbeginn und Zellende, g
 P = G·A·η_Zelle·η_MPPT·(1 − Laminat)(1 − Leitung)(1 − Schmutz)·(1 − c_T·(T_Zelle − 25 °C)),  T_Zelle = T_Luft + k·G
 ```
 
-**Stellgrößen:** Zellbelegung (`solarMode`), Zellformat (`cellType`), Zellfläche Flügel (`solarArea`), Zellwirkungsgrad (`cellEff`), MPPT-Wirkungsgrad (`mpptEff`), Verlust Laminat/Folie (`laminateLoss`), Verlust Leitungen, Fehlanpassung (`wiringLoss`), Verschmutzung (`soiling`), Temperaturkoeffizient (`tempCoef`), Zellerwärmung (`cellHeat`)
+**Stellgrößen:** Zellbelegung (`solarMode`), Zelle (`cellType`), Zellfläche Flügel (`solarArea`), Zellwirkungsgrad (`cellEff`), MPPT-Wirkungsgrad (`mpptEff`), Verlust Laminat/Folie (`laminateLoss`), Verlust Leitungen, Fehlanpassung (`wiringLoss`), Verschmutzung (`soiling`), Temperaturkoeffizient (`tempCoef`), Zellerwärmung (`cellHeat`)
 
-**Quelle:** [21] Duffie, J, Kap. 23; [60] Oettershagen, P
+**Quelle:** [22] Duffie, J, Kap. 23; [62] Oettershagen, P
 
 **Im Code:** `sim.js · solarPowerAt, daySeries`
 
@@ -1101,7 +1206,7 @@ k_d = 1 − 0,09k_t (k_t ≤ 0,22); 0,9511 − 0,1604k_t + 4,388k_t² − 16,638
 
 **Stellgrößen:** Wetterdaten für die Jahresstatistik (`weather`)
 
-**Quelle:** [24] Erbs, D
+**Quelle:** [25] Erbs, D
 
 **Im Code:** `sim.js · erbs`
 
@@ -1113,7 +1218,7 @@ Tagesklarheit k_t aus der Verteilung nach Bendt (Monatsmittel), Tagesgang aus de
 
 **Stellgrößen:** Wetterdaten für die Jahresstatistik (`weather`), Simulierte Jahre (Generator) (`genYears`), Startwert Zufall (`genSeed`)
 
-**Quelle:** [10] Bendt, P., Collares-Pereira, M., Rabl, A; [37] Huld, T., Müller, R., Gambardella, A
+**Quelle:** [9] Bendt, P., Collares-Pereira, M., Rabl, A; [39] Huld, T., Müller, R., Gambardella, A
 
 **Im Code:** `sim.js · bendt, genWeather`
 
@@ -1125,7 +1230,7 @@ typisches meteorologisches Jahr (GHI, DHI, Temperatur, Wind) aus PVGIS
 
 **Stellgrößen:** Wetterdaten für die Jahresstatistik (`weather`)
 
-**Quelle:** [37] Huld, T., Müller, R., Gambardella, A
+**Quelle:** [39] Huld, T., Müller, R., Gambardella, A
 
 **Im Code:** `sim.js · envWeather`
 
@@ -1139,7 +1244,7 @@ E = m_A·e_spez·SoH·k_T,  k_T = 1 − c_T·max(0, 20 °C − T_Akku)
 
 **Stellgrößen:** Akkumasse (`mBatt`), Energiedichte (Pack) (`battSpec`), Alterung (Restkapazität) (`battHealth`), Kapazitätsverlust unter 20 °C (`battTempCoef`), Akku wärmer als Umgebung (`battHeat`)
 
-**Quelle:** [59] Noth, A, Kap. 3; [60] Oettershagen, P
+**Quelle:** [61] Noth, A, Kap. 3; [62] Oettershagen, P
 
 **Im Code:** `core.js · buildCase`
 
@@ -1151,7 +1256,7 @@ E = m_A·e_spez·SoH·k_T,  k_T = 1 − c_T·max(0, 20 °C − T_Akku)
 
 **Stellgrößen:** Ladewirkungsgrad (`etaCharge`), Entladewirkungsgrad (`etaDischarge`), Max. Laderate (`chargeC`), Nicht unter 0 °C laden (`noColdCharge`)
 
-**Quelle:** [60] Oettershagen, P; [48] Leutenegger, S., Jabas, M., Siegwart, R
+**Quelle:** [62] Oettershagen, P; [50] Leutenegger, S., Jabas, M., Siegwart, R
 
 **Im Code:** `sim.js · stepE, chargeLimit`
 
@@ -1163,7 +1268,7 @@ Start im Leistungsgleichgewicht mit leerem Akku; t_exc = E(zweites Gleichgewicht
 
 **Stellgrößen:** Akkumasse (`mBatt`), Zellfläche Flügel (`solarArea`), Auslegungstag (`date`), Breite (`lat`)
 
-**Quelle:** [60] Oettershagen, P; [48] Leutenegger, S., Jabas, M., Siegwart, R
+**Quelle:** [62] Oettershagen, P; [50] Leutenegger, S., Jabas, M., Siegwart, R
 
 **Im Code:** `sim.js · periodic`
 
@@ -1175,7 +1280,7 @@ U₀,Zelle(z) aus der Kennlinie (10-%-Stützstellen, linear); Li-Ionen 3,31 … 
 
 **Stellgrößen:** Zellspannung (Mittel) (`cellV`), Zellen in Reihe (`nCells`)
 
-**Quelle:** [3] Analog Devices (Maxim Integrated); [20] Drypower IFR18650 E1600, Ruhespannungskennlinie (übernommen in Zephyr RTOS, dt-bindings/battery).
+**Quelle:** [3] Analog Devices (Maxim Integrated); [21] Drypower IFR18650 E1600, Ruhespannungskennlinie (übernommen in Zephyr RTOS, dt-bindings/battery).
 
 **Im Code:** `batt.js · cellOCV`
 
@@ -1214,7 +1319,7 @@ P_Antrieb(h) ∝ e^(h/(2H)), H = R_L·T/g
 
 **Stellgrößen:** Energie in der Höhe speichern bis (`hStore`), Flughöhe über Grund (`hAGL`)
 
-**Quelle:** [29] Gao, X.-Z., Hou, Z.-X., Guo, Z., Liu, J.-X., Chen, X.-Q; [44] Klesh, A
+**Quelle:** [30] Gao, X.-Z., Hou, Z.-X., Guo, Z., Liu, J.-X., Chen, X.-Q; [46] Klesh, A
 
 **Im Code:** `sim.js · stepEH`
 
@@ -1228,7 +1333,7 @@ Streifen = 2h·tan(HFOV/2),  GSD = Streifen/N_x
 
 **Stellgrößen:** Flughöhe über Grund (`hAGL`), Wärmebild Bildwinkel horizontal (`irHFOV`), Wärmebild Pixel horizontal (`irRes`), RGB Bildwinkel horizontal (`rgbHFOV`), RGB Pixel horizontal (`rgbRes`)
 
-**Quelle:** [46] Kraus, K
+**Quelle:** [48] Kraus, K
 
 **Im Code:** `ext.js · footprint`
 
@@ -1243,7 +1348,7 @@ Mäander: Hin- und Rückflug längs zum Wind, Vorhaltewinkel quer; Wende als Hal
 
 **Stellgrößen:** Seitliche Überlappung (`overlap`), Länge der Suchbahnen (`legKm`), Querneigung im Kurvenflug (`bank`), Reisegeschwindigkeit (wahre Fahrt) (`v`)
 
-**Quelle:** [23] Eigene Herleitung im Rechner aus Geometrie bzw; [49] Manwell, J, Kap. 2
+**Quelle:** [24] Eigene Herleitung im Rechner aus Geometrie bzw; [51] Manwell, J, Kap. 2
 
 **Im Code:** `ext.js · missionPerf`
 
@@ -1255,7 +1360,7 @@ u(h) = u₁₀·(h/10 m)^α (Hellmann),  Weibull-Verteilung mit c = ū/Γ(1 + 1/
 
 **Stellgrößen:** Mittlerer Wind in 10 m (`wind10`), Hellmann-Exponent (`hellmann`), Weibull-Formfaktor (`weibullK`), Flughöhe über Grund (`hAGL`)
 
-**Quelle:** [49] Manwell, J, Kap. 2
+**Quelle:** [51] Manwell, J, Kap. 2
 
 **Im Code:** `ext.js · windAtAlt, windStats`
 
@@ -1267,7 +1372,7 @@ f_min = (L(T_B + ΔT) − L(T_B))/(L(T_F) − L(T_B)),  A_min = f_min·GSD²;  L
 
 **Stellgrößen:** Brandtemperatur (`fireT`), Hintergrund (`bgT`), Erkennungsschwelle über Hintergrund (`clutterDT`), Wärmebild NETD (`irNETD`), Wärmebild Bildwinkel horizontal (`irHFOV`), Wärmebild Pixel horizontal (`irRes`), Flughöhe über Grund (`hAGL`)
 
-**Quelle:** [16] Dozier, J
+**Quelle:** [17] Dozier, J
 
 **Im Code:** `ext.js · fireDetection`
 
@@ -1279,7 +1384,7 @@ d = 4,12·(√h₁ + √h₂) km (h in m, Erdradius-Faktor 4/3)
 
 **Stellgrößen:** Flughöhe über Grund (`hAGL`)
 
-**Quelle:** [40] ITU-R P.834-9 (2017)
+**Quelle:** [42] ITU-R P.834-9 (2017)
 
 **Im Code:** `ext.js · missionPerf`
 
@@ -1293,7 +1398,7 @@ W₂₀: leicht 15 kn, mittel 30 kn, stark 45 kn
 
 **Stellgrößen:** Turbulenz (MIL-F-8785C) (`turbLevel`), Flughöhe über Grund (`hAGL`), Mittlerer Wind in 10 m (`wind10`)
 
-**Quelle:** [54] MIL-F-8785C (1980), 3.7; [55] MIL-HDBK-1797 (1997)
+**Quelle:** [56] MIL-F-8785C (1980), 3.7; [57] MIL-HDBK-1797 (1997)
 
 **Im Code:** `turb.js · drydenParams`
 
@@ -1306,7 +1411,7 @@ H_p = σ_w√(0,8/V)(π/4b)^(1/6)/(L_w^(1/3)(1 + 4bs/(πV)));  q_g = −(s/V)/(1
 
 **Stellgrößen:** Turbulenz (MIL-F-8785C) (`turbLevel`), Reisegeschwindigkeit (wahre Fahrt) (`v`), Spannweite (`span`)
 
-**Quelle:** [54] MIL-F-8785C (1980), 3.7; [55] MIL-HDBK-1797 (1997)
+**Quelle:** [56] MIL-F-8785C (1980), 3.7; [57] MIL-HDBK-1797 (1997)
 
 **Im Code:** `turb.js · turbResponse`
 
@@ -1320,7 +1425,7 @@ Die Luftkräfte hängen von w − w_g, ẇ − ẇ_g (Abwindverzug) und q − q_
 
 **Stellgrößen:** Bandbreite des Autopiloten (`apBand`), Turbulenz (MIL-F-8785C) (`turbLevel`)
 
-**Quelle:** [25] Etkin, B, Kap. 13; [77] Wright, J, Kap. 14; [57] Nelson, R, Kap. 6; [55] MIL-HDBK-1797 (1997)
+**Quelle:** [26] Etkin, B, Kap. 13; [84] Wright, J, Kap. 14; [59] Nelson, R, Kap. 6; [57] MIL-HDBK-1797 (1997)
 
 **Im Code:** `turb.js · turbResponse`
 
@@ -1332,7 +1437,7 @@ Die Luftkräfte hängen von w − w_g, ẇ − ẇ_g (Abwindverzug) und q − q_
 
 **Stellgrößen:** Wärmebild Zeitkonstante (`irTau`), RGB Belichtungszeit (`rgbExp`), Wärmebild Bildwinkel horizontal (`irHFOV`), Wärmebild Pixel horizontal (`irRes`), Flughöhe über Grund (`hAGL`), Reisegeschwindigkeit (wahre Fahrt) (`v`)
 
-**Quelle:** [36] Holst, G; [46] Kraus, K
+**Quelle:** [37] Holst, G; [48] Kraus, K
 
 **Im Code:** `turb.js · imageStability`
 
@@ -1346,7 +1451,7 @@ iGRC aus Bevölkerungsdichte und Spannweite/Geschwindigkeit (Tab. 2); fGRC = iGR
 
 **Stellgrößen:** Bevölkerungsdichte im Betriebsgebiet (`density`), Spannweite (`span`), Höchstgeschwindigkeit (SORA) (`vmax`), M1(A) Abschirmung (`m1a`), M1(B) Betriebliche Beschränkungen (`m1b`), M1(C) Bodenbeobachtung (`m1c`), M2 Fallschirm (`m2`)
 
-**Quelle:** [41] JARUS (2024), Main Body Tab. 2, 5
+**Quelle:** [43] JARUS (2024), Main Body Tab. 2, 5
 
 **Im Code:** `ext.js · sora`
 
@@ -1358,7 +1463,7 @@ ARC aus der Begegnungsklasse (AEC), strategische Minderung; SAIL aus fGRC und Re
 
 **Stellgrößen:** Luftraum (Begegnungsklasse AEC) (`aec`), Strategische Luftrisiko-Minderung (`arcStrat`)
 
-**Quelle:** [41] JARUS (2024), Main Body Tab. 7, Annex C
+**Quelle:** [43] JARUS (2024), Main Body Tab. 7, Annex C
 
 **Im Code:** `ext.js · sora`
 
@@ -1373,7 +1478,7 @@ verletzt bei m < 0, knapp bei 0 ≤ m < m_knapp, sonst erfüllt
 
 m_knapp ist die Knapp-Schwelle (Standard 5 %). Ganzzahlige Größen (SAIL, Bodenrisikoklasse, Zellzahl) sind knapp, wenn sie genau auf der Grenze liegen. Aufwendige Größen (Flattern aller Fälle) rechnet die Seite nach jeder Änderung im Hintergrund nach.
 
-**Quelle:** [23] Eigene Herleitung im Rechner aus Geometrie bzw
+**Quelle:** [24] Eigene Herleitung im Rechner aus Geometrie bzw
 
 **Im Code:** `ui-req.js · rangeState`
 
@@ -1388,7 +1493,7 @@ f ist das Ziel als Größe, die kleiner werden soll (bei „möglichst groß“ 
 
 **Stellgrößen:** Zulässige Abflugmasse (`mtomLimit`), Geforderte Excess Time (`tExcReq`)
 
-**Quelle:** [14] Deb, K
+**Quelle:** [15] Deb, K
 
 **Im Code:** `kenn.js · DESIGN_CHECKS; opt.js · optEvalVals, optBetter`
 
@@ -1401,7 +1506,7 @@ F ~ Cauchy(μ_F; 0,1), CR ~ N(μ_CR; 0,1);  μ_CR ← 0,9·μ_CR + 0,1·mittel(S
 
 Alle freien Größen auf [0, 1] skaliert; ganzzahlige und Auswahlgrößen werden beim Entschlüsseln gerundet (Raster der Eingabe). x_pbest aus dem besten Fünftel, S_F und S_CR sind die Werte erfolgreicher Kinder. Anfangsbevölkerung: der jetzige Entwurf, 30 % Nachbarn davon, der Rest als lateinischer Hyperwürfel. Mehrere Läufe mit eigenem Startwert rechnen parallel.
 
-**Quelle:** [71] Storn, R., Price, K; [79] Zhang, J., Sanderson, A; [52] McKay, M
+**Quelle:** [76] Storn, R., Price, K; [86] Zhang, J., Sanderson, A; [54] McKay, M
 
 **Im Code:** `opt.js · optIsland`
 
@@ -1415,7 +1520,7 @@ Aufräumen: Größe j zurück auf den alten Wert, solange zulässig und Σ Einbu
 
 σ je Größe aus der Streuung des besten Fünftels der Bevölkerung. Rechnung in Stufen: ein Kind, das schon nach dem Rechenfall gegen sein Elternteil verliert, wird nicht weiter gerechnet (Tagesbilanz und Flattern entfallen). Werte am Rand des Suchbereichs werden markiert.
 
-**Quelle:** [65] Rechenberg, I; [45] Kolda, T; [23] Eigene Herleitung im Rechner aus Geometrie bzw
+**Quelle:** [68] Rechenberg, I; [47] Kolda, T; [24] Eigene Herleitung im Rechner aus Geometrie bzw
 
 **Im Code:** `opt.js · optIsland, optPolish`
 
@@ -1428,75 +1533,82 @@ Aufräumen: Größe j zurück auf den alten Wert, solange zulässig und Σ Einbu
 5. Anderson, J. D. (2017). Fundamentals of Aerodynamics, 6. Aufl. McGraw-Hill.
 6. ASHRAE (1985). Handbook of Fundamentals, Kap. 27: Klarhimmelmodell (Koeffizienten A, B, C nach Threlkeld & Jordan 1958).
 7. ASTM F3093/F3093M-21. Standard Specification for Aeroelasticity Requirements.
-8. AZUR SPACE Solar Power (2025). TJ Solar Cell 3G30C-Advanced (4 × 8 cm). Datenblatt DB 00010891-01 (80 × 40 mm, 30,18 cm², 29,5 % AM0, U_MPP 2,41 V).
-9. Barmby, J. G., Cunningham, H. J., Garrick, I. E. (1951). Study of effects of sweep on the flutter of cantilever wings. NACA Report 1014.
-10. Bendt, P., Collares-Pereira, M., Rabl, A. (1981). The frequency distribution of daily insolation values. Solar Energy 27(1), 1–5.
-11. CAA/FAA (1955). Airframe and Equipment Engineering Report No. 45: Simplified Flutter Prevention Criteria for Personal Type Aircraft.
+8. Barmby, J. G., Cunningham, H. J., Garrick, I. E. (1951). Study of effects of sweep on the flutter of cantilever wings. NACA Report 1014.
+9. Bendt, P., Collares-Pereira, M., Rabl, A. (1981). The frequency distribution of daily insolation values. Solar Energy 27(1), 1–5.
+10. CAA/FAA (1955). Airframe and Equipment Engineering Report No. 45: Simplified Flutter Prevention Criteria for Personal Type Aircraft.
+11. Čečrdle, J. (2017). Aeroelastic stability of turboprop aircraft: whirl flutter. In: Flutter and Its Application, IntechOpen, doi:10.5772/intechopen.70171.
 12. Chen, M., Rincón-Mora, G. A. (2006). An accurate electrical battery model capable of predicting runtime and I–V performance. IEEE Transactions on Energy Conversion 21(2), 504–511.
 13. Currey, N. S. (1988). Aircraft Landing Gear Design: Principles and Practices. AIAA Education Series.
-14. Deb, K. (2000). An efficient constraint handling method for genetic algorithms. Computer Methods in Applied Mechanics and Engineering 186(2–4), 311–338.
-15. Diederich, F. W., Budiansky, B. (1948). Divergence of swept wings. NACA TN 1680.
-16. Dozier, J. (1981). A method for satellite identification of surface temperature fields of subpixel resolution. Remote Sensing of Environment 11, 221–229.
-17. Drela, M. (1989). XFOIL: An analysis and design system for low Reynolds number airfoils. In: Mueller, T. J. (Hrsg.), Low Reynolds Number Aerodynamics, Lecture Notes in Engineering 54, Springer, 1–12.
-18. Drela, M. (2006). QPROP Formulation. Massachusetts Institute of Technology, Aeronautics and Astronautics.
-19. Drela, M. (2007). First-Order DC Electric Motor Model. Massachusetts Institute of Technology.
-20. Drypower IFR18650 E1600, Ruhespannungskennlinie (übernommen in Zephyr RTOS, dt-bindings/battery).
-21. Duffie, J. A., Beckman, W. A. (2013). Solar Engineering of Thermal Processes, 4. Aufl. Wiley.
-22. EASA (2012). CS-23 Amendment 3, Certification Specifications for Normal, Utility, Aerobatic and Commuter Category Aeroplanes (Lastvorschriften CS-23.301 bis 23.561).
-23. Eigene Herleitung im Rechner aus Geometrie bzw. Bilanzgleichung (keine externe Quelle); Annahmen stehen beim Eintrag.
-24. Erbs, D. G., Klein, S. A., Duffie, J. A. (1982). Estimation of the diffuse radiation fraction for hourly, daily and monthly-average global radiation. Solar Energy 28(4), 293–302.
-25. Etkin, B. (1972). Dynamics of Atmospheric Flight. Wiley; Nachdruck Dover 2005 (Kap. 13: Flight in a Turbulent Atmosphere).
-26. Etkin, B., Reid, L. D. (1996). Dynamics of Flight: Stability and Control, 3. Aufl. Wiley.
-27. FAA AC 23.629-1B (2004). Means of Compliance with Title 14 CFR, Part 23, § 23.629, Flutter.
-28. FAA AC 43.13-1B (1998). Acceptable Methods, Techniques, and Practices – Aircraft Inspection and Repair, Kap. 11 (Elektrische Leitungen).
-29. Gao, X.-Z., Hou, Z.-X., Guo, Z., Liu, J.-X., Chen, X.-Q. (2013). Energy management strategy for solar-powered high-altitude long-endurance aircraft. Energy Conversion and Management 70, 20–30.
-30. Glauert, H. (1926). The Elements of Aerofoil and Airscrew Theory. Cambridge University Press.
-31. Glauert, H. (1927). Theoretical relationships for an aerofoil with hinged flap. ARC R&M 1095.
-32. Goland, M. (1945). The flutter of a uniform cantilever wing. Journal of Applied Mechanics 12(4), A197–A208.
-33. Hoak, D. E., Finck, R. D. u. a. (1978). USAF Stability and Control DATCOM. Air Force Flight Dynamics Laboratory, Wright-Patterson AFB.
-34. Hodges, D. H., Pierce, G. A. (2011). Introduction to Structural Dynamics and Aeroelasticity, 2. Aufl. Cambridge University Press.
-35. Hoerner, S. F. (1965). Fluid-Dynamic Drag. Hoerner Fluid Dynamics, Bricktown NJ.
-36. Holst, G. C. (2008). Electro-Optical Imaging System Performance, 5. Aufl. JCD Publishing / SPIE Press.
-37. Huld, T., Müller, R., Gambardella, A. (2012). A new solar radiation database for estimating PV performance in Europe and Africa. Solar Energy 86(6), 1803–1815 (PVGIS).
-38. IEC 60028 (1925). International standard of resistance for copper.
-39. ISO 2533:1975. Standard Atmosphere. International Organization for Standardization, Genf.
-40. ITU-R P.834-9 (2017). Effects of tropospheric refraction on radiowave propagation (Erdradius-Faktor k = 4/3).
-41. JARUS (2024). JARUS guidelines on Specific Operations Risk Assessment (SORA), Edition 2.5, Main Body und Annexe.
-42. Jones, R. T. (1940). The unsteady lift of a wing of finite aspect ratio. NACA Report 681.
-43. Katz, J., Plotkin, A. (2001). Low-Speed Aerodynamics, 2. Aufl. Cambridge University Press.
-44. Klesh, A. T., Kabamba, P. T. (2009). Solar-powered aircraft: Energy-optimal path planning and perpetual endurance. Journal of Guidance, Control, and Dynamics 32(4), 1320–1329.
-45. Kolda, T. G., Lewis, R. M., Torczon, V. (2003). Optimization by Direct Search: New Perspectives on Some Classical and Modern Methods. SIAM Review 45(3), 385–482.
-46. Kraus, K. (2007). Photogrammetry: Geometry from Images and Laser Scans, 2. Aufl. de Gruyter.
-47. Kreith, F., Kreider, J. F. (1978). Principles of Solar Engineering. Hemisphere/McGraw-Hill (Luftmasse m = 35/√(1224·sin²h + 1)).
-48. Leutenegger, S., Jabas, M., Siegwart, R. (2011). Solar airplane conceptual design and performance estimation. Journal of Intelligent & Robotic Systems 61, 545–561.
-49. Manwell, J. F., McGowan, J. G., Rogers, A. L. (2009). Wind Energy Explained, 2. Aufl. Wiley (Potenzgesetz, Weibull-Verteilung).
-50. McCormick, B. W. (1995). Aerodynamics, Aeronautics, and Flight Mechanics, 2. Aufl. Wiley.
-51. McCrink, M. H., Gregory, J. W. (2017). Blade element momentum modeling of low-Reynolds electric propulsion systems. Journal of Aircraft 54(1), 163–176.
-52. McKay, M. D., Beckman, R. J., Conover, W. J. (1979). A Comparison of Three Methods for Selecting Values of Input Variables in the Analysis of Output from a Computer Code. Technometrics 21(2), 239–245.
-53. Megson, T. H. G. (2017). Aircraft Structures for Engineering Students, 6. Aufl. Butterworth-Heinemann.
-54. MIL-F-8785C (1980). Military Specification: Flying Qualities of Piloted Airplanes. U.S. Department of Defense.
-55. MIL-HDBK-1797 (1997). Flying Qualities of Piloted Aircraft. U.S. Department of Defense.
-56. NASA SP-8007 (1968). Buckling of Thin-Walled Circular Cylinders. NASA Space Vehicle Design Criteria (Structures).
-57. Nelson, R. C. (1998). Flight Stability and Automatic Control, 2. Aufl. McGraw-Hill.
-58. Noll, T. E. u. a. (2004). Investigation of the Helios Prototype Aircraft Mishap, Vol. I. NASA.
-59. Noth, A. (2008). Design of Solar Powered Airplanes for Continuous Flight. Dissertation ETH Zürich Nr. 18010.
-60. Oettershagen, P. u. a. (2017). Design of small hand-launched solar-powered UAVs: From concept study to a multi-day world endurance record flight. Journal of Field Robotics 34(7), 1352–1377.
-61. Olson, E. D. (2015). Semi-empirical prediction of aircraft low-speed aerodynamic characteristics. NASA/TM-2015-218489.
-62. Pratt, K. G., Walker, W. G. (1954). A revised gust-load formula and a re-evaluation of V-G data taken on civil transport airplanes from 1933 to 1950. NACA Report 1206.
-63. Przemieniecki, J. S. (1968). Theory of Matrix Structural Analysis. McGraw-Hill.
-64. Raymer, D. P. (2018). Aircraft Design: A Conceptual Approach, 6. Aufl. AIAA Education Series.
-65. Rechenberg, I. (1973). Evolutionsstrategie: Optimierung technischer Systeme nach Prinzipien der biologischen Evolution. Frommann-Holzboog, Stuttgart.
-66. Ribner, H. S. (1945). Formulas for propellers in yaw and charts of the side-force derivative. NACA Report 819.
-67. SAE AS22759/32. Wire, Electrical, Fluoropolymer-Insulated, Crosslinked Modified ETFE, Thin Wall, Silver-Coated Copper.
-68. SAE International (2012). CMH-17 Composite Materials Handbook, Vol. 2: Polymer Matrix Composites, Materials Properties.
-69. Schlichting, H., Gersten, K. (2017). Boundary-Layer Theory, 9. Aufl. Springer.
-70. Schrenk, O. (1940). A simple approximation method for obtaining the spanwise lift distribution. NACA TM 948.
-71. Storn, R., Price, K. (1997). Differential Evolution – A Simple and Efficient Heuristic for Global Optimization over Continuous Spaces. Journal of Global Optimization 11(4), 341–359.
-72. SunPower Corporation (2010). C60 Solar Cell, Mono Crystalline Silicon. Datenblatt 001-66352 Rev A4 (125 × 125 mm, Durchmesser 160 mm, 21,8–22,5 %, U_MPP 0,574–0,582 V).
-73. Sutherland, W. (1893). The viscosity of gases and molecular force. Philosophical Magazine 36(223), 507–531.
-74. Theodorsen, T. (1935). General theory of aerodynamic instability and the mechanism of flutter. NACA Report 496.
-75. Weisshaar, T. A. (1980). Divergence of forward swept composite wings. Journal of Aircraft 17(6), 442–448.
-76. Weissinger, J. (1947). The lift distribution of swept-back wings. NACA TM 1120 (Übersetzung von Forschungsbericht 1553, 1942).
-77. Wright, J. R., Cooper, J. E. (2015). Introduction to Aircraft Aeroelasticity and Loads, 2. Aufl. Wiley.
-78. Yates, E. C. (1966). Modified-strip-analysis method for predicting wing flutter at subsonic to hypersonic speeds. Journal of Aircraft 3(1), 25–29.
-79. Zhang, J., Sanderson, A. C. (2009). JADE: Adaptive Differential Evolution With Optional External Archive. IEEE Transactions on Evolutionary Computation 13(5), 945–958.
+14. de Boor, C. (2001). A Practical Guide to Splines, überarbeitete Aufl. Springer, Applied Mathematical Sciences 27.
+15. Deb, K. (2000). An efficient constraint handling method for genetic algorithms. Computer Methods in Applied Mechanics and Engineering 186(2–4), 311–338.
+16. Diederich, F. W., Budiansky, B. (1948). Divergence of swept wings. NACA TN 1680.
+17. Dozier, J. (1981). A method for satellite identification of surface temperature fields of subpixel resolution. Remote Sensing of Environment 11, 221–229.
+18. Drela, M. (1989). XFOIL: An analysis and design system for low Reynolds number airfoils. In: Mueller, T. J. (Hrsg.), Low Reynolds Number Aerodynamics, Lecture Notes in Engineering 54, Springer, 1–12.
+19. Drela, M. (2006). QPROP Formulation. Massachusetts Institute of Technology, Aeronautics and Astronautics.
+20. Drela, M. (2007). First-Order DC Electric Motor Model. Massachusetts Institute of Technology.
+21. Drypower IFR18650 E1600, Ruhespannungskennlinie (übernommen in Zephyr RTOS, dt-bindings/battery).
+22. Duffie, J. A., Beckman, W. A. (2013). Solar Engineering of Thermal Processes, 4. Aufl. Wiley.
+23. EASA (2012). CS-23 Amendment 3, Certification Specifications for Normal, Utility, Aerobatic and Commuter Category Aeroplanes (Lastvorschriften CS-23.301 bis 23.561).
+24. Eigene Herleitung im Rechner aus Geometrie bzw. Bilanzgleichung (keine externe Quelle); Annahmen stehen beim Eintrag.
+25. Erbs, D. G., Klein, S. A., Duffie, J. A. (1982). Estimation of the diffuse radiation fraction for hourly, daily and monthly-average global radiation. Solar Energy 28(4), 293–302.
+26. Etkin, B. (1972). Dynamics of Atmospheric Flight. Wiley; Nachdruck Dover 2005 (Kap. 13: Flight in a Turbulent Atmosphere).
+27. Etkin, B., Reid, L. D. (1996). Dynamics of Flight: Stability and Control, 3. Aufl. Wiley.
+28. FAA AC 23.629-1B (2004). Means of Compliance with Title 14 CFR, Part 23, § 23.629, Flutter.
+29. FAA AC 43.13-1B (1998). Acceptable Methods, Techniques, and Practices – Aircraft Inspection and Repair, Kap. 11 (Elektrische Leitungen).
+30. Gao, X.-Z., Hou, Z.-X., Guo, Z., Liu, J.-X., Chen, X.-Q. (2013). Energy management strategy for solar-powered high-altitude long-endurance aircraft. Energy Conversion and Management 70, 20–30.
+31. Glauert, H. (1926). The Elements of Aerofoil and Airscrew Theory. Cambridge University Press.
+32. Glauert, H. (1927). Theoretical relationships for an aerofoil with hinged flap. ARC R&M 1095.
+33. Goland, M. (1945). The flutter of a uniform cantilever wing. Journal of Applied Mechanics 12(4), A197–A208.
+34. Hoak, D. E., Finck, R. D. u. a. (1978). USAF Stability and Control DATCOM. Air Force Flight Dynamics Laboratory, Wright-Patterson AFB.
+35. Hodges, D. H., Pierce, G. A. (2011). Introduction to Structural Dynamics and Aeroelasticity, 2. Aufl. Cambridge University Press.
+36. Hoerner, S. F. (1965). Fluid-Dynamic Drag. Hoerner Fluid Dynamics, Bricktown NJ.
+37. Holst, G. C. (2008). Electro-Optical Imaging System Performance, 5. Aufl. JCD Publishing / SPIE Press.
+38. Houbolt, J. C., Reed, W. H. III (1962). Propeller-nacelle whirl flutter. Journal of the Aerospace Sciences 29(3), 333–346.
+39. Huld, T., Müller, R., Gambardella, A. (2012). A new solar radiation database for estimating PV performance in Europe and Africa. Solar Energy 86(6), 1803–1815 (PVGIS).
+40. IEC 60028 (1925). International standard of resistance for copper.
+41. ISO 2533:1975. Standard Atmosphere. International Organization for Standardization, Genf.
+42. ITU-R P.834-9 (2017). Effects of tropospheric refraction on radiowave propagation (Erdradius-Faktor k = 4/3).
+43. JARUS (2024). JARUS guidelines on Specific Operations Risk Assessment (SORA), Edition 2.5, Main Body und Annexe.
+44. Jones, R. T. (1940). The unsteady lift of a wing of finite aspect ratio. NACA Report 681.
+45. Katz, J., Plotkin, A. (2001). Low-Speed Aerodynamics, 2. Aufl. Cambridge University Press.
+46. Klesh, A. T., Kabamba, P. T. (2009). Solar-powered aircraft: Energy-optimal path planning and perpetual endurance. Journal of Guidance, Control, and Dynamics 32(4), 1320–1329.
+47. Kolda, T. G., Lewis, R. M., Torczon, V. (2003). Optimization by Direct Search: New Perspectives on Some Classical and Modern Methods. SIAM Review 45(3), 385–482.
+48. Kraus, K. (2007). Photogrammetry: Geometry from Images and Laser Scans, 2. Aufl. de Gruyter.
+49. Kreith, F., Kreider, J. F. (1978). Principles of Solar Engineering. Hemisphere/McGraw-Hill (Luftmasse m = 35/√(1224·sin²h + 1)).
+50. Leutenegger, S., Jabas, M., Siegwart, R. (2011). Solar airplane conceptual design and performance estimation. Journal of Intelligent & Robotic Systems 61, 545–561.
+51. Manwell, J. F., McGowan, J. G., Rogers, A. L. (2009). Wind Energy Explained, 2. Aufl. Wiley (Potenzgesetz, Weibull-Verteilung).
+52. McCormick, B. W. (1995). Aerodynamics, Aeronautics, and Flight Mechanics, 2. Aufl. Wiley.
+53. McCrink, M. H., Gregory, J. W. (2017). Blade element momentum modeling of low-Reynolds electric propulsion systems. Journal of Aircraft 54(1), 163–176.
+54. McKay, M. D., Beckman, R. J., Conover, W. J. (1979). A Comparison of Three Methods for Selecting Values of Input Variables in the Analysis of Output from a Computer Code. Technometrics 21(2), 239–245.
+55. Megson, T. H. G. (2017). Aircraft Structures for Engineering Students, 6. Aufl. Butterworth-Heinemann.
+56. MIL-F-8785C (1980). Military Specification: Flying Qualities of Piloted Airplanes. U.S. Department of Defense.
+57. MIL-HDBK-1797 (1997). Flying Qualities of Piloted Aircraft. U.S. Department of Defense.
+58. NASA SP-8007 (1968). Buckling of Thin-Walled Circular Cylinders. NASA Space Vehicle Design Criteria (Structures).
+59. Nelson, R. C. (1998). Flight Stability and Automatic Control, 2. Aufl. McGraw-Hill.
+60. Noll, T. E. u. a. (2004). Investigation of the Helios Prototype Aircraft Mishap, Vol. I. NASA.
+61. Noth, A. (2008). Design of Solar Powered Airplanes for Continuous Flight. Dissertation ETH Zürich Nr. 18010.
+62. Oettershagen, P. u. a. (2017). Design of small hand-launched solar-powered UAVs: From concept study to a multi-day world endurance record flight. Journal of Field Robotics 34(7), 1352–1377.
+63. Olson, E. D. (2015). Semi-empirical prediction of aircraft low-speed aerodynamic characteristics. NASA/TM-2015-218489.
+64. Pratt, K. G., Walker, W. G. (1954). A revised gust-load formula and a re-evaluation of V-G data taken on civil transport airplanes from 1933 to 1950. NACA Report 1206.
+65. Przemieniecki, J. S. (1968). Theory of Matrix Structural Analysis. McGraw-Hill.
+66. Quaschning, V., Hanitsch, R. (1996). Numerical simulation of current-voltage characteristics of photovoltaic systems with shaded solar cells. Solar Energy 56(6), 513–520.
+67. Raymer, D. P. (2018). Aircraft Design: A Conceptual Approach, 6. Aufl. AIAA Education Series.
+68. Rechenberg, I. (1973). Evolutionsstrategie: Optimierung technischer Systeme nach Prinzipien der biologischen Evolution. Frommann-Holzboog, Stuttgart.
+69. Reed, W. H. III (1967). Review of propeller-rotor whirl flutter. NASA Technical Report R-264.
+70. Ribner, H. S. (1945). Formulas for propellers in yaw and charts of the side-force derivative. NACA Report 819.
+71. Rion, J., Leterrier, Y., Månson, J.-A. E., Blairon, J.-M. (2009). Ultra-light asymmetric photovoltaic sandwich structures. Composites Part A: Applied Science and Manufacturing 40, 1167–1173.
+72. SAE AS22759/32. Wire, Electrical, Fluoropolymer-Insulated, Crosslinked Modified ETFE, Thin Wall, Silver-Coated Copper.
+73. SAE International (2012). CMH-17 Composite Materials Handbook, Vol. 2: Polymer Matrix Composites, Materials Properties.
+74. Schlichting, H., Gersten, K. (2017). Boundary-Layer Theory, 9. Aufl. Springer.
+75. Schrenk, O. (1940). A simple approximation method for obtaining the spanwise lift distribution. NACA TM 948.
+76. Storn, R., Price, K. (1997). Differential Evolution – A Simple and Efficient Heuristic for Global Optimization over Continuous Spaces. Journal of Global Optimization 11(4), 341–359.
+77. SunPower Corporation (2010). C60 Solar Cell, Mono Crystalline Silicon. Datenblatt 001-66352 Rev A4 (125 × 125 mm, Durchmesser 160 mm, 21,8–22,5 %, U_MPP 0,574–0,582 V).
+78. Sutherland, W. (1893). The viscosity of gases and molecular force. Philosophical Magazine 36(223), 507–531.
+79. Theodorsen, T. (1935). General theory of aerodynamic instability and the mechanism of flutter. NACA Report 496.
+80. Tran, T. H., Ambo, T., Chen, L., Nonomura, T., Asai, K. (2019). Effect of boattail angle on pressure distribution and drag of axisymmetric afterbodies under low-speed conditions. Transactions of the Japan Society for Aeronautical and Space Sciences 62(4), 219–226.
+81. U.S. Federal Aviation Administration. 14 CFR § 23.925 Propeller clearance, Fassung vor der Neufassung von Part 23 (Amendment 23-64, 2017): (a) Bodenfreiheit, (b) hinten liegende Propeller, (d) Abstand zur Struktur (1 Zoll radial, ½ Zoll in Längsrichtung).
+82. Weisshaar, T. A. (1980). Divergence of forward swept composite wings. Journal of Aircraft 17(6), 442–448.
+83. Weissinger, J. (1947). The lift distribution of swept-back wings. NACA TM 1120 (Übersetzung von Forschungsbericht 1553, 1942).
+84. Wright, J. R., Cooper, J. E. (2015). Introduction to Aircraft Aeroelasticity and Loads, 2. Aufl. Wiley.
+85. Yates, E. C. (1966). Modified-strip-analysis method for predicting wing flutter at subsonic to hypersonic speeds. Journal of Aircraft 3(1), 25–29.
+86. Zhang, J., Sanderson, A. C. (2009). JADE: Adaptive Differential Evolution With Optional External Archive. IEEE Transactions on Evolutionary Computation 13(5), 945–958.

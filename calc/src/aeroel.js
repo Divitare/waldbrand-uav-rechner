@@ -54,7 +54,7 @@ function dboxGeom(foil, xs) {
 function wingSections(C) {
   const P = C.P, st = C.struct || structureMass(C, C.m, true), sd = st.stations, cap = MAT[P.matCap] || MAT.cfk_ud;
   const xs = P.xSpar / 100, xea = xs - 0.04, gsSkin = (MAT[P.matSkin] || MAT.balsa_gfk).gs * 1e6, gsWeb = (MAT[P.matWeb] || MAT.balsa_gfk).gs * 1e6;
-  const db = dboxGeom(C.foil, xs), x0 = P.cellX0 / 100, x1 = P.cellX1 / 100;
+  const db = dboxGeom(C.foil, xs), x0 = C.solar ? C.solar.x0 : 0.1, x1 = C.solar ? C.solar.x1 : 0.85;
   const mSolTot = C.mass.solar, mBat = P.battInWing ? C.mass.batt : 0, wl = C.harness ? C.harness.wingLin : (C.bal && C.bal.mi.harness ? C.bal.mi.harness.wingLin : null), kR = 1 + P.rugged / 100;
   return sd.y.map((y, k) => {
     const c = sd.c[k], eta = y / (C.pf.b / 2);

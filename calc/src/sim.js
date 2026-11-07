@@ -63,8 +63,8 @@ function airTemp(t, tMin, tMax, rise) {
    Direktanteil mit Einfallswinkel-Modifikator (ASHRAE, b0 = 0,05), Diffus isotrop, Bodenreflexion. */
 const IAM_B0 = 0.05;
 const iam = c => (c <= 0 ? 0 : Math.max(0, 1 - IAM_B0 * (1 / c - 1)));
-function cellPanels(P, foil) {
-  const sh = foil.shape, x0 = clamp(P.cellX0 / 100, 0, 0.95), x1 = clamp(P.cellX1 / 100, x0 + 0.02, 1), M = 16, out = [];
+function cellPanels(foil, xa, xb) {
+  const sh = foil.shape, x0 = clamp(xa, 0, 0.95), x1 = clamp(xb, x0 + 0.02, 1), M = 16, out = [];
   const yu = x => { const X = sh.x; let k = 0; while (k < X.length - 2 && X[k + 1] < x) k++; const t = (x - X[k]) / (X[k + 1] - X[k]); return sh.yu[k] + (sh.yu[k + 1] - sh.yu[k]) * t; };
   let wsum = 0;
   for (let j = 0; j < M; j++) {
@@ -107,10 +107,11 @@ function solarGeometry(P, C) {
   }
   const pitchDeg = Math.round(clamp(C.lvl ? C.lvl.alpha : 4, -5, 15) * 4) / 4, pitch = pitchDeg * DEG, dih = (P.dihedral || 0) * DEG;
   const f = clamp(P.turnFrac / 100, 0, 1);
-  const key = [P.airfoil, P.cellX0, P.cellX1, pitchDeg, P.dihedral, P.stringLayout, f > 0 ? P.bank : 0].join('|');
+  const bx0 = C.solar ? C.solar.x0 : 0.1, bx1 = C.solar ? C.solar.x1 : 0.85;
+  const key = [P.airfoil, bx0.toFixed(3), bx1.toFixed(3), pitchDeg, P.dihedral, P.stringLayout, f > 0 ? P.bank : 0].join('|');
   let g = geoCache.get(key);
   if (!g) {
-    const cp = cellPanels(P, C.foil);
+    const cp = cellPanels(C.foil, bx0, bx1);
     const lvl = geomFactors(cp.panels, pitch, 0, dih, P.stringLayout);
     const turn = f > 0 ? geomFactors(cp.panels, pitch, clamp(P.bank, 0, 60) * DEG, dih, P.stringLayout) : lvl;
     g = { cp, lvl, turn }; if (geoCache.size > 400) geoCache.clear(); geoCache.set(key, g);

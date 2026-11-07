@@ -57,7 +57,7 @@ function harness(C, g, xb) {
   let pm;
   if (cf.mot === 'nose') pm = [[xb, 0, zb, 'pod'], [g.xMot, 0, g.zP, 'pod']];
   else if (cf.mot === 'fin') pm = [...toTail(xb, 0, zb), [g.xMot, 0, g.zP, 'wing']];
-  else if (cf.fus === 'glider') pm = [[xb, 0, zb, 'pod'], [g.xMot, 0, g.zP - g.pylon, 'pod'], [g.xMot, 0, g.zP, 'pod']];
+  else if (g.pylon > 0) { const xpy = g.pyl ? (g.pyl.x0 + g.pyl.x1) / 2 : g.xMot; pm = [[xb, 0, zb, 'pod'], [xpy, 0, g.zP - g.pylon - NAC_D / 2, 'pod'], [xpy, 0, g.zP, 'wing'], [g.xMot, 0, g.zP, 'wing']]; }
   else pm = [[xb, 0, zb, 'pod'], [g.xMot, 0, g.zP, 'pod']];
   let Lm = 0.15; for (let i = 0; i < pm.length - 1; i++) Lm += Math.hypot(pm[i + 1][0] - pm[i][0], pm[i + 1][1] - pm[i][1], pm[i + 1][2] - pm[i][2]);
   const sm = sizePair(Lm, Imax, U, 0.07);

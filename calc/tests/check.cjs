@@ -49,10 +49,44 @@ const t0 = Date.now();
   const n = U.packColumns(geo, spec, 0.002, 1, 'auto').reduce((s, c) => s + c.n, 0);
   chk('Packung Rechteck von Hand (Zellen je Hälfte)', n, 26, 0);
   const P = { ...U.DEFAULT_PARAMS }, comps = U.DEFAULT_COMPS.map(c => ({ ...c }));
-  const Cc = U.buildCase({ ...P, solarMode: 'count', nCellsWing: 60 }, comps);
-  chk('Feste Zellzahl wird eingehalten', Cc.solar.n, 60, 0);
+  const Cc = U.buildCase({ ...P, solarMode: 'count', nCellsWing: 40 }, comps);
+  chk('Feste Zellzahl wird eingehalten', Cc.solar.n, 40, 0);
+  // Biegung: Oberseite als Kreisbogen mit Radius ρ = 2 (Einheitstiefe). Eine Zelle der Länge λ = 0,5 hat den Stich
+  // f = ρ(1 − cos(λ/2ρ)), also f/λ = 3,12 %, und überall die Krümmung 1/ρ.
+  const rho = 2, xs = [], yu = []; for (let i = 0; i <= 32; i++) { const x = i / 32; xs.push(x); yu.push(Math.sqrt(rho * rho - (x - 0.5) ** 2) - Math.sqrt(rho * rho - 0.25)); }
+  const U0 = U.foilUpper({ key: 'kreisbogen-test', shape: { x: xs, yu, yl: yu.map(() => 0) } }), fRef = rho * (1 - Math.cos(0.5 / (2 * rho))) / 0.5;
+  chk('Biegung: Stich je Zelllänge auf dem Kreisbogen', U.upSag(U0, 0.2, 0.7) / 0.5, fRef, 0.01);
+  // zwischen 10 und 90 % der Tiefe (an den Enden des Splines ist die Krümmung nicht die des Kreises)
+  const sIn = U.upS(U0, 0.9) - U.upS(U0, 0.1), bendOk = (beta, q) => { const b = U.bendScan(U0, 0.5, beta, q, 0.1, 0.9); return b ? (b.s1 - b.s0) / sIn : 0; };
+  chk('Biegung: Stich knapp über der Grenze, keine Zelle', bendOk(fRef * 0.97, 100) === 0 ? 1 : 0, 1, 0);
+  chk('Biegung: Stich knapp unter der Grenze, ganzes Band', bendOk(fRef * 1.03, 100), 1, 0.04);
+  // Dehnung: κ = 1/ρ; zulässig κ_zul = 2q/λ, also Grenze bei q = λ/(2ρ) = 0,125
+  chk('Dehnung knapp über der Grenze, keine Zelle', bendOk(1, 0.125 * 0.95) === 0 ? 1 : 0, 1, 0);
+  chk('Dehnung knapp unter der Grenze, ganzes Band', bendOk(1, 0.125 * 1.05), 1, 0.04);
   const Ca = U.buildCase({ ...P, solarMode: 'area', solarArea: 0.9 }, comps);
   chk('Freie Zellfläche bleibt wie eingegeben (m²)', Ca.solar.a, 0.9, 1e-9);
+}
+// Schatten: Schnitt Vieleck mit Zellrechteck; senkrechtes Rechteck (0,3 m tief, 0,4 m hoch) bei 45° Sonne von der Seite
+// wirft einen Schatten von 0,3 × 0,4 m auf die Ebene seines Fußes
+{
+  chk('Schatten: halbe Überdeckung einer Zelle (m²)', U.clipRect([[0.05, -1], [1, -1], [1, 1], [0.05, 1]], 0, 0.1, 0, 0.1), 0.005, 1e-9);
+  const fin = { poly: [[0, 0, 0], [0, 0, 0.4], [0.3, 0, 0.4], [0.3, 0, 0]] }, h = 45 * Math.PI / 180, s = [0, Math.cos(h), Math.sin(h)];
+  chk('Schatten: senkrechtes Rechteck bei 45° (m²)', U.polyArea(U.shadowOn(fin, s, 0)), 0.12, 1e-6);
+  // Seitenleitwerk über Höhenleitwerkszellen: Verlust nimmt mit der Sonnenhöhe ab und ist ohne Bypassdioden größer
+  const comps = U.DEFAULT_COMPS.map(c => ({ ...c })), C1 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, cellsOnCtrl: true }, comps), C2 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, cellsOnCtrl: true, bypass: 'none' }, comps), C3 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, cellsOnCtrl: true, tailType: 'T' }, comps);
+  chk('Schatten Höhenleitwerk: ohne Bypassdioden mehr Verlust', C2.shade.H[30] > 1.5 * C1.shade.H[30] && C1.shade.H[30] > 0.05 ? 1 : 0, 1, 0);
+  chk('Schatten Höhenleitwerk: T-Leitwerk schattenfrei', C3.shade.H[30] < 1e-6 ? 1 : 0, 1, 0);
+}
+// Wirbelflattern: Normalkraft aus den Ableitungen gegen die Normalkraft des Propellermodells, Rückwärtswirbel bei
+// weicher, gleich steifer Lagerung, höhere Flattergeschwindigkeit bei steiferer Lagerung
+{
+  const P = { ...U.DEFAULT_PARAMS }, g = U.propGeometry(P), rho = 1.225, nu = 1.5e-5, n = 2900 / 60, d = U.whirlDerivs(g, 15, n, rho, nu);
+  chk('Wirbelflattern: ½·V·I_Bt / Normalkraft-Ableitung', 0.5 * 15 * d.IBt / U.propNormalDeriv(g, 15, n, rho, nu), 1, 0.02);
+  const vf = f => { const a = 0.3, I = 0.6 * a * a + 0.002, k = 1 / Math.sqrt(I), M = { modes: [{ omega: 2 * Math.PI * f, psi: 0, v: 0, th: k, u: a * k }, { omega: 2 * Math.PI * f, psi: k, v: a * k, th: 0, u: 0 }] };
+    for (let V = 3; V <= 150; V += 1) { const A = U.whirlMatrix(M, U.whirlDerivs(g, V, n, rho, nu), V, 0, 2 * Math.PI * n, 1.8e-3, 1, 0.015), z = U.eigReal(A).filter(z => z.im > 1e-6).find(z => z.re > 0); if (z) return { V, kind: U.whirlSense(A, z, M, 1) }; } return { V: Infinity }; };
+  const a5 = vf(5), a10 = vf(10);
+  chk('Wirbelflattern weich gelagert: rückwärts umlaufend', a5.kind === 'rückwärts' ? 1 : 0, 1, 0);
+  chk('Wirbelflattern: steifere Lagerung, später instabil', a10.V > 1.3 * a5.V ? 1 : 0, 1, 0);
 }
 // Gepfeilter Flügel: Wurzel über Zwangsbedingungen an den Flugzeugachsen, Gegenprobe zur Flugdynamik (Wirbelgitter)
 {

@@ -199,9 +199,12 @@ function aeroCore(C, V, n, rho, nu, dM, Tin) {
   const fusCdA = cfFlat(Ref, P.fusFlow) * (1 + 60 / fr ** 3 + fr / 400) * fu.Swet;
   const lB = g.lBoom, boomCdA = lB > 0 ? cfFlat(V * lB / nu, P.fusFlow) * 1.05 * Math.PI * P.boomD * lB * C.cfg.nBoom : 0;
   const kI = 1 + P.kInt / 100, kP = C.k.par;
-  // Motorgondel oben am Seitenleitwerk, Pylon des Druckmotors, Landekufe
-  const nac = C.cfg.mot === 'fin' ? cfFlat(V * 0.22 / nu, 'turb') * (1 + 0.35 / 3.7) * 0.85 * Math.PI * 0.07 * 0.22 : 0;
-  const pyl = g.pylon > 0 ? cfFlat(V * 0.12 / nu, 'turb') * 1.3 * 2 * 0.12 * g.pylon + cfFlat(V * 0.2 / nu, 'turb') * 1.1 * Math.PI * 0.06 * 0.2 : 0;
+  // Motorgondel (Seitenleitwerksspitze oder Pylon) als Gondel nach Raymer (FF = 1 + 0,35/f, 85 % frei umströmt),
+  // Pylon als Profilstrebe (FF ≈ 1,3, beide Seiten), Landekufe
+  const nl = g.nac ? Math.max(0.05, g.nac.x1 - g.nac.x0) : 0;
+  const nacCdA = g.nac ? cfFlat(V * nl / nu, 'turb') * (1 + 0.35 / (nl / g.nac.d)) * 0.85 * Math.PI * g.nac.d * nl : 0;
+  const nac = C.cfg.mot === 'fin' ? nacCdA : 0;
+  const pyl = g.pylon > 0 ? cfFlat(V * (g.pyl ? g.pyl.c : PYL_C) / nu, 'turb') * 1.3 * 2 * (g.pyl ? g.pyl.c : PYL_C) * g.pylon + nacCdA : 0;
   const fusQ = sl && sl.fF > 0 ? 1 + sl.fF * (qrAt(sl.kxF) - 1) : 1;
   const D = {
     profile: q * S * cdp + slipW,
@@ -315,7 +318,8 @@ function structureMass(C, m, detail) {
     fus: P.wFus * g.fus.pod.S + P.mFusFix,
     cone: tst.cone ? tst.cone.mass : 0,
     land: land.mass,
-    pylon: tst.pylon
+    pylon: tst.pylon,
+    nacelle: tst.nacelle
   };
   let sum = 0; for (const k in parts) sum += parts[k];
   const total = sum * (1 + P.rugged / 100) * C.k.struct;
@@ -387,6 +391,8 @@ function buildCase(P, comps, k) {
   C.pw = powerEffects(C, C.lvl0.Dtot, P.v, C.rho, 0, C.lvl0.CL); C.slip = C.pw.sg;
   massLoop();
   C.npOff = neutralPoint(C, C.bal.g, { off: true });
+  // Bauraum und Freigang (bau.js): Propellerkreis, Boden, Heck, Flügellage
+  C.bau = bauraum(C, C.bal.g);
   C.layout = { g: C.bal.g, wingPoints: wingPointMasses(C) };
   // Reiseflug gerade und im Kurvenflug
   const nT = 1 / Math.cos(clamp(P.bank, 0, 60) * DEG);
@@ -416,13 +422,19 @@ function buildCase(P, comps, k) {
     (P.solarGeom === 'flach' ? P.camberEta / 100 : 1) * P.mpptEff / 100 * (1 - P.laminateLoss / 100) * (1 - P.wiringLoss / 100) * (1 - P.soiling / 100);
   C.sol = solarGeometry(P, C);
   C.solKW = C.solK; C.solKH = 0;
-  // Zellen auf dem Höhenleitwerk: waagerecht, Schatten des Seitenleitwerks über alle Kurse gemittelt.
-  // Wird mit dem Flügel zu einer gemeinsamen Wirkungskette zusammengefasst (gleiche Temperaturkorrektur).
+  // Schatten von Seitenleitwerk, Motorgondel, Pylon und Propellerkreis auf Flügel- und Leitwerkszellen (shade.js):
+  // Anteil der Direktstrahlung, der je Sonnenhöhe über alle Kurse verloren geht
+  C.shade = shadeFactors(C, C.bal.g);
+  const s0 = C.sol, FbW = new Float64Array(91);
+  for (let j = 0; j <= 90; j++) FbW[j] = s0.Fb[j] * (1 - (C.shade.nW ? C.shade.W[j] : 0));
+  C.sol = { ...s0, Fb: FbW, FbW, FbW0: s0.Fb };
+  // Zellen auf dem Höhenleitwerk: waagerecht, mit Schatten. Wird mit dem Flügel zu einer gemeinsamen
+  // Wirkungskette zusammengefasst (gleiche Temperaturkorrektur); diffus 97 % (Seitenleitwerk verdeckt Himmel).
   if (C.htSolarArea > 0) {
     const kH = C.htSolarArea * P.cellEff / 100 * C.k.solar * P.mpptEff / 100 * (1 - P.laminateLoss / 100) * (1 - P.wiringLoss / 100) * (1 - P.soiling / 100);
-    const kW = C.solK, kT = kW + kH, s0 = C.sol, Fb = new Float64Array(91), FbH = new Float64Array(91);
-    for (let j = 0; j <= 90; j++) { FbH[j] = Math.sin(j * DEG) * (1 - finShade(C.tail, j, C.cfg)); Fb[j] = (kW * s0.Fb[j] + kH * FbH[j]) / kT; }
-    C.sol = { ...s0, Fb, Fd: (kW * s0.Fd + kH * 0.97) / kT, Fg: kW * s0.Fg / kT, FbW: s0.Fb, FbH };
+    const kW = C.solK, kT = kW + kH, Fb = new Float64Array(91), FbH = new Float64Array(91), FbH0 = new Float64Array(91);
+    for (let j = 0; j <= 90; j++) { FbH0[j] = Math.sin(j * DEG); FbH[j] = FbH0[j] * (1 - (C.shade.nH ? C.shade.H[j] : 0)); Fb[j] = (kW * FbW[j] + kH * FbH[j]) / kT; }
+    C.sol = { ...C.sol, Fb, Fd: (kW * s0.Fd + kH * 0.97) / kT, Fg: kW * s0.Fg / kT, FbH, FbH0 };
     C.solKH = kH; C.solK = kT;
   }
   // Komponentenleistung nach Zeitplan

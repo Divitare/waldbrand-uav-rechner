@@ -305,6 +305,8 @@ dialog.dlg::backdrop { background: rgba(10, 14, 20, 0.45); }
 .hint span { display: block; }
 .cell-t { font-family: var(--font-mono); font-size: 10.5px; pointer-events: none; }
 .data td.wide-cell { min-width: 260px; max-width: 420px; white-space: normal; }
+.data td.nw { white-space: nowrap; }
+#tbl-bau td:first-child { min-width: 220px; white-space: normal; }
 .data td.wide-cell .small { margin-top: 2px; line-height: 1.35; }
 .nc { text-transform: none; }
 .data td.warn { color: var(--warn-ink); }

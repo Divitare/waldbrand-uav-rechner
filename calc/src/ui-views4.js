@@ -9,7 +9,7 @@ function configMatrix(P, comps) {
     const P2 = { ...P, fusType: fus, motorPos: mot }, C = buildCase(P2, comps);
     const n = dayOfYear(P2.date), y = yearOf(P2.date), ser = daySeries(C, envClear(P2, n, y)), mis = mission(C, ser, ser, false), per = periodic(C, ser);
     let clh = NaN; try { clh = powerStates(C).rows.find(r => r.k === 'climb').CLh; } catch (e) { /* ohne Kennfeld */ }
-    out.push({ fus, mot, C, mis, per, clh, ok: C.cfg.mot === mot && !(C.bal.g.boomClear < 0) });
+    out.push({ fus, mot, C, mis, per, clh, ok: C.cfg.mot === mot && (!C.bau || C.bau.ok) });
   }
   return out;
 }
@@ -20,10 +20,13 @@ RENDER.konfiguration = (R) => {
   // Hinweise
   const msg = [];
   for (const n of cf.notes) msg.push(pill('warn', n.t));
-  if (g.boomClear < 0) msg.push(pill('crit', `Rohrträger läuft ${nf(-g.boomClear * 100, 0)} cm tief durch den Propellerkreis: so nicht baubar`));
-  const pc = propClearance(C), pc0 = propClearance(C, 0);
-  if (pc.need === 'free') msg.push(pill('good', `Propeller bei der Landung frei (${nf(pc.open * 100, 0)} cm über Grund bei ${nf(pc.th, 0)}°)`));
-  else msg.push(pill(pc.need === 'fold' ? 'info' : 'crit', pc.need === 'fold' ? `Propeller ragt ${nf(-Math.min(pc.open, pc0.open) * 100, 0)} cm unter die Bodenlinie: Klapppropeller, Motor vor dem Aufsetzen stoppen` : 'Auch der gefaltete Propeller berührt den Boden'));
+  // Bauraum: verletzte Prüfungen einzeln, sonst eine Zusammenfassung; Hinweise (Klapppropeller, Pylon, Gondel) immer
+  const bz = C.bau;
+  if (bz) {
+    for (const it of bz.items) if (it.sev === 'crit' || it.sev === 'warn') msg.push(pillF(it.sev, it.txt, it.k.startsWith('prop') || it.k === 'ground' ? 'bau-zone' : 'bau-tail'));
+    if (bz.ok) { const pz = bz.zone.filter(z => z.ok), near = pz.length ? Math.min(...pz.map(z => (z.rad < Infinity ? z.rad - bz.cl.r : z.ax - bz.cl.a))) : Infinity; msg.push(pillF('good', `Baubar: Propeller frei${fin(near) ? ` (knappster Abstand ${nf(near * 100, 1)} cm über dem Mindestmaß)` : ''}, Leitwerk und Rumpf stimmig`, 'bau-zone')); }
+    for (const it of bz.items) if (it.sev === 'info') msg.push(pillF('info', it.txt, it.k === 'ground' ? 'bau-zone' : 'bau-place'));
+  }
   if (ts && ts.boom && ts.boom.util > 1.001) msg.push(pill('info', `Leitwerksträger verstärkt: ${nf(ts.boom.linReq * 1000, 0)} g/m statt ${nf(P.boomLin * 1000, 0)} g/m (${esc(ts.boom.worst.name)})`));
   if (ts && ts.cone && ts.cone.util > 1.001) msg.push(pill('info', `Rumpfröhre örtlich verstärkt (bis ${nf(ts.cone.util * 100, 0)} % des Mindest-Flächengewichts)`));
   if (C.np.kFlex < 0.9) msg.push(pillF('warn', `Weicher Träger: Höhenleitwerk wirkt bei Reisefahrt nur zu ${nf(C.np.kFlex * 100, 0)} %, Neutralpunkt wandert nach vorn`, 'tail-flex', 'sm'));
@@ -35,8 +38,18 @@ RENDER.konfiguration = (R) => {
     kpi('Leitwerk wirkt', nf(C.np.kFlex * 100, 0), '%', `bei ${nf(P.v, 0)} m/s · bei V_max ${ts ? nf((ts.boom || ts.cone || { etaH: 1 }).etaH * 100, 0) : '–'} %`, C.np.kFlex < 0.9 ? 'bad' : '')
   ].join('');
   later(() => renderConfigMatrix(R));
-  renderWire(R); renderTailStruct(R); later(() => renderGround(R));
+  renderBau(R); renderWire(R); renderTailStruct(R); later(() => renderGround(R));
 };
+// Bauraum und Freigang als Tabelle: jede Prüfung mit Wert, Grenze und Ergebnis
+function renderBau(R) {
+  const { C } = R, b = C.bau; if (!b) return;
+  const cl = b.cl, mm = v => nf(v * 1000, 1).replace(/,0$/, '');
+  $('#bau-sub').innerHTML = `Mindestabstände nach 14 CFR 23.925(d): ${mm(cl.r)} mm zwischen Blattspitzen und Struktur, ${mm(cl.a)} mm zwischen Blättern und feststehenden Teilen; die Blätter reichen selbst ±${mm(cl.e)} mm um die Blattebene. In der Seitenansicht ist der gesperrte Bereich gestrichelt, rot bei Überschneidung. ` +
+    (b.ok ? 'Alle Prüfungen eingehalten: so baubar.' : `<b class="crit">So nicht baubar</b>: ${b.crit.length === 1 ? 'eine Prüfung' : b.crit.length + ' Prüfungen'} verletzt. Die Entwurfsvorschläge lassen nur baubare Entwürfe zu.`);
+  const lab = { good: '✓ eingehalten', crit: '× verletzt', warn: '! an der Grenze', info: 'Hinweis' };
+  $('#tbl-bau').innerHTML = `<thead><tr><th>Prüfung</th><th class="n">Wert</th><th class="n">Grenze</th><th>Ergebnis</th></tr></thead><tbody>` +
+    b.items.map(it => `<tr><td>${esc(it.l)}<div class="small muted">${esc(it.txt)}</div></td><td class="n nw">${esc(it.val)}</td><td class="n nw muted">${esc(it.need)}</td><td class="nw ${it.sev === 'info' ? 'muted' : it.sev}">${lab[it.sev]}</td></tr>`).join('') + '</tbody>';
+}
 function renderConfigMatrix(RR) {
   if (RR !== currentR()) return;
   const P = S.params, list = cached('cfmat', () => configMatrix(P, S.comps)), cur = RR.C;
@@ -48,8 +61,9 @@ function renderConfigMatrix(RR) {
     for (const mot of Object.keys(MOTOR_POS)) {
       const r = list.find(x => x.fus === fus && x.mot === mot), C = r.C, sel = fus === P.fusType && mot === cur.cfg.mot && cur.cfg.fus === fus;
       const dm = C.m - cur.m, dp = C.pProp - cur.pProp, soc = r.mis ? r.mis.minE / r.mis.cap * 100 : NaN;
-      const why = C.cfg.mot !== mot ? 'nicht möglich' : C.bal.g.boomClear < 0 ? 'Rohr im Propellerkreis' : '';
-      h += `<button type="button" class="cell${sel ? ' sel' : ''}${r.ok ? '' : ' na'}" data-fus="${fus}" data-mot="${mot}"${r.ok ? '' : ' aria-disabled="true"'} aria-label="${esc(FUS_TYPES[fus].name)}, ${esc(MOTOR_POS[mot].name)}">` +
+      const why = C.cfg.mot !== mot ? 'nicht möglich' : C.bau && !C.bau.ok ? 'nicht baubar' : '';
+      const tip = C.cfg.mot !== mot ? (C.cfg.notes[0] || { t: '' }).t : C.bau && !C.bau.ok ? C.bau.crit.map(i => i.txt).join(' · ') : '';
+      h += `<button type="button" class="cell${sel ? ' sel' : ''}${r.ok ? '' : ' na'}" data-fus="${fus}" data-mot="${mot}"${r.ok ? '' : ' aria-disabled="true"'} aria-label="${esc(FUS_TYPES[fus].name)}, ${esc(MOTOR_POS[mot].name)}${tip ? ': ' + esc(tip) : ''}"${tip ? ` title="${esc(tip)}"` : ''}>` +
         `<span class="lab">${esc(MOTOR_POS[mot].short)}${why ? ` · <span class="crit">${esc(why)}</span>` : ''}</span>${sideThumbSVG(C, W, 90)}` +
         `<span class="nums"><span>Masse</span><b>${nf(C.m, 2)} kg${sel ? '' : ` <span class="${dm < -0.005 ? 'good' : dm > 0.005 ? 'crit' : 'muted'}">(${nfs(dm, 2)})</span>`}</b>` +
         `<span>Leistung</span><b>${nf(C.pProp, 1)} W${sel ? '' : ` <span class="${dp < -0.05 ? 'good' : dp > 0.05 ? 'crit' : 'muted'}">(${nfs(dp, 1)})</span>`}</b>` +
@@ -152,7 +166,7 @@ function renderRuder(RR) {
   if (a.VR < 1.2 * P.vmax) msg.push(pillF('crit', `Querruderumkehr bei ${nf(a.VR, 0)} m/s unter 1,2 × V_max: torsionssteifere Nase oder Ruder weiter innen`, 'ctrl-rev'));
   if (r.maxDeg > P.rudMax) msg.push(pillF('crit', `Seitenruder reicht nicht (${nf(r.maxDeg, 0)}° nötig)`, 'ctrl-rud'));
   if (Math.abs(r.pwTrim.dr) * RAD > 5) msg.push(pill('info', `Drall bei Vollgas braucht ${nf(Math.abs(r.pwTrim.dr) * RAD, 1)}° Seitenruder`));
-  if (a.cellOverAil) msg.push(pill('warn', `Solarzellen reichen bis ${nf(P.cellX1, 0)} % der Tiefe, das Querruder beginnt bei ${nf((1 - P.ailCf) * 100, 0)} %: Zellen auf dem Ruder oder Ruder schmaler`));
+  if (a.cellOverAil) msg.push(pill('warn', `Solarzellen reichen bis ${nf(C.solar.mode === 'area' ? C.solar.x1 * 100 : P.cellX1, 0)} % der Tiefe, das Querruder beginnt bei ${nf((1 - P.ailCf) * 100, 0)} %: Zellen auf dem Ruder oder Ruder schmaler`));
   if (!msg.length) msg.push(pill('good', 'Alle Ruder mit Reserve ausgelegt'));
   $('#ru-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   // Höhenruder-Trimmkurven
@@ -197,6 +211,16 @@ function renderRuder(RR) {
 
 /* ---------- Ansicht Struktur: ganzes Flugzeug, Leitwerk und Ruder ---------- */
 const vibData = C => cached('vib', () => vibAnalysis(C));
+// Wirbelflattern: kleinste Dämpfung über der Fahrt und die beteiligten Eigenformen
+function renderWhirl(V, P) {
+  const w = V.whirl, pn = $('#whirl-panel'); pn.hidden = !w; if (!w) return;
+  $('#whirl-sub').textContent = `Propellerscheibe starr an der Seitenleitwerksspitze, bewegt in ${w.M.modes.length} Eigenformen von Seitenleitwerk und Träger. Luftkräfte quasistationär aus den Blattelementen (Normalkraft, Kreuzmoment, Dämpfung), mitgedrehter Schub, Kreiselkopplung der drehenden Teile (J_X ${nf(w.JX * 1e4, 1)}·10⁻⁴ kg·m², Blätter etwa ${nf(w.mProp * 1000, 0)} g). Vollgasdrehzahl bei jeder Fahrt; Luftkräfte der Leitwerksflächen nicht gerechnet (vorsichtig). Wirbelflattern ist der rückwärts umlaufende Wirbel, der bei weicher, gleich steifer Lagerung in Nicken und Gieren zuerst instabil wird.`;
+  const pts = w.scan.filter(r => fin(r.zeta)).map(r => [r.V, r.zeta * 100]), lo = Math.min(-0.5, ...pts.map(p => p[1])), hi = Math.max(3, ...pts.map(p => p[1]));
+  lineChart($('#ch-whirl'), { h: 200, title: 'Kleinste Dämpfung der Propellerbewegung', x: { min: w.vS, max: w.vMax, fmt: v => nf(v, 0), tipFmt: v => nf(v, 1) + ' m/s', title: 'Fluggeschwindigkeit (m/s)' }, y: { min: lo, max: hi, fmt: v => nf(v, 1) + ' %' }, series: [{ name: 'Dämpfung', c: 1, pts, fmt: v => nf(v, 2) + ' %' }], hlines: [{ y: 0, label: 'instabil darunter' }], vlines: [{ x: P.vmax, label: 'V_D' }, { x: 1.2 * P.vmax, label: '1,2·V_D' }] });
+  $('#tbl-whirl').innerHTML = `<thead><tr><th>Eigenform</th><th class="n">Frequenz</th><th class="n">Gieren ψ</th><th class="n">Nabe seitlich</th><th class="n">Nicken θ</th><th class="n">Nabe senkrecht</th></tr></thead><tbody>` +
+    w.M.modes.map(m => `<tr><td>${esc(m.label)}</td><td class="n">${nf(m.omega / (2 * Math.PI), 1)} Hz</td><td class="n">${m.psi ? nf(m.psi, 2) : '–'}</td><td class="n">${m.v ? nf(m.v, 2) : '–'}</td><td class="n">${m.th ? nf(m.th, 2) : '–'}</td><td class="n">${m.u ? nf(m.u, 2) : '–'}</td></tr>`).join('') +
+    `</tbody><caption>Auslenkung der Propellerachse (rad) und der Nabe (m) je Einheit der massennormierten Eigenform. Gieren und Nicken mit sehr verschiedenen Frequenzen koppeln kaum; gefährlich sind weiche Formen mit ähnlichen Frequenzen in beiden Richtungen.</caption>`;
+}
 function renderVib(RR) {
   if (RR !== currentR()) return;
   const { C, P } = RR, ids = ['#kpis-vib', '#vib-msg', '#tbl-vib', '#tbl-bal', '#bal-note', '#tbl-gvt', '#gvt-note'];
@@ -216,7 +240,7 @@ function renderVib(RR) {
     kpi('Anstellwinkelschwingung', spR ? nf(spR.wn, 1) : '–', 'rad/s', `Starrkörper im Schwingungsmodell, ζ = ${spR && fin(spR.zeta) ? nf(spR.zeta, 2) : '–'} · Gegenprobe Flugdynamik ${spD ? nf(spD.wn, 1) : '–'} rad/s, ζ = ${spD && fin(spD.zeta) ? nf(spD.zeta, 2) : '–'}`)
   ].join('');
   const msg = [];
-  const fidOf = k => ({ wing: 'ae-flutter', bff: 'vib-bff', ail: 'vib-ctrl', fin: 'vib-tail', ht: 'vib-tail' }[k]);
+  const fidOf = k => ({ wing: 'ae-flutter', bff: 'vib-bff', ail: 'vib-ctrl', fin: 'vib-tail', ht: 'vib-tail', whirl: 'vib-whirl' }[k]);
   for (const c of V.cases) if (!c.ok) msg.push(pillF('crit', `${c.name}: ${what(c.kind)} ${c.atMin ? 'schon bei der Mindestfahrt' : 'bei'} ${nf(c.vf, 1)} m/s, unter 1,2 × V_D`, fidOf(c.k)));
   if (V.ok) msg.push(pillF('good', `Im Betrieb flatterfrei bis ${V.vfMin ? nf(V.vfMin, 0) + ' m/s' : 'über ' + nf(V.vMax, 0) + ' m/s'}`, 'ae-req'));
   const surf = [['Querruder', V.ail], ['Seitenruder', V.fin], ['Höhenruder', V.ht]];
@@ -228,7 +252,7 @@ function renderVib(RR) {
   for (const o of wingCompOff(C)) msg.push(pill('warn', wingCompMsg(o)));
   const r45 = V.r45; msg.push(pillF(r45.ratio <= 1 ? 'info' : 'warn', `Report 45 (nur Orientierung): Torsionsnachgiebigkeit F = ${nf(r45.F * 1e3, 2)}·10⁻³ rad·m²/N, ${nf(r45.ratio * 100, 0)} % der Grenze 200/V_D²`, 'vib-r45'));
   if (cf.tail === 'T') msg.push(pill('info', 'T-Leitwerk: Luftkräfte am Höhenleitwerk bei Seitenleitwerksschwingungen nicht erfasst, Standschwingversuch nötig'));
-  if (cf.mot === 'fin') msg.push(pill('info', 'Motor auf dem Seitenleitwerk: Propeller-Wirbelflattern (Whirl Flutter) nicht gerechnet'));
+  if (V.whirl && !(V.whirl.vf && V.whirl.vf < vR)) msg.push(pillF('good', V.whirl.vf ? `Propeller-Wirbelflattern erst ab ${nf(V.whirl.vf, 1)} m/s` : `Kein Propeller-Wirbelflattern bis ${nf(V.vMax, 0)} m/s (kleinste Dämpfung bis 1,2·V_D ${nf(V.whirl.zMin * 100, 1)} %)`, 'vib-whirl'));
   $('#vib-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   const row = (name, how, vf, wf, req, ok, kind, atMin) => `<tr><td>${esc(name)}<div class="small muted">${how}</div></td><td class="n">${atMin ? '≤ ' + nf(vf, 1) : fv(vf)} m/s</td><td class="n">${vf ? (kind === 'div' ? 'statisch' : hz(wf)) : '–'}</td><td class="n">${nf(req, 0)} m/s</td><td class="${ok ? 'good' : 'crit'}">${ok ? '✓' : '× ' + what(kind)}</td></tr>`;
   const fN = c => (c.fNom ? `${c.fNom.measured ? 'gemessen' : 'aus Steifigkeit'} ${nf(c.fNom.f, 0)} Hz` : '');
@@ -243,6 +267,8 @@ function renderVib(RR) {
     if (c.all) rows.push(row(nm + ' (Pendelruder)', c.note ? `Fläche fest am Träger gerechnet${slip}` : `Drehachse bei ${nf(P.elevPivot, 0)} % der Tiefe, Servo als Drehfeder am Träger${slip}`, c.vf, c.wf, vR, c.okOp, c.kindF, c.atMin));
     else { rows.push(row(`${nm} mit ${rn} am Servo`, `${fN(c)}, 0,5–1,5-fach${slip}`, c.vf, c.wf, vR, c.okOp, c.kindF, c.atMin)); rows.push(row(`${rn} frei`, 'Servoausfall, Spiel', c.free.vf, c.free.wf, vD, c.okFree, c.free.kind, c.free.atMin)); }
   }
+  if (V.whirl) { const w = V.whirl, r0 = w.scan[0], r1 = w.scan[w.scan.length - 1]; rows.push(row('Propeller-Wirbelflattern', `Motor am Seitenleitwerk, Vollgas ${nf(r0.rpm, 0)}–${nf(r1.rpm, 0)} U/min${w.kind ? ` · ${w.kind} umlaufend` : ''}`, w.vf, w.wf, vR, !(w.vf && w.vf < vR), 'whirl', w.atMin)); }
+  renderWhirl(V, P);
   $('#tbl-vib').innerHTML = `<thead><tr><th>Fall</th><th class="n">Flattern ab</th><th class="n">Frequenz</th><th class="n">Ziel</th><th>Ergebnis</th></tr></thead><tbody>${rows.join('')}</tbody>` +
     `<caption>Flatter- bzw. Divergenzgeschwindigkeit (statisch, Frequenz null) als wahre Fahrt bei der Luftdichte der Flughöhe, gesucht ab der Mindestfahrt ${nf(V.vS, 1)} m/s (≤: schon dort instabil); im Propellerstrahl umgerechnet mit dem Staudruck bei Vollgas und V_max. Ziel 1,2 × V_D nach AC 23.629-1B und ASTM F3093; Fehlerfälle bis V_D sinngemäß CS-25.629(b)(2).</caption>`;
   // Massenausgleich

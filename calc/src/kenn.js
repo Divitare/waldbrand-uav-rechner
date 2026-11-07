@@ -77,6 +77,7 @@ function kennValue(R, key) {
 }
 // Grundbedingungen: Verletzung als dimensionsloser Abstand (0 = erfüllt)
 const DESIGN_CHECKS = [
+  { key: 'build', l: 'Baubar: Propeller frei, Leitwerk und Rumpf stimmig', cost: 'case', on: true, fixed: true, viol: R => (R.C.bau ? R.C.bau.viol : 0) },
   { key: 'mtom', l: 'Abflugmasse höchstens die zulässige', cost: 'case', on: true, viol: R => Math.max(0, (R.C.m - R.P.mtomLimit) / R.P.mtomLimit) },
   { key: 'stall', l: 'Reise mindestens 1,25 × Mindestfahrt', cost: 'case', on: true, viol: R => Math.max(0, (1.25 - R.P.v / R.C.vs) / 1.25) },
   { key: 'sm', l: 'Stabilitätsmaß mindestens 3 % MAC', cost: 'case', on: true, viol: R => Math.max(0, (0.03 - R.C.bal.sm) / 0.03) },

@@ -102,7 +102,7 @@ function controlSurfaces(C, fd) {
   };
   const rB = roll(Vc, 60), rC = roll(Va, 30);
   // Zellen über dem Querruder: nur bei frei eingegebener Fläche oder wenn Zellen auf Rudern erlaubt sind
-  const cellOverAil = C.solar.a > 0 && (C.solar.mode === 'area' || P.cellsOnCtrl) && (C.solarEta || 0) > e0 && P.cellX1 / 100 > 1 - Ea + 1e-6;
+  const cellOverAil = C.solar.a > 0 && (C.solar.mode === 'area' || P.cellsOnCtrl) && (C.solarEta || 0) > e0 && (C.solar.mode === 'area' ? C.solar.x1 : clamp((P.cellX1 ?? 90) / 100, 0, 1)) > 1 - Ea + 1e-6;
   out.ail = { cellOverAil, e0, e1, E: Ea, tau0: tauA0, ClDa, CnDa, adverse: CnDa / Math.abs(ClDa), ClMax, etaVmax: etaAil, VR, rB, rC, h: hA, segs: Math.max(1, Math.round(P.nAilSeg)),
     lvlB: rB.t <= 1.7 ? 1 : rB.t <= 2.5 ? 2 : rB.t <= 3.4 ? 3 : 4, lvlC: rC.t <= 1.3 ? 1 : rC.t <= 1.8 ? 2 : rC.t <= 2.6 ? 3 : 4, Va, Vc };
   // Höhenruder: Bezug Reiseflug ohne Ausschlag (Einstellwinkel des Höhenleitwerks so gewählt)

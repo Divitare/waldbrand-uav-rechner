@@ -1,27 +1,37 @@
-// Teamarbeit mit zwei Browsern gegen die nachgebildete Cloudflare-Laufzeit (calc/tests/cfsim.mjs):
+// Teamarbeit mit zwei Browsern gegen die nachgebildete Cloudflare-Laufzeit (calc/tests/cfsim.mjs) oder,
+// mit TEAM_BASE=http://127.0.0.1:8787, gegen die echte Laufzeit (wrangler dev, workerd; Passwort „test“ in .dev.vars):
 // anmelden, Modell anlegen und öffnen, Änderungen live, gleichzeitige Änderungen, Anwesenheit,
 // Anforderung und Kommentar, Komponente, Verlauf mit Rückgängig, Stände, Verbindungsabbruch, Umbenennen, Löschen
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
-const PORT = 8790 + Math.floor(Math.random() * 200), BASE = `http://127.0.0.1:${PORT}`;
+const EXT = process.env.TEAM_BASE || '', PORT = 8790 + Math.floor(Math.random() * 200), BASE = EXT || `http://127.0.0.1:${PORT}`;
 const OUT = path.join(__dirname, 'out'), SUF = `${process.env.W || 1280}${process.env.DARK ? 'd' : ''}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, text) => { console.log(`${ok ? 'ok   ' : 'FEHLT'} ${text}`); if (!ok) fails++; };
 (async () => {
-  const sim = spawn(process.execPath, [path.join(__dirname, 'cfsim.mjs'), String(PORT)], { stdio: ['ignore', 'pipe', 'pipe'] });
-  let simLog = ''; sim.stdout.on('data', d => { simLog += d; }); sim.stderr.on('data', d => { simLog += d; });
-  for (let i = 0; i < 50 && !simLog.includes('bereit'); i++) await sleep(100);
+  let sim = null, simLog = '';
+  if (!EXT) {
+    sim = spawn(process.execPath, [path.join(__dirname, 'cfsim.mjs'), String(PORT)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    sim.stdout.on('data', d => { simLog += d; }); sim.stderr.on('data', d => { simLog += d; });
+    for (let i = 0; i < 50 && !simLog.includes('bereit'); i++) await sleep(100);
+  } else console.log('Echte Laufzeit unter', EXT);
   const b = await chromium.launch({ args: ['--no-proxy-server'] }), errs = [];
   const mk = async name => {
-    const ctx = await b.newContext({ viewport: { width: Number(process.env.W || 1280), height: 900 }, colorScheme: process.env.DARK ? 'dark' : 'light' }), p = await ctx.newPage();
+    const ctx = await b.newContext({ viewport: { width: Number(process.env.W || 1280), height: 900 }, colorScheme: process.env.DARK ? 'dark' : 'light' }), p = await ctx.newPage(); p._ctx = ctx;
     p.on('pageerror', e => errs.push(`${name}: ${e.message}`));
     // fehlgeschlagene Verbindungsversuche während der nachgestellten Unterbrechung meldet der Browser selbst
     p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_TUNNEL|fonts\.g|WebSocket connection to .* failed/.test(m.text())) errs.push(`${name}: ${m.text()}`); });
     return p;
   };
   const A = await mk('Anna'), B = await mk('Ben');
+  // Echte Laufzeit: Bens WebSocket läuft über Playwright, damit der Test die Verbindung kappen kann
+  const cutB = { on: false, live: [] };
+  if (EXT) await B._ctx.routeWebSocket(/\/api\/team\/models\/[^/]+\/ws/, ws => {
+    if (cutB.on) { ws.close({ code: 1006, reason: 'Testunterbrechung' }); return; }
+    const srv = ws.connectToServer(); cutB.live.push({ ws, srv });
+  });
   const val = (p, k) => p.evaluate(k => document.querySelector(`#v-flugzeug [data-k="${k}"], [data-k="${k}"]`).value, k);
   const setVal = async (p, k, v) => { await p.evaluate(([k, v]) => { const el = document.querySelector(`#v-${location.hash.slice(1) || 'uebersicht'} [data-k="${k}"]`) || document.querySelector(`[data-k="${k}"]`); el.focus(); el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); }, [k, v]); };
   const until = async (p, fn, arg, ms = 6000) => { try { await p.waitForFunction(fn, arg, { timeout: ms, polling: 100 }); return true; } catch (e) { return false; } };
@@ -90,7 +100,9 @@ const check = (ok, text) => { console.log(`${ok ? 'ok   ' : 'FEHLT'} ${text}`); 
   check(await until(B, () => document.querySelector('#v-flugzeug [data-k="span"]').value === '5.8'), 'Stand wiederhergestellt – auch bei Ben');
   // Verbindungsabbruch: Ben ändert ohne Verbindung, Anna sieht es nach dem Wiederverbinden
   await B.evaluate(() => document.activeElement && document.activeElement.blur());
-  await fetch(`${BASE}/__sim/pause?ms=2500`, { method: 'POST' });
+  // Simulator: alle Verbindungen trennen; echte Laufzeit: Bens Verbindung kappen und 2,5 s keine neue zulassen
+  if (!EXT) await fetch(`${BASE}/__sim/pause?ms=2500`, { method: 'POST' });
+  else { cutB.on = true; for (const c of cutB.live.splice(0)) { try { c.ws.close({ code: 1006, reason: 'Testunterbrechung' }); } catch (e) { /* schon zu */ } try { c.srv.close(); } catch (e) { /* schon zu */ } } setTimeout(() => { cutB.on = false; }, 2500); }
   check(await until(B, () => !document.querySelector('#tm-bar .tm-dot.open')), 'Ben merkt den Abbruch');
   await setVal(B, 'dihedral', 5); await sleep(300);
   console.log('      Kopfleiste Ben ohne Verbindung:', await B.getAttribute('#tm-bar .tm-chip', 'title'));
@@ -123,6 +135,6 @@ const check = (ok, text) => { console.log(`${ok ? 'ok   ' : 'FEHLT'} ${text}`); 
   await A.click('#share-close');
   console.log(errs.length ? 'FEHLER:\n' + errs.join('\n') : 'keine Fehler im Browser');
   if (/Error|Fehler/.test(simLog.replace(/cfsim bereit.*\n/, ''))) console.log('Server:', simLog.slice(0, 2000));
-  await b.close(); sim.kill();
+  await b.close(); if (sim) sim.kill();
   process.exit(fails || errs.length ? 1 : 0);
 })();

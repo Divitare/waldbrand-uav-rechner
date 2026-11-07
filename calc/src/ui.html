@@ -130,6 +130,8 @@
       <div class="main">
         <div class="panel"><div class="panel-head"><div><h2>Anordnung</h2><p id="cf-sub"></p></div></div>
           <div class="chart" id="svg-cf-side"></div><div id="cf-msg" style="margin-top:10px"></div><div class="kpis" id="kpis-cf" style="margin-top:12px"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Bauraum und Freigang</h2><p id="bau-sub"></p></div></div>
+          <div class="table-wrap"><table class="data" id="tbl-bau"></table></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Rumpfformen und Motoranordnungen</h2><p id="cfm-sub"></p></div></div>
           <div class="cfm" id="cf-matrix"></div></div>
         <div class="two">
@@ -187,6 +189,8 @@
         <div class="panel"><div class="panel-head"><div><h2>Ganzes Flugzeug, Leitwerk und Ruder</h2><p id="vib-sub"></p></div></div>
           <div class="kpis" id="kpis-vib"></div><div id="vib-msg" style="margin-top:10px"></div>
           <div class="table-wrap" style="margin-top:12px"><table class="data" id="tbl-vib"></table></div></div>
+        <div class="panel" id="whirl-panel" hidden><div class="panel-head"><div><h2>Propeller oben am Seitenleitwerk: Wirbelflattern</h2><p id="whirl-sub"></p></div></div>
+          <div class="chart" id="ch-whirl"></div><div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-whirl"></table></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Massenausgleich der Ruder</h2><p id="bal-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-bal"></table></div><div id="bal-note" class="note" style="margin-top:10px"></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Eigenformen für den Standschwingversuch</h2><p id="gvt-sub"></p></div></div><div class="table-wrap"><table class="data" id="tbl-gvt"></table></div><div id="gvt-note" class="note" style="margin-top:10px"></div></div>
         <div class="two">
@@ -274,7 +278,7 @@
     <div class="two">
       <div class="panel"><div class="panel-head"><div><h2>Polaren bei Reise-Reynoldszahl</h2><p id="polar-sub"></p></div></div>
         <div class="chart" id="ch-polar"></div><div class="chart" id="ch-polar2"></div></div>
-      <div class="panel"><div class="panel-head"><div><h2>Konturen</h2><p>Bis zu vier Profile aus der Tabelle markieren. Orange gestrichelt: Bereich der Solarzellen.</p></div></div>
+      <div class="panel"><div class="panel-head"><div><h2>Konturen und Zellband</h2><p id="shapes-sub"></p></div></div>
         <div class="chart" id="svg-shapes"></div><div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-afsel"></table></div></div>
     </div>
   </section>
@@ -302,7 +306,10 @@
       <div class="main">
         <div class="panel"><div class="panel-head"><div><h2>Energiebilanz des Tages</h2><p id="eb-sub"></p></div></div><div class="kpis" id="kpis-energy"></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Zellbelegung</h2><p id="cells-sub"></p></div></div>
-          <div class="kpis" id="kpis-cells"></div><div id="cells-msg" style="margin-top:10px"></div><div class="chart" id="svg-cells"></div></div>
+          <div class="kpis" id="kpis-cells"></div><div id="cells-msg" style="margin-top:10px"></div><div class="chart" id="svg-cells"></div>
+          <div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-band"></table></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Schatten auf den Zellen</h2><p id="shade-sub"></p></div></div>
+          <div class="kpis" id="kpis-shade"></div><div class="chart" id="ch-shade" style="margin-top:10px"></div><div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-shade"></table></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Akkuspannung über dem Ladezustand</h2><p id="bv-sub"></p></div></div>
           <div class="kpis" id="kpis-bv"></div><div id="bv-msg" style="margin-top:10px"></div>
           <div class="two" style="margin-top:12px"><div class="chart" id="ch-bv-soc"></div><div class="chart" id="ch-bv-day"></div></div></div>

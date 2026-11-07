@@ -33,7 +33,9 @@ function tailStructure(C, m, g) {
   const land = landingGear(C, m), nLand = land.nCG, nY = 0.5 * nLand;
   const nb = Math.max(1, cf.nBoom), nF = tg.nFin;
   // Massen und Hebel am Leitwerk
-  const mH = P.wTail * tg.Sh * kR + (C.mass.solarHT || 0), mMot = cf.mot === 'fin' ? C.mass.prop : 0;
+  // Motorgondel (Seitenleitwerksspitze oder Pylon): Schale wie die Rumpfgondel, 85 % frei umströmt, Motorspant 15 g
+  const mNac = g.nac ? 0.015 + P.wFus * 0.85 * Math.PI * g.nac.d * Math.max(0, g.nac.x1 - g.nac.x0) : 0;
+  const mH = P.wTail * tg.Sh * kR + (C.mass.solarHT || 0), mMot = cf.mot === 'fin' ? C.mass.prop + mNac : 0;
   const hFinCP = 0.42 * tg.bv, hMot = g.zP - g.zRoot, hH = g.zH - g.zRoot;
   const aH = Math.PI * tg.arH / (1 + Math.sqrt(1 + (Math.PI * tg.arH / 5.7) ** 2)), aV = Math.PI * 1.55 * P.arV / (1 + Math.sqrt(1 + (Math.PI * 1.55 * P.arV / 5.7) ** 2));
   const gust = gustLoad(P, pf, m, { clmax: CLm }, rho0), deda = C.bal ? C.bal.np.deda : 0.35;
@@ -104,7 +106,9 @@ function tailStructure(C, m, g) {
     finInfo = { Mtip, Astr, Astf, fT, A, by: Astf > Astr / 2 ? 'Steifigkeit' : 'Festigkeit', EI: capM.E * 1e9 * A * hr * hr / 2 };
   }
   out.fin = { extra: finExtra, info: finInfo, base: P.wTail * tg.Sv };
-  // Motorpylon (Seglerrumpf mit Druckpropeller): Verkleidung + Holm für Seitenlast
-  out.pylon = g.pylon > 0 ? 0.03 + 2 * 0.12 * g.pylon * P.wTail + 2 * capM.rho * (SF * nY * G * C.mass.prop * g.pylon / (capM.sc * 1e6 * kn * 0.012)) * g.pylon * 0.5 : 0;
+  // Motorpylon (Druckpropeller über Rohr bzw. Rumpf): Verkleidung beidseitig (Tiefe c_P) + Holm für die Seitenlast
+  const cP = g.pyl ? g.pyl.c : PYL_C;
+  out.pylon = g.pylon > 0 ? 0.03 + 2 * cP * g.pylon * P.wTail + 2 * capM.rho * (SF * nY * G * C.mass.prop * g.pylon / (capM.sc * 1e6 * kn * 0.012)) * g.pylon * 0.5 : 0;
+  out.nacelle = mNac;
   return out;
 }

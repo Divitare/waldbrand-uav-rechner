@@ -7,6 +7,8 @@
     "solar.js",
     "harness.js",
     "ground.js",
+    "bau.js",
+    "shade.js",
     "tail.js",
     "prop.js",
     "aeroel.js",
