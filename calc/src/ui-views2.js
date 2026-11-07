@@ -143,6 +143,10 @@ function renderShade(R) {
   for (const [g, lab] of [['W', 'Flügel'], ['H', 'Höhenleitwerk']]) for (const [k, pts] of Object.entries(sh.by[g] || {})) { const a = at(pts, 17), b = at(pts, 40); if (a > 1e-4 || b > 1e-4) rows.push(`<tr><td>${esc(sh.names[k] || k)}</td><td>${lab}</td><td class="n">${nf(a * 100, 2)} %</td><td class="n">${nf(b * 100, 2)} %</td></tr>`); }
   $('#tbl-shade').innerHTML = rows.length ? `<thead><tr><th>Schattenwerfer</th><th>auf</th><th class="n">bei 17°</th><th class="n">bei 40°</th></tr></thead><tbody>${rows.join('')}</tbody><caption>Verschattete Zellfläche im Mittel über alle Kurse, ohne den Einfluss der Verschaltung.</caption>` : '';
 }
+$('#cells-msg').addEventListener('click', e => {
+  if (!e.target.closest('[data-newlim]')) return;
+  S.params.cellX0 = 0; S.params.cellX1 = 90; markPreset(); fillForms(); schedule(true);
+});
 // Zellbelegung: ganze Zellen auf Flügel und Höhenleitwerk (solar.js)
 function renderCells(R) {
   const { C, P } = R, so = C.solar, sp = so.spec, pf = C.pf, area = so.mode === 'area';
@@ -163,6 +167,8 @@ function renderCells(R) {
   if (so.ht.want > 0 && !so.ht.fits) msg.push(pillF('info', `Auf dem Höhenleitwerk passen höchstens ${nf(so.ht.max, 3)} m² ganze Zellen; gerechnet wird damit`, 'sol-pack'));
   if (!area && so.nHalf * sp.vmp < uFull * 1.05) msg.push(pillF('info', `Eine Flügelhälfte in Reihe liefert ${nf(so.nHalf * sp.vmp, 1)} V, der volle Akku ${nf(uFull, 1)} V: ein Abwärtswandler-MPPT braucht mehr Spannung, also Aufwärtswandler oder beide Hälften in Reihe`, 'sol-pack'));
   if (sp.old) msg.push(pill('info', 'Halbe und Viertelzellen sowie Rechteckzellen gibt es nicht mehr: gerechnet mit ganzen C60-Zellen.'));
+  // Grenzen aus der Vorgabe bis Version 8: damals legten sie das Zellband fest, jetzt schränken sie es nur zusätzlich ein
+  if (!area && P.cellX0 === 8 && P.cellX1 === 85) msg.push(`<div class="flags">${pill('info', 'Zellgrenzen 8–85 % stammen aus der Vorgabe bis Version 8. Jetzt bestimmt die Biegung, wie weit vorn und hinten Zellen liegen; die Grenzen schränken nur noch zusätzlich ein.')}<button type="button" class="btn" data-newlim>Grenzen auf 0–90 % setzen</button></div>`);
   if (!area && so.bands.some(b => !b.b)) msg.push(pillF('info', `Ohne Zellen: ${so.bands.filter(b => !b.b).map(b => `${b.l} (${nf(b.c * 100, 0)} cm tief)`).join(', ')} – dort ist das Profil für eine ${nf(sp.s * 1000, 0)}-mm-Zelle zu stark gewölbt oder zu kurz`, 'sol-bend'));
   $('#cells-msg').innerHTML = msg.join('');
   cellsSVG($('#svg-cells'), C);
