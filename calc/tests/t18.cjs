@@ -70,6 +70,23 @@ const check = (ok, text) => { console.log(`${ok ? 'ok   ' : 'FEHLT'} ${text}`); 
   const cards = await p.$$eval('.op-card', cs => cs.map(c => `${c.querySelector('h3').textContent} | ${c.querySelector('.op-obj').textContent.replace(/\s+/g, ' ')}`));
   cards.forEach(c => console.log('  ' + c));
   await p.screenshot({ path: path.join(__dirname, 'out', `op18-ok-${W}${DARK ? 'd' : ''}.png`), fullPage: true });
+  // Jetziger Entwurf und „Woran hängt es?“: Excess Time ≥ 0 h verletzt, Flügelgruppe aus → Flügelfläche würde helfen
+  const now = (await p.textContent('#op-now')).replace(/\s+/g, ' ');
+  console.log('Jetziger Entwurf:', now.slice(0, 220));
+  check(/Excess Time/.test(now) && /verletzt/.test(now), 'jetziger Entwurf: verletzte Bedingung angezeigt');
+  await p.uncheck('[data-opgrp="wing"]'); await p.waitForTimeout(300);
+  await p.click('#op-why');
+  await p.waitForFunction(() => !document.querySelector('#op-why').disabled && !/Prüfe/.test(document.querySelector('#op-why-res').textContent), null, { timeout: 180000 });
+  const why = (await p.textContent('#op-why-res')).replace(/\s+/g, ' ');
+  console.log('Woran hängt es:', why.slice(0, 400));
+  check(/nicht frei/.test(why) && /Flügelfläche/.test(why), '„Woran hängt es?“ nennt die nicht freie Flügelfläche');
+  // Nur eine freie Gruppe mit einer Größe (Reisegeschwindigkeit): die Suche wird fertig (früher endlos)
+  for (const g of ['tail', 'prop', 'energy', 'struct']) await p.uncheck(`[data-opgrp="${g}"]`);
+  await p.check('[data-opgrp="flight"]'); await p.waitForTimeout(300);
+  console.log('frei:', await p.textContent('#op-vars-sub'));
+  const t1 = Date.now(); await p.click('#op-run'); await run('eine-groesse');
+  const dt = (Date.now() - t1) / 1000;
+  check(dt < 120 && /Fertig/.test(await p.textContent('#op-stat')), `Suche mit einer freien Größe wird fertig (${dt.toFixed(0)} s)`);
   const ms = await p.evaluate(() => { try { return JSON.parse(localStorage.getItem('waldbrand-uav-opt')).msEval; } catch (e) { return null; } });
   check(ms > 0, `Rechenzeit je Entwurf gemessen und gemerkt (${ms} ms)`);
   console.log(errs.length ? 'FEHLER:\n' + errs.join('\n') : 'keine Fehler');

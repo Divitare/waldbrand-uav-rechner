@@ -87,6 +87,7 @@ function optRenderSide() {
     : '<p class="note">Keine Anforderungen an Ergebnisse. Ohne sie findet die Suche oft sehr kleine oder sehr große Entwürfe – etwa Grenzen für Excess Time, Spannweite oder SAIL festlegen.</p>';
   $('#op-checks').innerHTML = DESIGN_CHECKS.map(d => `<label><input type="checkbox" data-opchk="${d.key}"${cfg.checks.includes(d.key) || d.fixed ? ' checked' : ''}${d.fixed ? ' disabled' : ''}> <span>${esc(d.l)}${d.key === 'exc' ? ` (${nf(S.params.tExcReq, 1)} h)` : ''}${d.fixed ? ' <span class="muted small">(immer)</span>' : ''}</span></label>`).join('');
   $('#op-reserve').checked = cfg.reserve; $('#op-knapp').textContent = nf(S.meta.knapp || 5, 1) + ' %';
+  optRenderNow(b);
   const nR = optRuns(), ms = cfg.msEval || OPT_MS_EVAL, sec = n => { const s = n * ms / 1000 * 1.1; return s < 90 ? `${nf(Math.max(5, Math.round(s / 5) * 5), 0)} s` : `${nf(s / 60, 1)} min`; };
   $('#op-effort').innerHTML = Object.entries(OPT_EFFORT).map(([k, [l, n]]) => `<label><input type="radio" name="op-effort" value="${k}"${cfg.effort === k ? ' checked' : ''}> <span><b>${esc(l)}</b> <span class="muted">etwa ${sec(n)}</span></span></label>`).join('');
   $('#op-run-note').textContent = `${nR} Läufe parallel mit je ${nf(OPT_EFFORT[cfg.effort][1], 0)} Rechnungen; sie tauschen ihre besten Entwürfe aus. ${cfg.msEval ? 'Zeiten aus der letzten Suche auf diesem Rechner.' : 'Die Zeiten gelten für einen schnellen Rechner.'} Die Seite bleibt bedienbar. Reicht es nicht, setzt „Weiterrechnen“ bei den besten Entwürfen an.`;
@@ -122,6 +123,84 @@ function optRenderVars(b) {
   }
   $('#op-vsum').textContent = `Alle Größen einzeln mit Suchbereich (${vars.length} frei)`;
   $('#tbl-op-vars').innerHTML = `<thead><tr><th>Größe</th><th class="n">jetzt</th><th>Suchbereich</th><th></th><th></th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+/* ---------- Jetziger Entwurf: welche Bedingungen er verletzt, welche freien Größen daran etwas ändern ---------- */
+// Verletzung je Bedingung für den jetzigen Entwurf (Reihenfolge wie optConsList); teure Kenngrößen aus dem Zwischenspeicher
+function optNowState(b) {
+  const list = optConsList(b);
+  return list.map(c => {
+    if (!R) return { c, st: 'na' };
+    if (c.kenn) {
+      const K = KENN_BY[c.key]; let v;
+      if (K.cost === 'high') { const ch = UI.cache['kenn:' + c.key]; if (!ch || ch.k !== keyOf()) return { c, st: 'na' }; v = ch.v; }
+      else v = kennValue(R, c.key);
+      const d = consViol(kennGraded(R, c.key, v), { min: c.min, max: c.max, sc: K.sc });
+      return { c, st: d > OPT_EPS ? 'bad' : 'ok', v, d };
+    }
+    const D = DESIGN_CHECKS.find(x => x.key === c.key); let d;
+    try { d = D.viol(R); } catch (e) { d = 1; }
+    return { c, st: fin(d) && d <= OPT_EPS ? 'ok' : 'bad', d };
+  });
+}
+function optRenderNow(b) {
+  const st = optNowState(b), bad = st.filter(x => x.st === 'bad');
+  const row = x => `<div class="op-nr ${x.st}"><span class="ic" aria-hidden="true">${x.st === 'ok' ? '✓' : x.st === 'bad' ? '✗' : '…'}</span><span>${esc(x.c.l)}${x.c.kenn ? ` <span class="muted">(${esc(x.c.txt)})</span>` : ''}</span><span class="v">${x.c.kenn && fin(x.v) ? esc(kvText(x.c.key, x.v)) : ''}</span></div>`;
+  $('#op-now').innerHTML = (bad.length
+    ? `<p class="note">Der jetzige Entwurf verletzt ${bad.length === 1 ? 'eine Bedingung' : bad.length + ' Bedingungen'}. Die Suche muss ${bad.length === 1 ? 'sie' : 'sie alle'} über die freien Größen erreichen; „Woran hängt es?“ prüft, welche freie Größe überhaupt etwas daran ändert.</p>`
+    : '<p class="note">Der jetzige Entwurf erfüllt alle Bedingungen; die Suche verbessert von hier aus das Ziel.</p>') + st.map(row).join('');
+  $('#op-why').hidden = !bad.length;
+  const nLock = (b.info || []).filter(i => OPT_WHY_L[i.why]).length;
+  if (nLock) $('#op-now').insertAdjacentHTML('beforeend', `<p class="note">${nLock} ${nLock === 1 ? 'Größe des Suchkatalogs ist' : 'Größen des Suchkatalogs sind'} nicht frei (festgehalten, Gruppe aus oder abgewählt); „Woran hängt es?“ zeigt auch, ob ${nLock === 1 ? 'sie' : 'sie'} helfen würden.</p>`);
+  if (OPT.why && OPT.why.key !== optWhyKey(b)) { OPT.why = null; $('#op-why-res').innerHTML = ''; }
+}
+const optWhyKey = b => JSON.stringify([keyOf(), b.spec.vars.map(v => [v.k, v.lo, v.hi, v.opts && v.opts.length]), b.spec.cons, b.spec.checks]);
+// Hilfstexte: welche Größe wohin, was es der Bedingung bringt
+function optHelpText(c, h) {
+  const v = OPT_CAT_BY[h.k] || {}, lab = PM[h.k] ? PM[h.k].l : h.k;
+  return `${esc(lab)} → ${esc(pvText(h.k, h.x))}${c.kenn && fin(h.v) ? `: ${esc(KENN_BY[c.key].l)} ${esc(kvText(c.key, h.v))}` : h.d <= OPT_EPS ? ': erfüllt' : ''}`;
+}
+const OPT_WHY_L = { fix: 'festgehalten', group: 'Gruppe aus', off: 'abgewählt' };
+function optWhyHTML(b, inf, title) {
+  const list = optConsList(b), parts = [];
+  list.forEach((c, j) => {
+    const o = inf.cons[j]; if (!o || !(o.d0 > OPT_EPS)) return;
+    const head = `<h5>${esc(c.l)}${c.kenn ? ` <span class="muted">(${esc(c.txt)}; jetzt ${esc(kvText(c.key, o.v0))})</span>` : ''}</h5>`;
+    const free = o.help.filter(h => !h.locked), lock = o.help.filter(h => h.locked);
+    const lockHTML = lock.length ? `<p class="note">Würde helfen, ist aber nicht frei:</p><ul>${lock.slice(0, 4).map(h => `<li>${optHelpText(c, h)} <span class="muted">(${esc(OPT_WHY_L[h.why] || 'nicht frei')})</span></li>`).join('')}</ul>` : '';
+    if (free.length) parts.push(`${head}<ul>${free.slice(0, 4).map(h => `<li>${optHelpText(c, h)}${h.d <= OPT_EPS && c.kenn ? ' ✓' : ''}</li>`).join('')}</ul>${lockHTML}`);
+    else if (lock.length) parts.push(`${head}<p class="note">Keine freie Größe hilft hier einzeln.</p>${lockHTML}<p class="note">Fähnchen lösen, die Gruppe einschalten oder die Größe wieder anwählen, dann kann die Suche sie verändern.</p>`);
+    else if (!o.any) parts.push(`${head}<p class="note">Keine Größe im Suchkatalog ändert daran etwas – die Bedingung hängt an anderen Eingaben (z. B. Einsatzzeiten, Komponenten, SORA-Angaben) oder ist so nicht erreichbar.</p>`);
+    else parts.push(`${head}<p class="note">Größen ändern etwas, aber keine einzeln in die richtige Richtung. Mehrere zusammen könnten helfen – das versucht die Suche.</p>`);
+  });
+  return parts.length ? `${title ? `<p class="note">${esc(title)}</p>` : ''}${parts.join('')}<p class="note">Geprüft: jede freie Größe einzeln an den Rand ihres Suchbereichs, alles andere bleibt. Steht die beste Größe dabei am Rand, kann ein weiterer Bereich (Fähnchen am Feld) mehr bringen.</p>` : '<p class="note">Keine verletzte Bedingung.</p>';
+}
+// Einflussrechnung im Worker (ohne Worker auf der Seite)
+// nicht freie Größen des Katalogs (festgehalten, Gruppe aus, abgewählt) mit Katalogbereich, um zu sehen, ob sie helfen würden
+function optLockedVars(b) {
+  const all = optVarSet(b.spec.base, {}, OPT_GROUPS.map(g => g[0]), [], b.spec.obj.key).vars, why = Object.fromEntries((b.info || []).map(i => [i.k, i.why]));
+  return all.filter(v => !b.spec.vars.some(f => f.k === v.k) && OPT_WHY_L[why[v.k]]).map(v => ({ ...v, why: why[v.k] }));
+}
+function optInfluenceAsync(spec, vals, done, extra) {
+  const opt = { extra: extra || [] };
+  if (typeof Worker === 'undefined') { setTimeout(() => { try { done(optInfluence(spec, vals, opt)); } catch (e) { done(null, e); } }, 20); return null; }
+  let w;
+  try { w = new Worker(optWorkerURL()); } catch (e) { setTimeout(() => { try { done(optInfluence(spec, vals, opt)); } catch (er) { done(null, er); } }, 20); return null; }
+  w.onmessage = e => { const m = e.data; if (m.type === 'influence') { w.terminate(); done(m.res); } else if (m.type === 'error') { w.terminate(); done(null, m.msg); } };
+  w.onerror = e => { e.preventDefault(); w.terminate(); done(null, e.message); };
+  w.postMessage({ type: 'init', airfoils: DATA.airfoils });
+  w.postMessage({ type: 'influence', id: 0, spec, vals, opt });
+  return w;
+}
+function optWhy() {
+  const b = optBuild(), key = optWhyKey(b), box = $('#op-why-res'), btn = $('#op-why');
+  if (OPT.why && OPT.why.key === key && OPT.why.res) { box.innerHTML = optWhyHTML(b, OPT.why.res); return; }
+  btn.disabled = true; box.innerHTML = `<p class="note">Prüfe ${b.spec.vars.length} freie Größen einzeln …</p>`;
+  optInfluenceAsync(b.spec, {}, (res, err) => {
+    btn.disabled = false;
+    if (!res) { box.innerHTML = pill('crit', `Rechenfehler: ${String(err)}`); return; }
+    OPT.why = { key, res }; box.innerHTML = optWhyHTML(b, res);
+  }, optLockedVars(b));
 }
 
 /* ---------- Rechnen: Worker, Fortschritt, Auswahl, Aufräumen ---------- */
@@ -233,6 +312,9 @@ function optFinish() {
   if (!run.stopReq && evMax > 100) { OPT.cfg.msEval = Math.round(10 * (Date.now() - run.t0) / evMax) / 10; optCfgSave(); }
   OPT.run = null; $('#op-run').disabled = false; $('#op-stop').hidden = true;
   optProgress(true); optRenderSide(); optRenderRes();
+  // ohne zulässigen Entwurf: vom nächstbesten Entwurf aus prüfen, welche freie Größe noch hilft
+  const r0 = OPT.res;
+  if (uniq.length && !uniq.some(x => x.feasible)) optInfluenceAsync(r0.b.spec, uniq[0].vals, res2 => { if (OPT.res === r0 && res2) { r0.infl = res2; optRenderDiag(); } }, optLockedVars(r0.b));
 }
 function optStop() {
   const run = OPT.run; if (!run) return;
@@ -314,7 +396,8 @@ function optRenderDiag() {
   box.hidden = false;
   box.innerHTML = `<h3 class="first">Warum kein zulässiger Entwurf?</h3>
     <p class="note">${esc(lead)} Ausgewertet sind alle ${nf(res.stats.full, 0)} vollständig gerechneten Entwürfe. Spalte „bester Wert, übrige erfüllt“: bester Entwurf, der alle anderen erreichbaren Anforderungen einhält. Liegt selbst der beste Wert überhaupt nicht im geforderten Bereich, ist die Anforderung mit den freien Größen und ihren Suchbereichen vermutlich nicht erreichbar: Anforderung lockern, mehr Größen freigeben oder Bereiche erweitern. Sonst hilft „Weiterrechnen“ oder eine gründlichere Stufe.</p>
-    <div class="table-wrap"><table class="data op-diag-t"><thead><tr><th>Anforderung</th><th class="n">gefordert</th><th class="n">bester Wert, übrige erfüllt</th><th class="n">bester Wert überhaupt</th><th>Befund</th></tr></thead><tbody>${rows.map(r => r.html).join('')}</tbody></table></div>`;
+    <div class="table-wrap"><table class="data op-diag-t"><thead><tr><th>Anforderung</th><th class="n">gefordert</th><th class="n">bester Wert, übrige erfüllt</th><th class="n">bester Wert überhaupt</th><th>Befund</th></tr></thead><tbody>${rows.map(r => r.html).join('')}</tbody></table></div>
+    <h4 class="op-h4">Was vom nächstbesten Entwurf aus noch hilft</h4><div class="op-why">${res.infl ? optWhyHTML(res.b, res.infl) : '<p class="note">Prüfe die freien Größen einzeln …</p>'}</div>`;
 }
 
 /* ---------- Vorschläge anzeigen und übernehmen ---------- */
@@ -388,6 +471,7 @@ $('#op-obj').addEventListener('change', e => { OPT.cfg.obj = e.target.value; opt
 $('#op-reserve').addEventListener('change', e => { OPT.cfg.reserve = e.target.checked; optCfgSave(); });
 $('#op-run').addEventListener('click', () => optStart(false));
 $('#op-more').addEventListener('click', () => optStart(true));
+$('#op-why').addEventListener('click', optWhy);
 $('#op-stop').addEventListener('click', optStop);
 document.addEventListener('change', e => {
   const t = e.target; if (!t.closest || !t.closest('#v-entwurf')) return;

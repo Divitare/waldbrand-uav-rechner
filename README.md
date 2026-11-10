@@ -26,8 +26,11 @@ Profile, Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Anforderungen,
   Ein Lauf je Prozessorkern (bis acht) parallel im Browser, die Läufe tauschen ihre besten Entwürfe aus
   (Differential Evolution mit Machbarkeitsregeln und Neustart bei Stillstand, Feinschliff mit Evolutionsstrategie,
   Durchprobieren der Auswahlgrößen und Koordinatensuche, Aufräumen auf die Änderungen, die zählen); vier Stufen
-  bis „sehr gründlich“ und „Weiterrechnen“ ab den besten Entwürfen der letzten Suche. Findet die Suche keinen
-  zulässigen Entwurf, zeigt sie je Anforderung, was erreicht wurde und ob sie überhaupt von den freien Größen abhängt.
+  bis „sehr gründlich“ und „Weiterrechnen“ ab den besten Entwürfen der letzten Suche; bei wenigen freien Größen werden
+  einfach alle Entwürfe gerechnet. Vor der Suche zeigt „Jetziger Entwurf“, welche Bedingungen schon jetzt verletzt
+  sind, und „Woran hängt es?“, welche Größe daran etwas ändert – auch festgehaltene oder ausgeschaltete. Findet die
+  Suche keinen zulässigen Entwurf, zeigt sie je Anforderung, was erreicht wurde und ob sie überhaupt von den freien
+  Größen abhängt.
   Vorschläge mit Grundriss-Vergleich und Übernehmen/Rückgängig.
 - **Datei:** Export und Import eines Modells mit allem (Eingaben, Komponenten, Wetter, Anforderungen, Kommentare).
 - **Team:** gemeinsame Modelle mit einem Team-Passwort. Änderungen erscheinen sofort bei allen, die das Modell offen

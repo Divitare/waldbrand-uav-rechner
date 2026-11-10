@@ -275,6 +275,33 @@ function* optIsland(spec) {
   };
   const cmdOf = c => { if (c && typeof c === 'object' && c.imm) immigrate(c.imm); return c === true || !!(c && c.stop); };
   let stop = cmdOf(yield state());
+  // Kleiner Suchraum (wenige freie Größen, grobes Raster): alle Entwürfe der Reihe nach rechnen. Sonst erzeugt die
+  // Suche bald nur noch schon gerechnete Entwürfe und kommt nicht weiter.
+  const gridVals = v => {
+    if (v.t === 'd') return v.opts.slice();
+    if (!(v.hi > v.lo)) return [v.lo];
+    const K = Math.min(20000, 2 * Math.ceil((v.hi - v.lo) / v.st) + 2), seen = new Set(), out = [];
+    for (let i = 0; i <= K; i++) { const x = optDecodeVal(v, i / K), sx = String(x); if (!seen.has(sx)) { seen.add(sx); out.push(x); } }
+    return out;
+  };
+  let space = 1;
+  for (const v of pb.vars) { space *= v.t === 'd' ? v.n : v.hi > v.lo ? Math.ceil((v.hi - v.lo) / v.st) + 2 : 1; if (space > 1e7) break; }
+  if (spec.enumerate !== false && n > 0 && space <= budget) {
+    const lists = pb.vars.map(gridVals), tot = lists.reduce((q, l) => q * l.length, 1);
+    if (tot <= budget) {
+      phase = 'all';
+      const idx = new Array(n).fill(0), all = [];
+      for (let c = 0; c < tot && !stop; c++) {
+        all.push(evalU(pb.vars.map((v, j) => optEncodeVal(v, lists[j][idx[j]]))));
+        for (let j = 0; j < n; j++) { if (++idx[j] < lists[j].length) break; idx[j] = 0; }
+        if ((c + 1) % NP === 0) { gen++; stop = cmdOf(yield state()); }
+      }
+      const comb = all.concat(pop);
+      pop = rank(comb).slice(0, NP).map(i => comb[i]);
+      for (const q of comb) archAdd(q, q.u);
+      return { ...state(), arch, vars: pb.vars, seed: spec.seed, diag, exhaustive: tot };
+    }
+  }
   // Grenze auch über die Generationen: im Raster wiederholte Entwürfe kommen aus dem Zwischenspeicher und zählen nicht
   const deBudget = Math.round((spec.deFrac ?? 0.5) * budget);
   // Neustart bei Stillstand: ist die Bevölkerung zusammengefallen oder bleibt der beste Entwurf über stallMax
@@ -330,13 +357,15 @@ function* optIsland(spec) {
     const top = rank(pop).slice(0, Math.max(3, Math.round(0.2 * NP))).map(i => pop[i]);
     const sig = pb.vars.map((v, j) => { const m = top.reduce((s, p) => s + p.u[j], 0) / top.length, sd = Math.sqrt(top.reduce((s, p) => s + (p.u[j] - m) ** 2, 0) / top.length); return clamp(sd, 0.015, 0.12); });
     const esBudget = evals + Math.round((spec.esFrac ?? 0.7) * (budget - evals));
-    let s = 1;
-    while (!stop && evals < esBudget && (!spec.tMax || Date.now() - t0 < spec.tMax)) {
+    let s = 1, stale = 0;
+    const staleMax = Math.max(200, 20 * NP);
+    while (!stop && evals < esBudget && stale < staleMax && (!spec.tMax || Date.now() - t0 < spec.tMax)) {
       if (lsBest !== best && better(lsBest, best)) { best = lsBest; s = 1; } // Migrant übernommen
       const u = best.u.slice();
       for (const j of num) u[j] = clamp(u[j] + s * sig[j] * rNorm(rnd), 0, 1);
       if (dis.length && rnd() < 0.1) u[dis[Math.floor(rnd() * dis.length)]] = rnd();
-      const c = evalU(u, best); sinceYield++;
+      const h0 = hits, c = evalU(u, best); sinceYield++;
+      stale = hits > h0 ? stale + 1 : 0; // nur schon gerechnete Entwürfe: abbrechen statt endlos kreisen
       if (c.key === best.key) s = Math.min(3, s * 1.15);
       else if (!c.partial && optBetter(c, best)) { best = lsBest = c; s = Math.min(3, s * Math.exp(1 / 3)); }
       else s *= Math.exp(-1 / 12);
@@ -459,6 +488,40 @@ function optPolish(spec, vals, opt = {}) {
   return { vals: cur, diff, kv, cv, chk, viol, f, feasible: viol <= OPT_EPS, nEval, base0: { f: r0.f, viol: r0.viol } };
 }
 
+/* ---------- Einfluss der freien Größen auf die Bedingungen (Woran hängt es?) ----------
+   Jede freie Größe einzeln an den unteren und oberen Rand ihres Suchbereichs (Auswahlgrößen: bis zu acht
+   Optionen), alles andere wie im Entwurf vals. Je Bedingung: welche Größen die Verletzung verringern und um wie
+   viel, ob überhaupt eine Größe etwas daran ändert. opt.extra: weitere Größen, die nicht frei sind (festgehalten,
+   Gruppe aus, abgewählt), mit Katalogbereich – ob sie helfen würden. Ergebnis je Bedingung j (Reihenfolge wie r.cv):
+   { d0, v0, any, help: [{ k, x, d, v, dd, locked, why }] } – d Verletzung danach, v Wert danach (Kenngrößen), dd Verringerung */
+function optInfluence(spec, vals, opt = {}) {
+  const pb = optCompile(spec), nc = pb.nc, cur = { ...vals };
+  for (const v of pb.vars) if (!(v.k in cur)) cur[v.k] = spec.base[v.k];
+  const b = optEvalVals(pb, cur, null), out = Array.from({ length: nc }, (_, j) => ({ d0: b.cv[j], v0: j < pb.cons.length ? b.kv[pb.cons[j].key] : NaN, any: false, help: [] }));
+  let nEval = 1;
+  const extra = (opt.extra || []).filter(v => !pb.vars.some(f => f.k === v.k)).map(v => ({ ...v, locked: true }));
+  for (const v of pb.vars.concat(extra)) {
+    let xs;
+    if (v.t === 'd') { const n = v.opts.length, m = Math.min(n, opt.nOpt || 8); xs = Array.from({ length: m }, (_, i) => v.opts[Math.round(i * (n - 1) / Math.max(1, m - 1))]); }
+    else xs = [v.lo, v.hi];
+    xs = [...new Set(xs.map(String))].map(sx => xs.find(x => String(x) === sx)).filter(x => String(x) !== String(cur[v.k]));
+    for (const x of xs) {
+      const r = optEvalVals(pb, { ...cur, [v.k]: x }, null); nEval++;
+      if (r.viol >= 1000) continue;
+      for (let j = 0; j < nc; j++) {
+        const d0 = b.cv[j], d = r.cv[j]; if (d0 == null || d == null) continue;
+        if (Math.abs(d - d0) > 1e-9 * Math.max(1, d0)) out[j].any = true;
+        if (d < d0 - 1e-9) {
+          const h = out[j].help.find(e => e.k === v.k), e = { k: v.k, x, d, v: j < pb.cons.length ? r.kv[pb.cons[j].key] : NaN, dd: d0 - d, locked: !!v.locked, why: v.why || null };
+          if (!h) out[j].help.push(e); else if (e.dd > h.dd) Object.assign(h, e);
+        }
+      }
+    }
+  }
+  for (const o of out) o.help.sort((a, c) => c.dd - a.dd);
+  return { viol: b.viol, cv: b.cv, kv: b.kv, cons: out, nEval };
+}
+
 /* ---------- Einstieg im Web Worker: je Auftrag eine Insel oder ein Aufräumen ---------- */
 function optWorkerMain() {
   let stop = false, imm = null;
@@ -481,6 +544,8 @@ function optWorkerMain() {
       step();
     } else if (m.type === 'polish') {
       try { self.postMessage({ type: 'polished', id: m.id, res: optPolish(m.spec, m.vals) }); } catch (err) { fail(err); }
+    } else if (m.type === 'influence') {
+      try { self.postMessage({ type: 'influence', id: m.id, res: optInfluence(m.spec, m.vals, m.opt || {}) }); } catch (err) { fail(err); }
     }
   };
 }

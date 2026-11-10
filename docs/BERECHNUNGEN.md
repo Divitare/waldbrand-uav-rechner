@@ -1523,11 +1523,11 @@ Alle freien Größen auf [0, 1] skaliert; ganzzahlige und Auswahlgrößen werden
 je Anforderung k über alle vollständig gerechneten Entwürfe:  V_k,min = min V_k;  V_k,min|übrige = min {V_k : Σ_{j≠k} V_j = 0};  Wertebereich [min x_k, max x_k]
 ```
 
-V_k,min > 0: die Anforderung wurde nie erreicht. V_k,min = 0, aber V_k,min|übrige > 0: einzeln erreichbar, nicht zusammen mit den übrigen. Ist der Wertebereich null breit, hängt die Kenngröße nicht von den freien Größen ab (z. B. SAIL bei festen Angaben zu Bevölkerung und Luftraum).
+„Woran hängt es?“ (jetziger Entwurf, vor der Suche) und „Was vom nächstbesten Entwurf aus noch hilft“ (nach einer Suche ohne zulässigen Entwurf): jede Größe einzeln an den unteren und oberen Rand ihres Suchbereichs, Auswahlgrößen bis zu acht Optionen, alles andere bleibt; gemeldet werden die Größen, die die Verletzung am stärksten verringern, getrennt nach freien und nicht freien (festgehalten, Gruppe aus, abgewählt). V_k,min > 0: die Anforderung wurde nie erreicht. V_k,min = 0, aber V_k,min|übrige > 0: einzeln erreichbar, nicht zusammen mit den übrigen. Ist der Wertebereich null breit, hängt die Kenngröße nicht von den freien Größen ab (z. B. SAIL bei festen Angaben zu Bevölkerung und Luftraum).
 
 **Quelle:** [25] Eigene Herleitung im Rechner aus Geometrie bzw
 
-**Im Code:** `opt.js · optDiagAdd, optDiagMerge; ui-opt.js · optRenderDiag`
+**Im Code:** `opt.js · optDiagAdd, optDiagMerge, optInfluence; ui-opt.js · optRenderDiag, optWhy`
 
 ### Feinschliff und Aufräumen
 
@@ -1537,7 +1537,7 @@ Koordinatensuche: x_j ± h, h halbieren bis unter das Raster;
 Aufräumen: Größe j zurück auf den alten Wert, solange zulässig und Σ Einbuße ≤ max(0,2 % · |f|, 1 % · Gewinn)
 ```
 
-σ je Größe aus der Streuung des besten Fünftels der Bevölkerung. Rechnung in Stufen: ein Kind, das schon nach dem Rechenfall gegen sein Elternteil verliert, wird nicht weiter gerechnet (Tagesbilanz und Flattern entfallen). Werte am Rand des Suchbereichs werden markiert.
+σ je Größe aus der Streuung des besten Fünftels der Bevölkerung. Danach werden die Auswahlgrößen (Profil, Grundriss, Werkstoffe …) beim besten Entwurf der Reihe nach durchprobiert. Hat der Suchraum (Produkt der Rasterpunkte aller freien Größen) höchstens so viele Entwürfe wie Rechnungen erlaubt sind, rechnet die Suche einfach alle; sonst bricht die Evolutionsstrategie ab, wenn sie nur noch schon gerechnete Entwürfe erzeugt. Rechnung in Stufen: ein Kind, das schon nach dem Rechenfall gegen sein Elternteil verliert, wird nicht weiter gerechnet (Tagesbilanz und Flattern entfallen). Werte am Rand des Suchbereichs werden markiert.
 
 **Quelle:** [69] Rechenberg, I; [48] Kolda, T; [25] Eigene Herleitung im Rechner aus Geometrie bzw
 

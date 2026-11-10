@@ -66,5 +66,23 @@ const t0 = Date.now();
   const R1 = U.lazyResult(P1, comps), R2 = U.lazyResult(P2, comps), g1 = U.kennGraded(R1, 'tExc', U.kennValue(R1, 'tExc')), g2 = U.kennGraded(R2, 'tExc', U.kennValue(R2, 'tExc'));
   check(R1.per.reason === 'nosolar' && U.kennValue(R1, 'tExc') === -24 && g1 < -24 && g2 > g1, `ohne Gleichgewicht abgestuft: 20 Zellen ${g1.toFixed(1)} h, 30 Zellen ${g2.toFixed(1)} h`);
 }
+// 7) Wenige freie Größen: früher kreiste der Feinschliff endlos über schon gerechnete Entwürfe und die Suche wurde nie
+//    fertig. Kleiner Suchraum wird jetzt vollständig durchgerechnet, sonst bricht die Schleife ohne neue Entwürfe ab.
+{
+  const one = U.optVarSet(base, {}, ['energy'], ['mBatt'], 'mass').vars, two = U.optVarSet(base, {}, ['energy'], [], 'mass').vars;
+  const mk = vars => ({ base, comps, vars, obj: { key: 'mass', dir: -1 }, cons: [{ key: 'mass', min: null, max: 14 }], checks, budget: 800, seed: 1 });
+  let t = Date.now(); const r1 = U.optRun(mk(one)), s1 = (Date.now() - t) / 1000;
+  const brute = Math.min(...[...Array(19).keys()].map(i => U.kennValue(U.lazyResult({ ...base, htSolar: 5 * i }, comps), 'mass')));
+  check(r1.exhaustive === 19 && Math.abs(r1.best.kv.mass - brute) < 1e-9 && s1 < 30, `eine freie Größe (Zellen auf dem Höhenleitwerk): alle ${r1.exhaustive} Entwürfe gerechnet in ${s1.toFixed(1)} s, bestes wie von Hand`);
+  t = Date.now(); const r2 = U.optRun(mk(two)), s2 = (Date.now() - t) / 1000;
+  check(r2.evals <= 800 && s2 < 60 && r2.best.viol === 0, `zwei freie Größen: Suche endet (${r2.evals} Rechnungen, ${s2.toFixed(1)} s)`);
+}
+// 8) Woran hängt es: Einfluss jeder Größe einzeln; nicht freie Größen (hier Flügel) werden als „würde helfen“ gemeldet
+{
+  const b = U.optVarSet(base, {}, ['tail'], null, 'mass'), locked = U.optVarSet(base, {}, U.OPT_GROUPS.map(g => g[0]), [], 'mass').vars.filter(v => !b.vars.some(f => f.k === v.k)).map(v => ({ ...v, why: 'group' }));
+  const spec = { base, comps, vars: b.vars, obj: { key: 'mass', dir: -1 }, cons: [{ key: 'tExc', min: 0, max: null }, { key: 'sail', min: null, max: 2 }], checks };
+  const inf = U.optInfluence(spec, {}, { extra: locked }), ex = inf.cons[0], sl = inf.cons[1];
+  check(ex.d0 > 0 && ex.help.some(h => h.locked && h.k === 'area') && sl.d0 > 0 && !sl.any, `Excess Time: Flügelfläche würde helfen (nicht frei); SAIL: keine Größe ändert etwas (${inf.nEval} Rechnungen)`);
+}
 console.log(`\n${fails ? fails + ' Prüfung(en) fehlgeschlagen' : 'Alle Prüfungen bestanden'} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 process.exit(fails ? 1 : 0);

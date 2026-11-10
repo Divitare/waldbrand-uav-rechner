@@ -443,6 +443,16 @@ tr.rq-row.bad td:first-child { box-shadow: inset 3px 0 0 var(--crit); } tr.rq-ro
 .op-run { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 8px; }
 .op-stat { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; margin: 8px 0 10px; font-size: 13.5px; color: var(--ink-2); }
 .op-stat b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+.op-now { display: grid; gap: 4px; font-size: 13.5px; }
+.op-now .op-nr { display: grid; grid-template-columns: 1.2em minmax(0, 1fr) auto; gap: 6px; align-items: baseline; line-height: 1.35; }
+.op-now .op-nr .ic { font-weight: 700; }
+.op-now .op-nr.ok .ic { color: var(--good-ink); }
+.op-now .op-nr.bad .ic { color: var(--crit-ink); }
+.op-now .op-nr .v { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2); text-align: right; }
+.op-why { font-size: 13px; display: grid; gap: 8px; }
+.op-why h5 { margin: 0 0 2px; font-size: 13px; }
+.op-why ul { margin: 0; padding-left: 1.1em; }
+.op-why li { margin: 1px 0; }
 .op-diag { margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid var(--crit, #b3261e); border-radius: 8px; background: var(--sunken); }
 .op-diag h3 { margin: 0 0 4px; font-size: 15px; }
 .op-diag .note { margin: 0 0 8px; }
