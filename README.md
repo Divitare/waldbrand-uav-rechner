@@ -12,12 +12,18 @@ Profile, Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Anforderungen,
   Propellerkreis gegen Rumpf, Träger, Flügel, Seiten- und Höhenleitwerk, dazu Boden und Heck bei der Landung,
   Leitwerk hinter der Gondel, Heckkegel nicht steiler als 15°. Nicht baubare Entwürfe meldet die Übersicht,
   die Seitenansicht zeigt den gesperrten Bereich rot; „Entwurf berechnen“ lässt nur baubare Entwürfe zu.
-- **Solarzellen:** nur ganze quadratische Zellen (SunPower C60, 125 mm, oder eigene). Jede Zelle folgt der
+- **Solarzellen:** nur ganze quadratische Zellen (SunPower E60 wie AtlantikSolar, C60, 125 mm, oder eigene) in
+  rechteckigen, geraden Modulen: Vorgabe Streifen eine Zelle tief und bis 6 Zellen lang wie bei AtlantikSolar (ETH),
+  einstellbar bis zu eigenen Rechteckmodulen oder Einzelzellen. Ein Modul liegt auf ganzer Länge im Zellband, ist
+  höchstens 10° gedreht und überquert weder Teilung noch Ruderachse. Jede Zelle folgt der
   gewölbten Oberseite; aus dem zulässigen Stich (10 % je Zelle) und der Randdehnung folgt je Profil und
   Flügeltiefe, wie weit vorn und hinten Zellen liegen können. Schatten von Seitenleitwerk, Motorgondel, Pylon
   und Propellerkreis auf Flügel- und Leitwerkszellen, mit und ohne Bypassdioden.
 - **Motor auf dem Seitenleitwerk:** Abschätzung des Propeller-Wirbelflatterns (Whirl Flutter) aus den
   Eigenformen von Seitenleitwerk und Träger, Blattelement-Luftkräften und Kreiselkopplung.
+- **Ruder als Bedingung:** Grundbedingung „Ruder reichen“ der Entwurfssuche (Höhenruder höchstens 80 % des
+  Vollausschlags, Rollen Level 1 nach MIL-F-8785C, Querruderumkehr über 1,2 × V_max, Seitenruder mit Reserve),
+  Rudergrößen als freie Größen, Richtwerte nach Raymer als Hinweis; dazu eine Mindest-Reynoldszahl an der Flügelspitze.
 - **Anforderungen:** Jede Eingabe lässt sich über das Fähnchen am Feld festhalten (Feld gesperrt) oder auf einen
   Bereich bzw. erlaubte Werte begrenzen; Ergebnisse (Masse, SAIL, Excess Time, Flattersicherheit …) bekommen
   Mindest- und Höchstwerte. Was knapp an der Grenze liegt, ist markiert. Kommentare an Feldern, Ergebnissen und am Modell.
@@ -97,7 +103,7 @@ Rechenkern in `calc/src/`:
 | `dyn.js`, `controls.js` | Flugdynamik (MIL-F-8785C); Quer-, Höhen- und Seitenruder |
 | `batt.js`, `turb.js` | Akkuspannung über dem Ladezustand; Dryden-Turbulenz und Bildruhe an der Kamera |
 | `sim.js`, `ext.js` | Sonne, Wetter, Tages- und Dauerflug, Energie in der Höhe; Einsatzleistung, SORA, Unsicherheit |
-| `solar.js` | ganze quadratische Zellen auf Flügel und Höhenleitwerk packen; Zellband je Profil und Tiefe aus Stich und Dehnung der gebogenen Zelle |
+| `solar.js` | ganze quadratische Zellen in rechteckigen Modulen auf Flügel und Höhenleitwerk packen; Zellband je Profil und Tiefe aus Stich und Dehnung der gebogenen Zelle |
 | `kenn.js`, `opt.js` | Kenngrößen mit Richtung und Rechenaufwand, Grundbedingungen; Entwurfsvorschläge (Optimierer, auch im Web Worker) |
 
 Oberfläche: `ui-*.js` (Ansichten, `ui-doc.js` Datei, `ui-req.js` Anforderungen und Kommentare, `ui-opt.js` Entwurf),
@@ -170,7 +176,7 @@ damit Cloudflare immer dieselbe Wrangler-Version verwendet.
 Browsertests (`calc/tests/t*.cjs`, `interact.cjs`, `presets.cjs`, `hint.cjs`, `elshot.cjs`) brauchen Playwright
 und öffnen `dist/uav-budget.html`; Bilder landen in `calc/tests/out/`. `t15.cjs` prüft „Entwurf berechnen“ im
 Browser, `t18.cjs` dasselbe bei unerreichbaren Anforderungen (Diagnose, Weiterrechnen), `t19.cjs` bei nicht baubarem
-Ausgangsentwurf (verletzte Bauraum-Prüfung, „Woran hängt es?“), `t17.cjs` den Optimierer im
+Ausgangsentwurf (verletzte Bauraum-Prüfung, „Woran hängt es?“), `t20.cjs` Solarmodule und Ruderbedingungen, `t17.cjs` den Optimierer im
 Rechenkern (auch mehrere Inseln mit Austausch und eine Grenze bei null), `t16.cjs` die Teamarbeit mit zwei Browsern gegen die Nachbildung
 oder mit `TEAM_BASE=http://127.0.0.1:8787` gegen `npm run dev`.
 

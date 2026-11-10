@@ -9,7 +9,7 @@ const check = (ok, text) => { console.log(`${ok ? 'ok   ' : 'FEHLT'} ${text}`); 
 async function scenario(b, params, label) {
   const p = await b.newPage({ viewport: { width: W, height: 900 } }), errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource/.test(m.text())) errs.push(m.text()); });
-  await p.addInitScript(pp => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('waldbrand-uav-v5', JSON.stringify({ params: pp })); sessionStorage.setItem('seeded', '1'); } } catch (e) { /* */ } }, params);
+  await p.addInitScript(pp => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('waldbrand-uav-v5', JSON.stringify({ v: 8, params: pp })); sessionStorage.setItem('seeded', '1'); } } catch (e) { /* */ } }, params);
   await p.goto(PAGE + '#entwurf'); await p.waitForSelector('#op-now .op-nr', { timeout: 90000 }); await p.waitForTimeout(800);
   const now = (await p.textContent('#op-now')).replace(/\s+/g, ' ');
   console.log(`[${label}] Jetziger Entwurf:`, now.slice(0, 260));

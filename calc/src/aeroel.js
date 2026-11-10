@@ -302,11 +302,17 @@ function boomModes(C, L, d, lin, mat, mTip, Jtip) {
 }
 // Komplette Auswertung für das Flugzeug
 function aeroelastic(C, opt = {}) {
-  const P = C.P, sec = wingSections(C), cosL = Math.cos(C.pf.sweep * DEG), tanL = Math.tan(C.pf.sweep * DEG), L = C.pf.b / 2 / cosL;
-  const a2d = clamp(foilMeta(C.foil, C.mode, P.v * C.pf.mac / C.nu).slope, 5.2, 7.0);
-  const pts = (C.layout && C.layout.wingPoints) || wingPointMasses(C), zeta = VIB_ZETA;
-  const bm = beamModel(sec, L, opt.nEl || 12, cosL, tanL, a2d, 0.25, pts), modes = beamModes(bm, 6);
-  const qD0 = divergence(bm), VD0 = Number.isFinite(qD0) ? Math.sqrt(2 * qD0 / C.rho) : Infinity, VD = VD0 > 30 * Math.max(P.vmax, 10) ? Infinity : VD0, qD = Number.isFinite(VD) ? qD0 : Infinity;
+  const P = C.P, cosL = Math.cos(C.pf.sweep * DEG), tanL = Math.tan(C.pf.sweep * DEG), L = C.pf.b / 2 / cosL, zeta = VIB_ZETA;
+  // Balken, Eigenformen und Divergenz hängen nur vom Fall ab: einmal je Fall und Elementzahl (Flatterprüfung und
+  // Ruderrechnung der Entwurfssuche teilen sie sich)
+  const nEl = opt.nEl || 12, bc = C._aeBase || (C._aeBase = {});
+  if (!bc[nEl]) {
+    const sec = wingSections(C), a2d = clamp(foilMeta(C.foil, C.mode, P.v * C.pf.mac / C.nu).slope, 5.2, 7.0);
+    const pts = (C.layout && C.layout.wingPoints) || wingPointMasses(C), bm = beamModel(sec, L, nEl, cosL, tanL, a2d, 0.25, pts);
+    bc[nEl] = { sec, a2d, bm, modes: beamModes(bm, 6), qD0: divergence(bm) };
+  }
+  const { sec, a2d, bm, modes } = bc[nEl];
+  const qD0 = bc[nEl].qD0, VD0 = Number.isFinite(qD0) ? Math.sqrt(2 * qD0 / C.rho) : Infinity, VD = VD0 > 30 * Math.max(P.vmax, 10) ? Infinity : VD0, qD = Number.isFinite(VD) ? qD0 : Infinity;
   const vMax = opt.vMax || Math.max(3 * P.vmax, 60);
   const fl = opt.noFlutter ? { vf: null, track: [] } : flutterSearch(bm, modes.slice(0, 4), C.rho, vMax, zeta, opt.nStep || 40, [], { real: false });
   const le = liftEffectiveness(bm, 0.5 * C.rho * P.vmax ** 2);

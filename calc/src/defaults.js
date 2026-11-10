@@ -13,7 +13,7 @@ const DEFAULT_PARAMS = {
   // Verkabelung
   wireModel: 'model', mWireFix: 0.3, wireExtra: 15, wireDropSol: 1.5,
   // Ruder
-  nAilSeg: 2, ailEta0: 0.5, ailEta1: 0.95, ailCf: 0.25, ailMax: 20, elevCf: 0.35, elevMax: 25, rudCf: 0.4, rudMax: 25, vCross: 2, cgTol: 2, nCtrl: 1.5,
+  reTipMin: 60000, nAilSeg: 2, ailEta0: 0.5, ailEta1: 0.95, ailCf: 0.25, ailMax: 20, elevCf: 0.35, elevMax: 25, rudCf: 0.4, rudMax: 25, vCross: 2, cgTol: 2, nCtrl: 1.5,
   wCtrl: 0.5, ctrlXcg: 40, ctrlBal: 0, kServo: 10, elevPivot: 23, gvtAil: 0, gvtElev: 0, gvtRud: 0, gvtB1: 0, gvtT1: 0, gvtFin: 0, gvtHT: 0,
   // Start und Landung (kein Fahrwerk)
   landGear: 'skid', vSink: 1.5, skidStroke: 0.04, bellyStroke: 0.015, skidCdA: 4, wBelly: 0.6, landPitch: 5,
@@ -32,7 +32,7 @@ const DEFAULT_PARAMS = {
   // Akku
   mBatt: 3.0, battSpec: 230, reserve: 20, etaCharge: 95, etaDischarge: 97, battHealth: 100, battTempCoef: 0.6, battHeat: 8, chargeC: 0.5, noColdCharge: true, battRAh: 0.15, hStore: 0,
   // Solar
-  solarMode: 'fill', cellType: 'c60', cellA: 125, cellD: 160, cellThk: 165, cellVmp: 0.58, cellOrient: 'auto', nCellsWing: 100, cellGap: 2, cellBend: 10, cellStrain: 0.1, bypass: 'cell',
+  solarMode: 'fill', cellType: 'e60', modType: 'strip', modCells: 6, modMin: 1, modRows: 1, modEdge: 2, modGap: 3, cellA: 125, cellD: 160, cellThk: 165, cellVmp: 0.58, cellOrient: 'auto', nCellsWing: 100, cellGap: 2, cellBend: 10, cellStrain: 0.1, bypass: 'cell',
   cellRootGap: 0.1, cellTipGap: 0.03, cellJointGap: 0.04, cellsOnCtrl: false,
   solarArea: 1.0, cellEff: 23, solarAreal: 0.7, solarGeom: 'profil', cellX0: 0, cellX1: 90, stringLayout: 'span', camberEta: 95,
   mpptEff: 97, laminateLoss: 3, wiringLoss: 2, soiling: 1, tempCoef: 0.32, cellHeat: 0.02, albedo: 0.15,

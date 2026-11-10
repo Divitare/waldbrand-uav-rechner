@@ -148,11 +148,11 @@ function propMaxThrust(C, V, rho, Ubatt) {
   return { T: Math.max(0, c.CT) * rho * n * n * D ** 4 * nP, n, rpm: n * 60 };
 }
 // Steig- und Gleitpolare
-function climbGlide(C) {
+function climbGlide(C, nV = 30) {
   const P = C.P, W = C.m * G, out = [];
   const v0 = Math.max(C.vs * 1.05, 4), v1 = Math.max(v0 + 2, P.vmax);
-  for (let i = 0; i <= 30; i++) {
-    const V = v0 + (v1 - v0) * i / 30, Tm = propMaxThrust(C, V, C.rho).T;
+  for (let i = 0; i <= nV; i++) {
+    const V = v0 + (v1 - v0) * i / nV, Tm = propMaxThrust(C, V, C.rho).T;
     // Gleiten ohne Schub (kein Strahl, kein Schubmoment), Steigen mit Vollgas (Trimmung mit Höchstschub)
     const a0 = aero(C, V, 1, C.rho, C.nu, 0), a1 = fin(Tm) ? aero(C, V, 1, C.rho, C.nu, Tm) : a0;
     out.push({ V, D: a0.Dtot, Dc: a1.Dtot, roc: fin(Tm) ? (Tm - a1.Dtot) * V / W : NaN, sink: a0.Dtot * V / W, LD: a0.LD, Tmax: Tm, CLhC: a1.CLh, CLhG: a0.CLh });

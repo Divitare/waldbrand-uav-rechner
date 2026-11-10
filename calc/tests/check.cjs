@@ -42,12 +42,20 @@ const t0 = Date.now();
 // Solarzellen: Fläche der pseudoquadratischen C60-Zelle (Datenblatt 125 mm, Ø 160 mm) und Packung von Hand nachgezählt
 {
   chk('C60-Zelle Fläche (cm²)', U.pseudoSquareArea(0.125, 0.160) * 1e4, 153.3, 0.002);
-  // Rechteck 0,3 m tief, Halbspannweite 1 m, Zellen 125 × 62,5 mm, 2 mm Fuge, frei von 0,1 bis 0,97 m:
-  // 6 Spalten zu 4 Zellen (lange Kante in Spannweite), dann eine schmale Spalte zu 2 Zellen = 26
-  const spec = { a: 0.125, b: 0.0625, A: 0.125 * 0.0625 };
-  const geo = { h: 1, yR: 0.1, yT: 0.97, bans: [], xs: () => 0, xe: () => 0.3, breaks: [] };
-  const n = U.packColumns(geo, spec, 0.002, 1, 'auto').reduce((s, c) => s + c.n, 0);
-  chk('Packung Rechteck von Hand (Zellen je Hälfte)', n, 26, 0);
+  // Zellband 0,3 m tief (eben), Halbspannweite 1 m, frei von 0,1 bis 0,97 m, Zellen 125 mm, 2 mm Fuge.
+  // Einzelzellen: ⌊(0,87 + 0,002)/0,127⌋ = 6 Spalten zu ⌊0,302/0,127⌋ = 2 Zellen = 12.
+  // Streifen bis 6 Zellen, Rand 2 mm, Fuge 3 mm: L = 6·0,125 + 5·0,002 + 0,004 = 0,764 m, Tiefe D = 0,129 m,
+  // 2 Reihen (⌊0,303/0,132⌋); dahinter bleiben 0,103 m < L(1) = 0,129 m: 12 Zellen in 2 Modulen.
+  const spec = { s: 0.125, A: 0.125 * 0.125 }, flat = (fs, fe) => ({ h: 1, yR: 0.1, yT: 0.97, bans: [], breaks: [], band: y => ({ xs: fs(y), xe: fe(y) }), arcLen: (y, a, b) => b - a });
+  const msOf = P => U.modSpec(P, spec, 0.002), cnt = pk => pk.cols.reduce((q, c) => q + c.n, 0);
+  const pc = U.packModules(flat(() => 0, () => 0.3), spec, msOf({ modType: 'cell' }), 0.002), ps = U.packModules(flat(() => 0, () => 0.3), spec, msOf({ modType: 'strip', modCells: 6, modEdge: 2, modGap: 3 }), 0.002);
+  chk('Packung von Hand: Einzelzellen je Hälfte', cnt(pc), 12, 0);
+  chk('Packung von Hand: Streifenmodule (Zellen, Module)', cnt(ps) * 10 + ps.mods.reduce((q, m) => q + m.m, 0), 122, 0);
+  // Gepfeiltes Band (Vorder- und Hinterkante mit dx/dy = 0,1, also 5,7°): Streifen drehen sich mit (2 Reihen);
+  // bei dx/dy = 0,25 (14°, mehr als 10° Drehung) passt über 0,764 m Länge nur eine Reihe
+  const sw = t => U.packModules(flat(y => t * y, y => 0.3 + t * y), spec, msOf({ modType: 'strip', modCells: 6, modMin: 6, modEdge: 2, modGap: 3 }), 0.002);
+  chk('Streifen folgen 5,7° Pfeilung (Reihen)', sw(0.1).mods[0].m, 2, 0);
+  chk('Streifen bei 14° Pfeilung höchstens 10° gedreht (Reihen)', sw(0.25).mods[0].m, 1, 0);
   const P = { ...U.DEFAULT_PARAMS }, comps = U.DEFAULT_COMPS.map(c => ({ ...c }));
   const Cc = U.buildCase({ ...P, solarMode: 'count', nCellsWing: 40 }, comps);
   chk('Feste Zellzahl wird eingehalten', Cc.solar.n, 40, 0);
@@ -72,8 +80,9 @@ const t0 = Date.now();
   chk('Schatten: halbe Überdeckung einer Zelle (m²)', U.clipRect([[0.05, -1], [1, -1], [1, 1], [0.05, 1]], 0, 0.1, 0, 0.1), 0.005, 1e-9);
   const fin = { poly: [[0, 0, 0], [0, 0, 0.4], [0.3, 0, 0.4], [0.3, 0, 0]] }, h = 45 * Math.PI / 180, s = [0, Math.cos(h), Math.sin(h)];
   chk('Schatten: senkrechtes Rechteck bei 45° (m²)', U.polyArea(U.shadowOn(fin, s, 0)), 0.12, 1e-6);
-  // Seitenleitwerk über Höhenleitwerkszellen: Verlust nimmt mit der Sonnenhöhe ab und ist ohne Bypassdioden größer
-  const comps = U.DEFAULT_COMPS.map(c => ({ ...c })), C1 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, cellsOnCtrl: true }, comps), C2 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, cellsOnCtrl: true, bypass: 'none' }, comps), C3 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, cellsOnCtrl: true, tailType: 'T' }, comps);
+  // Seitenleitwerk über Höhenleitwerkszellen (Pendelhöhenruder, 16,7 cm tief: eine Modulreihe passt): Verlust nimmt
+  // mit der Sonnenhöhe ab und ist ohne Bypassdioden größer
+  const comps = U.DEFAULT_COMPS.map(c => ({ ...c })), C1 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, elevCf: 1, arH: 4 }, comps), C2 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, elevCf: 1, arH: 4, bypass: 'none' }, comps), C3 = U.buildCase({ ...U.DEFAULT_PARAMS, htSolar: 80, elevCf: 1, arH: 4, tailType: 'T' }, comps);
   chk('Schatten Höhenleitwerk: ohne Bypassdioden mehr Verlust', C2.shade.H[30] > 1.5 * C1.shade.H[30] && C1.shade.H[30] > 0.05 ? 1 : 0, 1, 0);
   chk('Schatten Höhenleitwerk: T-Leitwerk schattenfrei', C3.shade.H[30] < 1e-6 ? 1 : 0, 1, 0);
 }

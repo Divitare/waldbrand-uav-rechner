@@ -190,10 +190,10 @@ function planformSVG(el, C) {
   const cellsSVG = () => {
     let r = '';
     for (const c of so.colsHalf) for (let i = 0; i < c.n; i++) {
-      const xa = c.x0 + i * (c.l + so.g) / c.k, hgt = c.l / c.k;
+      const xa = colCellX(c, i, so.g), hgt = c.l / c.k;
       for (const sgn of [1, -1]) { const ya = sgn > 0 ? c.y0 : -c.y1; r += cellPath(X(ya + c.w / 2), Y(xa + hgt / 2), c.w * sc, hgt * sc, so.spec, sc, c.k, 'fill="var(--c2)" fill-opacity="0.45" stroke="var(--c2)" stroke-width="0.6"'); }
     }
-    return r;
+    return r + modOutlines(so, so.modsHalf, X, Y, true);
   };
   // Rumpf von oben aus der Kontur (Breite = Durchmesser), Träger, Leitwerk, Propeller
   const fsh = g ? g.fus : null, cfg = C.cfg;
@@ -234,12 +234,28 @@ function planformSVG(el, C) {
   }
   s += lab(cx, H - 22, `Spannweite ${nf(b, 2)} m · Streckung ${nf(pf.AR, 1)}${pf.sweep ? ` · Pfeilung ${nfs(pf.sweep, 0)}°` : ''}`) + lab(cx, H - 7, `HLW ${nf(tg.Sh, 2)} m² · SLW ${nf(tg.Sv, 2)} m² · Hebelarm ${nf(tg.lt, 2)} m`);
   s += lab(X(-b / 4), Y(Math.max(pf.cr, xLE(0.5) + pf.chordAt(0.5))) + 14, `Wurzeltiefe ${nf(pf.cr * 100, 0)} cm`) + lab(X(b / 2) - 4, Y(xLE(1) + pf.ct) + 14, `Spitze ${nf(pf.ct * 100, 0)} cm`, 'end');
-  s += lab(X(b / 4), Y(Math.min(0, xLE(0.5))) - 6, so.mode === 'area' ? `Zellen ${nf(so.a, 2)} m²${full ? ' – passen nicht!' : ''}` : `${nf(so.n, 0)} Zellen · ${nf(so.a, 2)} m²${full ? ` (${nf(so.want, 0)} gewünscht)` : ''}`);
+  s += lab(X(b / 4), Y(Math.min(0, xLE(0.5))) - 6, so.mode === 'area' ? `Zellen ${nf(so.a, 2)} m²${full ? ` – passen nicht (als Module höchstens ${nf(so.max.a, 2)} m²)` : ''}` : `${nf(so.n, 0)} Zellen${so.ms && so.ms.type !== 'cell' ? ` in ${nf(so.nMods, 0)} Modulen` : ''} · ${nf(so.a, 2)} m²${full ? ` (${nf(so.want, 0)} gewünscht)` : ''}`);
   s += '</svg>';
   el.innerHTML = s;
   return { etaC, full };
 }
 
+// Umrisse der rechteckigen Module (gedreht um t = dx/dy); mirror: auch die linke Flügelhälfte
+function modOutlines(so, mods, X, Y, mirror) {
+  if (!so.ms || so.ms.type === 'cell' || !mods || !mods.length) return '';
+  let r = '';
+  for (const md of mods) {
+    const cp = md.cphi || 1, xd = md.D / (md.k * cp);
+    for (let q = 0; q < md.m; q++) {
+      const off = q * (md.D + so.ms.gm) / (md.k * cp), xa0 = md.x0 + off, xa1 = md.x0 + md.t * (md.y1 - md.y0) + off;
+      for (const sgn of mirror ? [1, -1] : [1]) {
+        const ya = sgn * md.y0, yb = sgn * md.y1;
+        r += `<path d="M${X(ya).toFixed(1)} ${Y(xa0).toFixed(1)}L${X(yb).toFixed(1)} ${Y(xa1).toFixed(1)}L${X(yb).toFixed(1)} ${Y(xa1 + xd).toFixed(1)}L${X(ya).toFixed(1)} ${Y(xa0 + xd).toFixed(1)}Z" fill="none" stroke="var(--c2)" stroke-width="1.4"/>`;
+      }
+    }
+  }
+  return r;
+}
 /* ---------- Zellbelegung einer Flügelhälfte (Draufsicht, Wurzel links) ---------- */
 function cellsSVG(el, C) {
   el._cfg = C; el._fn = cellsSVG;
@@ -260,9 +276,10 @@ function cellsSVG(el, C) {
   else {
     s += bandLine(1) + bandLine(2);
     for (const c of so.colsHalf) for (let i = 0; i < c.n; i++) {
-      const xa = c.x0 + i * (c.l + so.g) / c.k, hgt = c.l / c.k;
+      const xa = colCellX(c, i, so.g), hgt = c.l / c.k;
       s += cellPath(X(c.y0 + c.w / 2), Y(xa + hgt / 2), c.w * sc, hgt * sc, so.spec, sc, c.k, 'fill="var(--c2)" fill-opacity="0.5" stroke="var(--c2)" stroke-width="0.8"');
     }
+    s += modOutlines(so, so.modsHalf, X, Y, false);
   }
   // Freiräume: Wurzel, Spitze, Außenteilung
   const yR = so.mode === 'area' ? 0 : clamp(P.cellRootGap, 0, h), yT = h - clamp(P.cellTipGap, 0, h);

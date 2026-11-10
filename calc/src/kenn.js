@@ -37,6 +37,27 @@ function lazyResult(P, comps) {
 // Teure Zusatzrechnungen je Ergebnis nur einmal
 const extraOf = (R, k, f) => { R.extra = R.extra || {}; if (!(k in R.extra)) R.extra[k] = f(); return R.extra[k]; };
 const sailNum = so => (so && so.sail ? ROMAN[so.sail] : 7);
+// Reynoldszahl an der Flügelspitze im Reiseflug
+const tipRe = C => C.P.v * C.pf.ct / C.nu;
+/* Grundbedingung „Ruder reichen“ (Ansicht Ruder, controls.js), jeweils mit Reserve:
+   Höhenruder in allen Fällen höchstens 80 % des Vollausschlags; Rollen Level 1 nach MIL-F-8785C Klasse I
+   (60° in 1,7 s im Reiseflug, 30° in 1,3 s im Anflug); Querruderumkehr über 1,2·V_max; Seitenruder bei Seitenwind,
+   Antriebsdrall und negativem Wendemoment höchstens 80 % des Vollausschlags. Verletzung als bezogener Abstand. */
+function ctrlCheck(R) {
+  return extraOf(R, 'ctrlChk', () => {
+    const C = R.C, P = R.P, items = []; let v = 0;
+    let cs; try { cs = controlSurfaces(C, flightDynamics(C), { lite: true }); } catch (e) { return { v: 1, items: [{ k: 'err', l: 'Ruderrechnung', txt: 'Ruderrechnung nicht möglich' }] }; }
+    const eA = 0.8 * P.elevMax, eW = cs.elev.cases.reduce((x, c) => (Math.abs(c.deg) > Math.abs(x.deg) ? c : x), cs.elev.cases[0]);
+    if (Math.abs(eW.deg) > eA) { v += (Math.abs(eW.deg) - eA) / Math.max(1, P.elevMax); items.push({ k: 'elev', l: 'Höhenruder', txt: `Höhenruder braucht ${fmtDe(Math.abs(eW.deg), 0)}° (${eW.name}), mit Reserve verfügbar ${fmtDe(eA, 0)}°` }); }
+    const rl = (r, tReq, l) => { if (!(r.t <= tReq)) { v += fin(r.t) ? (r.t - tReq) / tReq : 1; items.push({ k: 'roll', l: 'Rollen', txt: `${l}: ${fin(r.t) ? fmtDe(r.t, 1) + ' s' : 'nicht erreicht'}, gefordert ${fmtDe(tReq, 1)} s (MIL-F-8785C, Level 1)` }); } };
+    rl(cs.ail.rB, 1.7, 'Rollen auf 60° im Reiseflug'); rl(cs.ail.rC, 1.3, 'Rollen auf 30° im Anflug');
+    const vR = 1.2 * P.vmax;
+    if (cs.ail.VR < vR) { v += (vR - cs.ail.VR) / vR; items.push({ k: 'rev', l: 'Querruderumkehr', txt: `Querruderumkehr bei ${fmtDe(cs.ail.VR, 0)} m/s unter 1,2 × V_max = ${fmtDe(vR, 0)} m/s` }); }
+    const rA = 0.8 * P.rudMax;
+    if (cs.rud.maxDeg > rA) { v += (cs.rud.maxDeg - rA) / Math.max(1, P.rudMax); items.push({ k: 'rud', l: 'Seitenruder', txt: `Seitenruder braucht ${fmtDe(cs.rud.maxDeg, 0)}°, mit Reserve verfügbar ${fmtDe(rA, 0)}°` }); }
+    return { v, items, cs };
+  });
+}
 // Für die Prüfung „flatterfrei bis 1,2·V_D“ genügt die Suche bis knapp darüber, im selben Fahrtraster wie die
 // volle Rechnung (24 Schritte bis max(3·V_max, 60 m/s)); liegt die volle Rechnung schon vor, gilt sie
 function flutterCheckAe(R) {
@@ -100,12 +121,20 @@ function kennValue(R, key) {
 }
 // Grundbedingungen: Verletzung als dimensionsloser Abstand (0 = erfüllt)
 const DESIGN_CHECKS = [
-  { key: 'build', l: 'Baubar: Propeller frei, Leitwerk und Rumpf stimmig', cost: 'case', on: true, fixed: true, viol: R => (R.C.bau ? R.C.bau.viol : 0) },
+  { key: 'build', l: 'Baubar: Propeller frei, Leitwerk und Rumpf stimmig', cost: 'case', on: true, fixed: true, viol: R => (R.C.bau ? R.C.bau.viol : 0), items: R => (R.C.bau ? R.C.bau.crit.map(i => ({ k: i.k, l: i.l, txt: i.txt })) : []) },
   { key: 'mtom', l: 'Abflugmasse höchstens die zulässige', cost: 'case', on: true, viol: R => Math.max(0, (R.C.m - R.P.mtomLimit) / R.P.mtomLimit) },
   { key: 'stall', l: 'Reise mindestens 1,25 × Mindestfahrt', cost: 'case', on: true, viol: R => Math.max(0, (1.25 - R.P.v / R.C.vs) / 1.25) },
   { key: 'sm', l: 'Stabilitätsmaß mindestens 3 % MAC', cost: 'case', on: true, viol: R => Math.max(0, (0.03 - R.C.bal.sm) / 0.03) },
-  { key: 'cells', l: 'Gewünschte Zellen passen auf den Flügel', cost: 'case', on: true, viol: R => (R.C.solar.fits ? 0 : R.C.solar.mode === 'count' ? Math.max(0.01, (R.C.solar.want - R.C.solar.n) / Math.max(1, R.C.solar.want)) : 0.1) },
+  { key: 'cells', l: 'Gewünschte Zellen passen auf den Flügel', cost: 'case', on: true, viol: R => {
+    const so = R.C.solar; let v = 0;
+    if (!so.fits) v += so.mode === 'count' ? Math.max(0.01, (so.want - so.n) / Math.max(1, so.want)) : Math.max(0.01, (so.a - so.max.a) / Math.max(1e-6, so.a));
+    // eingegebene Fläche auf dem Höhenleitwerk größer als ganze Module dort belegen können (frei eingegebene Fläche)
+    if (so.mode === 'area' && so.ht.want > so.ht.max + 1e-9) v += Math.max(0.01, (so.ht.want - so.ht.max) / so.ht.want);
+    return v;
+  } },
   { key: 'mission', l: 'Einsatz am Auslegungstag gelingt', cost: 'day', on: true, viol: R => (R.mis && R.mis.ok ? 0 : R.margin.w != null && R.margin.w < 0 ? Math.min(1, -R.margin.w / Math.max(1, pConsC(R.C))) : 1) },
   { key: 'flutter', l: 'Flügel flatterfrei bis 1,2 × V_D, keine Divergenz', cost: 'mid', on: true, viol: R => { const A = flutterCheckAe(R), vr = 1.2 * R.P.vmax; let v = 0; if (!A.okF && A.flutter.vf) v += Math.max(0.01, (vr - A.flutter.vf) / vr); if (!A.okD && fin(A.VD)) v += Math.max(0.01, (vr - A.VD) / vr); return v; } },
+  { key: 'ctrl', l: 'Ruder reichen: Höhen-, Quer- und Seitenruder mit Reserve', cost: 'mid', on: true, viol: R => ctrlCheck(R).v, items: R => ctrlCheck(R).items },
+  { key: 'tip', l: 'Flügelspitze nicht zu klein (Reynoldszahl)', cost: 'case', on: true, viol: R => { const re = tipRe(R.C), q = R.P.reTipMin ?? 60000; return q > 0 ? Math.max(0, (q - re) / q) : 0; }, items: R => { const re = tipRe(R.C), q = R.P.reTipMin ?? 60000; return q > 0 && re < q ? [{ k: 'tip', l: 'Reynoldszahl an der Spitze', txt: `Spitze ${fmtDe(R.C.pf.ct * 100, 1)} cm tief: Reynoldszahl ${fmtDe(re / 1000, 0)} Tsd. unter ${fmtDe(q / 1000, 0)} Tsd. – laminare Ablöseblasen, unsichere Polaren, schwer zu bauen` }] : []; } },
   { key: 'exc', l: 'Excess Time mindestens die geforderte', cost: 'day', on: false, viol: R => { const t = kennGraded(R, 'tExc', kennValue(R, 'tExc')); return fin(t) ? Math.max(0, (R.P.tExcReq - t) / Math.max(1, R.P.tExcReq)) : 1; } }
 ];

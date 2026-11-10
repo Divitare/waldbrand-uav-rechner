@@ -23,7 +23,7 @@
 const OPT_GROUPS = [
   ['wing', 'Flügel', true], ['tail', 'Leitwerk und Trimmung', true], ['prop', 'Antrieb', true],
   ['energy', 'Akku und Solarzellen', true], ['struct', 'Struktur und Werkstoffe', true], ['flight', 'Reiseflug', true],
-  ['config', 'Anordnung, Rumpf, Pfeilung', false]
+  ['ctrl', 'Ruder', true], ['config', 'Anordnung, Rumpf, Pfeilung', false]
 ];
 // Suchbereiche nach üblicher Praxis für Solarflugzeuge dieser Größe; liegt der jetzige Wert außerhalb, wird der
 // Bereich erweitert. when: nur sinnvoll unter dieser Bedingung (sonst wirkt die Größe im Modell nicht);
@@ -66,6 +66,13 @@ const OPT_CAT = [
   { k: 'matBoom', g: 'struct', opts: () => MAT_SEL.matBoom, when: P => P.structMode !== 'fix' && P.fusType !== 'glider', dep: 'fusType' },
   { k: 'splitEta', g: 'struct', lo: 0.4, hi: 0.7, st: 0.02, when: P => P.splits === 'outer' || P.splits === 'both', dep: 'splits' },
   { k: 'v', g: 'flight', lo: 8, hi: 16, st: 0.5 },
+  // Rudergrößen (Bereiche nach Raymer 2018, Kap. 6.5: Querruder etwa 50–90 % der Halbspannweite, Höhen- und Seitenruder
+  // 25–50 % der Leitwerkstiefe); sie wirken auf „Ruder reichen“ und auf die Zellen (Module enden vor der Ruderachse)
+  { k: 'ailCf', g: 'ctrl', lo: 0.15, hi: 0.35, st: 0.01 },
+  { k: 'ailEta0', g: 'ctrl', lo: 0.35, hi: 0.8, st: 0.01 },
+  { k: 'ailEta1', g: 'ctrl', lo: 0.8, hi: 1, st: 0.01 },
+  { k: 'elevCf', g: 'ctrl', lo: 0.25, hi: 0.5, st: 0.01, when: P => P.elevCf < 0.999 },
+  { k: 'rudCf', g: 'ctrl', lo: 0.25, hi: 0.5, st: 0.01 },
   { k: 'sweep', g: 'config', lo: -5, hi: 10, st: 1 },
   { k: 'fusType', g: 'config', opts: () => ['pod', 'glider', 'twin'] },
   { k: 'motorPos', g: 'config', opts: () => ['nose', 'pusher', 'fin'] },
@@ -142,7 +149,7 @@ function optCompile(spec) {
   const vars = spec.vars.map(v => ({ ...v, n: v.t === 'd' ? v.opts.length : 0 }));
   const K = KENN_BY[spec.obj.key];
   const cons = (spec.cons || []).filter(c => KENN_BY[c.key]).map(c => ({ key: c.key, min: c.min ?? null, max: c.max ?? null, st: OPT_COST[KENN_BY[c.key].cost], sc: KENN_BY[c.key].sc || 0 }));
-  const checks = DESIGN_CHECKS.filter(c => (spec.checks || []).includes(c.key)).map(c => ({ key: c.key, viol: c.viol, st: OPT_COST[c.cost] }));
+  const checks = DESIGN_CHECKS.filter(c => (spec.checks || []).includes(c.key)).map(c => ({ key: c.key, viol: c.viol, items: c.items, st: OPT_COST[c.cost] }));
   return { spec, vars, K, dir: spec.obj.dir || K.dir || -1, objStage: OPT_COST[K.cost], cons, checks, nStage: 3, nc: cons.length + checks.length };
 }
 function optDecodeVal(v, u) {
@@ -188,7 +195,7 @@ function optEvalVals(pb, vals, parent, upTo) {
       pb.checks.forEach((c, j) => {
         if (c.st !== s) return;
         const v = c.viol(R), d = fin(v) ? Math.max(0, v) : 1; r.cv[nc + j] = d; r.viol += d;
-        if (c.key === 'build' && d > 0 && R.C.bau) r.bau = R.C.bau.crit.map(i => i.l); // welche Bauraum-Prüfung
+        if (d > 0 && c.items) { try { (r.sub = r.sub || {})[c.key] = c.items(R).map(i => i.l); } catch (e) { /* ohne Einzelheiten */ } } // welche Teilprüfung
       });
       if (pb.objStage === s) { const v = kennValue(R, pb.spec.obj.key); r.kv[pb.spec.obj.key] = v; if (fin(v)) r.f = -pb.dir * v; else r.viol += 1; }
     } catch (e) { r.viol += 1000; r.err = String((e && e.message) || e); r.stage = last; return r; }
@@ -247,7 +254,7 @@ function* optIsland(spec) {
   const archAdd = (r, u) => {
     if (r.partial || r.viol >= 1000) return;
     const key = optKey(r.vals); if (arch.some(a => a.key === key)) return;
-    const e = { key, vals: r.vals, u: Array.from(u), f: r.f, viol: r.viol, kv: r.kv, cv: r.cv, bau: r.bau };
+    const e = { key, vals: r.vals, u: Array.from(u), f: r.f, viol: r.viol, kv: r.kv, cv: r.cv, sub: r.sub };
     let i = arch.findIndex(a => !optBetter(a, e)); if (i < 0) i = arch.length;
     if (i < ARCH) { arch.splice(i, 0, e); if (arch.length > ARCH) arch.pop(); }
   };
@@ -276,13 +283,13 @@ function* optIsland(spec) {
   const state = () => {
     let best = popBest();
     if (lsBest && optBetter(lsBest, best)) best = lsBest;
-    return { phase, gen, evals, full, hits, budget, np: NP, n, ms: Date.now() - t0, restarts, nImm, best: { f: best.f, viol: best.viol, kv: best.kv, vals: best.vals, u: Array.from(best.u), cv: best.cv, bau: best.bau }, nFeas: pop.filter(p => p.viol <= OPT_EPS).length, muF, muCR };
+    return { phase, gen, evals, full, hits, budget, np: NP, n, ms: Date.now() - t0, restarts, nImm, best: { f: best.f, viol: best.viol, kv: best.kv, vals: best.vals, u: Array.from(best.u), cv: best.cv, sub: best.sub }, nFeas: pop.filter(p => p.viol <= OPT_EPS).length, muF, muCR };
   };
   // Migration: ein besserer Entwurf einer anderen Insel ersetzt ein zufälliges Mitglied der schlechteren Hälfte
   const immigrate = list => {
     for (const im of list || []) {
       if (!im || !im.u || im.u.length !== n) continue;
-      const e = { vals: im.vals, f: im.f, viol: im.viol, kv: im.kv || {}, cv: im.cv || null, bau: im.bau, u: im.u.slice(), key: optKey(im.vals), stage: 2, partial: false };
+      const e = { vals: im.vals, f: im.f, viol: im.viol, kv: im.kv || {}, cv: im.cv || null, sub: im.sub, u: im.u.slice(), key: optKey(im.vals), stage: 2, partial: false };
       if (phase === 'de') {
         const ord = rank(pop), half = ord.slice(Math.floor(NP / 2)), i = half[Math.floor(rnd() * half.length)];
         if (pop.some(p => p.key === e.key)) continue;
@@ -502,8 +509,9 @@ function optPolish(spec, vals, opt = {}) {
   for (const c of pb.checks) viol += chk[c.key];
   const f = fin(kv[spec.obj.key]) ? -pb.dir * kv[spec.obj.key] : Infinity;
   const diff = pb.vars.filter(v => String(cur[v.k]) !== String(base[v.k])).map(v => ({ k: v.k, from: base[v.k], to: cur[v.k], edge: v.t !== 'd' && v.hi > v.lo && (Math.abs(cur[v.k] - v.lo) < 0.5 * v.st || Math.abs(cur[v.k] - v.hi) < 0.5 * v.st) ? (Math.abs(cur[v.k] - v.lo) < 0.5 * v.st ? 'lo' : 'hi') : null }));
-  const bau = R.C.bau ? R.C.bau.crit.map(i => ({ k: i.k, l: i.l, txt: i.txt })) : [];
-  return { vals: cur, diff, kv, cv, chk, viol, f, feasible: viol <= OPT_EPS, nEval, base0: { f: r0.f, viol: r0.viol }, bau };
+  // Teilprüfungen der verletzten Grundbedingungen (Bauraum, Ruder, Spitze) mit Text
+  const sub = {}; for (const c of DESIGN_CHECKS) if (c.items && chk[c.key] > OPT_EPS) { try { sub[c.key] = c.items(R); } catch (e) { /* ohne Einzelheiten */ } }
+  return { vals: cur, diff, kv, cv, chk, viol, f, feasible: viol <= OPT_EPS, nEval, base0: { f: r0.f, viol: r0.viol }, sub, bau: sub.build || [] };
 }
 
 /* ---------- Einfluss der freien Größen auf die Bedingungen (Woran hängt es?) ----------

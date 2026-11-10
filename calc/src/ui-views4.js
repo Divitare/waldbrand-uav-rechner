@@ -167,6 +167,16 @@ function renderRuder(RR) {
   if (r.maxDeg > P.rudMax) msg.push(pillF('crit', `Seitenruder reicht nicht (${nf(r.maxDeg, 0)}° nötig)`, 'ctrl-rud'));
   if (Math.abs(r.pwTrim.dr) * RAD > 5) msg.push(pill('info', `Drall bei Vollgas braucht ${nf(Math.abs(r.pwTrim.dr) * RAD, 1)}° Seitenruder`));
   if (a.cellOverAil) msg.push(pill('warn', `Solarzellen reichen bis ${nf(C.solar.mode === 'area' ? C.solar.x1 * 100 : P.cellX1, 0)} % der Tiefe, das Querruder beginnt bei ${nf((1 - P.ailCf) * 100, 0)} %: Zellen auf dem Ruder oder Ruder schmaler`));
+  // Richtwerte (Raymer 2018, Kap. 6.5): Querruder etwa 50–90 % der Halbspannweite und 15–30 % der Tiefe,
+  // Höhen- und Seitenruder 25–50 % der Leitwerkstiefe
+  const rw = [];
+  if (P.ailCf < 0.15 || P.ailCf > 0.3) rw.push(`Querrudertiefe ${nf(P.ailCf * 100, 0)} % (üblich 15–30 %)`);
+  if (P.ailEta0 < 0.4 || P.ailEta1 < 0.85) rw.push(`Querruder ${nf(P.ailEta0 * 100, 0)}–${nf(P.ailEta1 * 100, 0)} % der Halbspannweite (üblich etwa 50–90 %)`);
+  if (P.elevCf < 0.999 && (P.elevCf < 0.25 || P.elevCf > 0.5)) rw.push(`Höhenrudertiefe ${nf(P.elevCf * 100, 0)} % (üblich 25–50 %)`);
+  if (P.rudCf < 0.25 || P.rudCf > 0.5) rw.push(`Seitenrudertiefe ${nf(P.rudCf * 100, 0)} % (üblich 25–50 %)`);
+  if (rw.length) msg.push(pillF('info', `Außerhalb üblicher Richtwerte: ${rw.join('; ')}`, 'ctrl-guide'));
+  const cc = DESIGN_CHECKS.find(d => d.key === 'ctrl'), ci = cc ? cc.items(RR) : [];
+  if (ci.length) msg.push(pillF('warn', `Grundbedingung „Ruder reichen“ der Entwurfssuche verletzt: ${ci.map(i => i.txt).join('; ')}`, 'ctrl-guide'));
   if (!msg.length) msg.push(pill('good', 'Alle Ruder mit Reserve ausgelegt'));
   $('#ru-msg').innerHTML = `<div class="flags">${msg.join('')}</div>`;
   // Höhenruder-Trimmkurven

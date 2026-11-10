@@ -73,7 +73,7 @@ function shadowOn(c, s, z0) {
 function shadeCells(C, g) {
   const so = C.solar, pf = C.pf, tg = C.tail, h = pf.b / 2, U = foilUpper(C.foil), W = [], H = [];
   if (so.mode !== 'area') for (const c of so.colsHalf) for (let i = 0; i < c.n; i++) {
-    const xa = g.xLE0 + c.x0 + i * (c.l + so.g) / c.k, xb = xa + c.l / c.k, ym = (c.y0 + c.y1) / 2, e = clamp(ym / h, 0, 1), ch = pf.chordAt(e), xl = g.xLE0 + pf.xLE(e);
+    const xa = g.xLE0 + colCellX(c, i, so.g), xb = xa + c.l / c.k, ym = (c.y0 + c.y1) / 2, e = clamp(ym / h, 0, 1), ch = pf.chordAt(e), xl = g.xLE0 + pf.xLE(e);
     const z = zWingAt(g, ym) + upPt(U, upS(U, clamp(((xa + xb) / 2 - xl) / ch, 0, 1)))[1] * ch;
     for (const sg of [1, -1]) W.push({ x0: xa, x1: xb, y0: sg > 0 ? c.y0 : -c.y1, y1: sg > 0 ? c.y1 : -c.y0, z, str: sg > 0 ? 0 : 1 });
   }
@@ -81,7 +81,7 @@ function shadeCells(C, g) {
   if (so.ht.a > 0 && so.ht.cols.length) {
     const UH = foilUpper(C.tfoil), all = [];
     for (const c of so.ht.cols) for (let i = 0; i < c.n; i++) {
-      const xa = g.xhLE + c.x0 + i * (c.l + so.g) / c.k, xb = xa + c.l / c.k, z = g.zH + upPt(UH, upS(UH, clamp(((xa + xb) / 2 - g.xhLE) / tg.ch, 0, 1)))[1] * tg.ch;
+      const xa = g.xhLE + colCellX(c, i, so.g), xb = xa + c.l / c.k, z = g.zH + upPt(UH, upS(UH, clamp(((xa + xb) / 2 - g.xhLE) / tg.ch, 0, 1)))[1] * tg.ch;
       for (const sg of [1, -1]) all.push({ x0: xa, x1: xb, y0: sg > 0 ? c.y0 : -c.y1, y1: sg > 0 ? c.y1 : -c.y0, z, str: 2, ya: (c.y0 + c.y1) / 2 });
     }
     const nUse = Math.max(1, Math.min(all.length, Math.round(so.ht.a / so.spec.A)));

@@ -140,7 +140,7 @@ function optNowState(b) {
     }
     const D = DESIGN_CHECKS.find(x => x.key === c.key); let d;
     try { d = D.viol(R); } catch (e) { d = 1; }
-    const detail = c.key === 'build' && R.C.bau && R.C.bau.crit.length ? R.C.bau.crit.map(i => i.txt) : null;
+    let detail = null; if (D.items && !(fin(d) && d <= OPT_EPS)) { try { const it = D.items(R); if (it.length) detail = it.map(i => i.txt); } catch (e) { /* ohne Einzelheiten */ } }
     return { c, st: fin(d) && d <= OPT_EPS ? 'ok' : 'bad', d, detail };
   });
 }
@@ -368,7 +368,7 @@ function optConsList(b) {
 }
 function optViolText(b, best) {
   const list = optConsList(b), cv = best.cv || [], out = [];
-  list.forEach((c, j) => { if (!(cv[j] > OPT_EPS)) return; out.push({ d: cv[j], t: c.kenn ? `${esc(c.l)} <b>${esc(kvText(c.key, best.kv[c.key]))}</b> (gefordert ${esc(c.txt)})` : c.key === 'build' && best.bau && best.bau.length ? `Baubar: <b>${esc(best.bau.join(', '))}</b>` : esc(c.l) }); });
+  list.forEach((c, j) => { if (!(cv[j] > OPT_EPS)) return; out.push({ d: cv[j], t: c.kenn ? `${esc(c.l)} <b>${esc(kvText(c.key, best.kv[c.key]))}</b> (gefordert ${esc(c.txt)})` : best.sub && best.sub[c.key] && best.sub[c.key].length ? `${esc(c.l.split(':')[0])}: <b>${esc(best.sub[c.key].join(', '))}</b>` : esc(c.l) }); });
   if (!out.length) return '–';
   out.sort((a, b) => b.d - a.d);
   return out.slice(0, 3).map(o => o.t).join(' · ') + (out.length > 3 ? ` · und ${out.length - 3} weitere` : '');
@@ -389,7 +389,7 @@ function optRenderDiag() {
     let bo = null; for (const a of arch) if (list.every((cc, i) => i === j || never[i] || ok(a.cv[i])) && (!bo || a.cv[j] < bo.cv[j])) bo = a;
     const flat = c.kenn ? (fin(Dj.lo) && fin(Dj.hi) && Math.abs(Dj.hi - Dj.lo) <= 1e-9 * Math.max(1, Math.abs(Dj.hi))) : Math.abs(Dj.dhi - Dj.dlo) <= 1e-9;
     const val = v => (c.kenn && fin(v) ? kvText(c.key, v) : '–');
-    const bauTxt = c.key === 'build' && res.sugs[0] && res.sugs[0].bau && res.sugs[0].bau.length ? ` Beim nächstbesten Entwurf: ${res.sugs[0].bau.map(i => i.txt).join('; ')}.` : '';
+    const sb = res.sugs[0] && res.sugs[0].sub && res.sugs[0].sub[c.key], bauTxt = sb && sb.length ? ` Beim nächstbesten Entwurf: ${sb.map(i => i.txt).join('; ')}.` : '';
     const why = (never[j]
       ? (flat ? 'hängt nicht von den freien Größen ab: die Eingaben dahinter sind festgehalten oder nicht frei' : `nie erreicht; ${c.kenn && fin(Dj.lo) ? `gefundener Bereich ${kvText(c.key, Dj.lo)} bis ${kvText(c.key, Dj.hi)}` : 'in keinem gerechneten Entwurf erfüllt'}.`)
       : 'einzeln erreichbar, aber nicht zusammen mit den übrigen Anforderungen.') + bauTxt;
@@ -445,7 +445,7 @@ function optRenderRes() {
     const diff = s.diff.map(x => `<tr><td class="c-l"><button type="button" class="linkbtn" data-jump="${esc(x.k)}">${esc(PM[x.k] ? PM[x.k].l : x.k)}</button>${x.edge ? ` <span class="op-edge" title="Am Rand des Suchbereichs: ein weiterer Bereich könnte mehr bringen">${x.edge === 'lo' ? 'untere Grenze' : 'obere Grenze'}</span>` : ''}</td><td class="c-f">${cell(x.k, x.from)}</td><td class="c-t"><b>${cell(x.k, x.to)}</b></td></tr>`).join('');
     const showK = [...new Set([key, ...OPT_SHOW, ...spec.cons.map(c => c.key)])].filter(k => KENN_BY[k] && k in s.kv);
     const kv = showK.map(k => { const c = spec.cons.find(c => c.key === k), v = s.kv[k], b0 = kennValue(base, k), st = c ? rangeState(v, c.min, c.max, S.meta.knapp || 5, OPT_INT.has(k)).st : null; return `<div class="op-kv${st ? ' ' + st : ''}"><span class="k">${esc(KENN_BY[k].l)}</span><span class="v">${esc(kvText(k, v))}</span>${fin(b0) && Math.abs(b0 - v) > 1e-9 ? `<span class="s">jetzt ${esc(kvText(k, b0))}</span>` : ''}</div>`; }).join('');
-    const failed = DESIGN_CHECKS.filter(c => spec.checks.includes(c.key) && s.chk[c.key] > OPT_EPS).map(c => pill('crit', c.key === 'build' && s.bau && s.bau.length ? `Nicht baubar: ${s.bau.map(i => i.l).join(', ')}` : c.l));
+    const failed = DESIGN_CHECKS.filter(c => spec.checks.includes(c.key) && s.chk[c.key] > OPT_EPS).map(c => pill('crit', s.sub && s.sub[c.key] && s.sub[c.key].length ? `${c.key === 'build' ? 'Nicht baubar' : c.l.split(':')[0]}: ${s.sub[c.key].map(i => i.l).join(', ')}` : c.l));
     const consBad = spec.cons.filter(c => s.cv[c.key] > OPT_EPS).map(c => pill('crit', `${KENN_BY[c.key].l}: ${kvText(c.key, s.kv[c.key])}`));
     return `<article class="op-card${s.feasible ? '' : ' bad'}${applied ? ' applied' : ''}">
       <header><div><h3>${i === 0 ? 'Bester Vorschlag' : `Alternative ${i}`}</h3>${s.feasible ? pill('good', 'erfüllt alle Bedingungen') : pill('crit', 'Bedingungen verletzt')}</div>

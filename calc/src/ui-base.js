@@ -53,6 +53,7 @@ const SEL = {
   bypass: [['cell', 'Bypassdiode je Zelle'], ['none', 'ohne Bypassdioden (Grenzfall)']],
   solarMode: [['fill', 'Ganze Zellen, so viele wie passen'], ['count', 'Ganze Zellen, feste Anzahl'], ['area', 'Zellfläche frei eingeben (nur für Vergleichsrechnungen)']],
   cellType: Object.entries(CELL_TYPES).map(([k, t]) => [k, t.name]),
+  modType: Object.entries(MOD_TYPES).map(([k, t]) => [k, t]),
   cellOrient: [['auto', 'Beste je Spalte'], ['span', 'Lange Kante in Spannweitenrichtung'], ['chord', 'Lange Kante in Flugrichtung']],
   tz: [['auto', 'MEZ/MESZ automatisch'], ['0', 'UTC'], ['1', 'UTC+1'], ['2', 'UTC+2'], ['3', 'UTC+3'], ['-3', 'UTC−3'], ['-5', 'UTC−5'], ['-7', 'UTC−7'], ['-8', 'UTC−8']],
   weather: [['clear', 'Klarer Himmel (Modell)'], ['piemont', 'Piemont, PVGIS-TMY (echt)'], ['amsterdam', 'Amsterdam, IWEC (echt)'], ['upload', 'Eigene Datei (PVGIS, EPW)'], ['gen', 'Wettergenerator (Monatswerte)']],
@@ -95,6 +96,7 @@ const PM = {};
   ['wireExtra', 'Zuschlag Kabelbaum', '%', 1, 0, 100, null, 'Kabelbinder, Schutzschlauch, Halter, Lötstellen. Leitungen und Stecker selbst sind einzeln gerechnet.'],
   ['wireDropSol', 'Spannungsfall Solarleitungen', '%', 0.1, 0.3, 5, null, 'Bei Spitzenleistung. Kleiner heißt dickere, schwerere Leitungen und weniger Verlust.'],
   ['nAilSeg', 'Querruder-Segmente je Seite', '', 1, 1, 4, null, 'Je Segment ein Servo. Lange Flügel teilen die Querruder, damit sie sich nicht verwinden.'],
+  ['reTipMin', 'Reynoldszahl an der Spitze mindestens', '', 1000, 0, 500000, null, 'Grundbedingung der Entwurfssuche. Unter etwa 50 000–70 000 bilden sich an glatten Profilen laminare Ablöseblasen ohne Wiederanlegen, Auftrieb und Widerstand werden unberechenbar (Lissaman 1983); dazu sind sehr kleine Spitzen schwer zu bauen. 0 schaltet die Grenze aus.'],
   ['ailEta0', 'Querruder von', '× b/2', 0.01, 0.1, 0.9], ['ailEta1', 'Querruder bis', '× b/2', 0.01, 0.2, 1],
   ['ailCf', 'Querruder Tiefe', '× c', 0.01, 0.05, 0.6, null, 'Anteil der Flügeltiefe hinter der Drehachse. Üblich 20–30 %.'], ['ailMax', 'Querruder Vollausschlag', '°', 1, 5, 40],
   ['elevCf', 'Höhenruder Tiefe', '× c', 0.01, 0.1, 1, null, '1 heißt Pendelhöhenruder (ganze Fläche beweglich). Üblich 30–45 %.'], ['elevMax', 'Höhenruder Vollausschlag', '°', 1, 5, 40],
@@ -152,7 +154,13 @@ const PM = {};
   ['chargeC', 'Max. Laderate', 'C', 0.05, 0.1, 3], ['noColdCharge', 'Nicht unter 0 °C laden', '', 0, 0, 0, 'bool'],
   // Solar
   ['solarMode', 'Zellbelegung', '', 0, 0, 0, 'solarMode', 'Ganze Zellen: so viele, wie im Zellband und zwischen den Freiräumen auf den Flügel passen. Das Zellband folgt aus der zulässigen Biegung der Zellen auf der Profiloberseite (je Profil und Flügeltiefe). Feste Anzahl: von der Wurzel nach außen. Fläche frei: nur für Vergleichsrechnungen, ohne Prüfung auf ganze Zellen.'],
-  ['cellType', 'Zelle', '', 0, 0, 0, 'cellType', 'Nur quadratische Zellen, wie man sie bekommt. SunPower C60: 125 × 125 mm, Ecken vom 160-mm-Ingot abgeschnitten (153,3 cm²), 165 µm dick, 21,8–22,5 %, U_MPP 0,574–0,582 V. Eigene Zelle: Kantenlänge, Ingot-Durchmesser und Dicke eingeben.'],
+  ['cellType', 'Zelle', '', 0, 0, 0, 'cellType', 'Nur quadratische Zellen, wie man sie bekommt. SunPower E60 (AtlantikSolar) und C60: 125 × 125 mm, Ecken vom 160-mm-Ingot abgeschnitten (153,3 cm²), 165 µm dick; C60 21,8–22,5 %, U_MPP 0,574–0,582 V; AtlantikSolar maß 23,7 % auf Modulebene. Eigene Zelle: Kantenlänge, Ingot-Durchmesser und Dicke eingeben.'],
+  ['modType', 'Modulformat', '', 0, 0, 0, 'modType', 'Die Zellen sitzen in rechteckigen, laminierten Modulen. Ein Modul ist gerade: es muss auf ganzer Länge ins Zellband passen, überquert keine Teilung und kein Ruder und darf höchstens 10° gegen die Querachse gedreht sein. AtlantikSolar (ETH): zwei Zellreihen über die ganze Spannweite, Streifen eine Zelle tief (Kalibriermodul 125 × 750 mm, also 6 Zellen).'],
+  ['modCells', 'Zellen je Modul in Spannweitenrichtung höchstens', '', 1, 1, 40, null, 'Länge des längsten Moduls. AtlantikSolar: 6 Zellen im Kalibriermodul, Teilflächen mit 12 und 20 Zellen am Flugzeug.'],
+  ['modMin', 'Zellen je Modul mindestens', '', 1, 1, 40, null, 'Kürzere Module für Reste an Spitze, Ruder und Teilung. Gleich der Höchstzahl, wenn nur ein Modultyp gefertigt oder gekauft wird.'],
+  ['modRows', 'Zellen je Modul in Flugrichtung', '', 1, 1, 4, null, 'Tiefe des Moduls in Zellen. Mehr als eine Zelle: das Modul muss als Ganzes ins Zellband passen.'],
+  ['modEdge', 'Modulrand je Seite', 'mm', 0.5, 0, 30, null, 'Laminat über die Zellen hinaus (Folie, Kante, Klebefläche).'],
+  ['modGap', 'Abstand zwischen Modulen', 'mm', 0.5, 0, 50, null, 'Fuge zwischen zwei Modulen (Stecker, Kabel, Wärmedehnung).'],
   ['cellA', 'Kantenlänge der Zelle', 'mm', 0.5, 20, 300], ['cellD', 'Ingot-Durchmesser', 'mm', 1, 0, 425, null, 'Pseudoquadratische Zellen: Durchmesser des Kreises, der die Ecken abschneidet. 0 heißt volles Quadrat.'], ['cellThk', 'Zelldicke', 'µm', 5, 30, 1000], ['cellVmp', 'Zellspannung im MPP', 'V', 0.01, 0.1, 5],
   ['cellBend', 'Biegung je Zelle höchstens', '% Stich/Länge', 0.5, 0.5, 50, null, 'Stich der gebogenen Zelle (größter Abstand von der Sehne) bezogen auf ihre Länge in Flugrichtung. 10 % entspricht einem Biegeradius von 1,25 Zelllängen (156 mm bei 125 mm). Bestimmt mit der Dehnung, wie weit vorn und hinten auf jedem Profil Zellen liegen können.'],
   ['cellStrain', 'Zulässige Randdehnung der Zelle', '%', 0.01, 0.01, 2, null, 'Örtliche Biegung: ε = κ·t/2 mit der Krümmung κ über ein Zwölftel der Zelllänge (rund 1 cm). 0,10 % entspricht 136 MPa bei E = 130 GPa, der Spannung, die 95 % der Siliziumzellen aushalten (Rion u. a. 2009); bei 165 µm Dicke ein Biegeradius von 83 mm. Begrenzt die Zellen vor allem an der Profilnase.'],
@@ -193,7 +201,7 @@ const PM = {};
 
 const FORMS = {
   quick: ['span', 'area', 'airfoil', 'v', 'mBatt', 'cellType', 'solarArea', 'date', 'lat', 'tStart', 'tEnd', 'tMax', 'tMin'],
-  wing: ['span', 'area', 'planform', 'taper', 'centerFrac', 'washout', 'dihedral', 'sweep', 'airfoil', 'transition'],
+  wing: ['span', 'area', 'planform', 'taper', 'centerFrac', 'washout', 'dihedral', 'sweep', 'airfoil', 'transition', 'reTipMin'],
   tail: ['tailAirfoil', 'tailArm', 'vH', 'vV', 'arH', 'arV', 'zTail', 'etaTail', 'fusL', 'fusD', 'boomD', 'fusFlow', 'kInt', 'kDrag'],
   config: ['fusType', 'motorPos', 'tailType', 'zTail', 'fusL', 'fusD', 'coneD', 'boomD', 'tailArm', 'clrRad', 'clrAx'],
   layout: ['trimMode', 'smTarget', 'xWingLE', 'xBatt', 'zBatt', 'battInWing', 'mAntrieb', 'payloadExtra'],
@@ -213,7 +221,7 @@ const FORMS = {
   vib: ['wCtrl', 'ctrlXcg', 'ctrlBal', 'kServo', 'gvtAil', 'gvtElev', 'gvtRud', 'gvtB1', 'gvtT1', 'gvtFin', 'gvtHT'],
   env: ['date', 'tz', 'lat', 'lon', 'alt', 'hAGL', 'tMax', 'tMin', 'sky'],
   batt: ['mBatt', 'battSpec', 'reserve', 'battHealth', 'etaCharge', 'etaDischarge', 'battTempCoef', 'battHeat', 'chargeC', 'noColdCharge', 'nCells', 'cellV', 'battRAh', 'hStore'],
-  solar: ['solarMode', 'cellType', 'cellA', 'cellD', 'cellThk', 'cellVmp', 'nCellsWing', 'solarArea', 'cellBend', 'cellStrain', 'cellX0', 'cellX1', 'cellGap', 'cellRootGap', 'cellTipGap', 'cellJointGap', 'cellsOnCtrl', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'stringLayout', 'bypass'],
+  solar: ['solarMode', 'cellType', 'cellA', 'cellD', 'cellThk', 'cellVmp', 'modType', 'modCells', 'modMin', 'modRows', 'modEdge', 'modGap', 'nCellsWing', 'solarArea', 'cellBend', 'cellStrain', 'cellX0', 'cellX1', 'cellGap', 'cellRootGap', 'cellTipGap', 'cellJointGap', 'cellsOnCtrl', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'stringLayout', 'bypass'],
   solar2: ['mpptEff', 'laminateLoss', 'wiringLoss', 'soiling', 'tempCoef', 'cellHeat', 'albedo'],
   wx: ['weather', 'genYears', 'genSeed'],
   wind: ['wind10', 'hellmann', 'weibullK'],
@@ -235,7 +243,8 @@ const SHOW_IF = {
   solarArea: P => P.solarMode === 'area', nCellsWing: P => P.solarMode === 'count',
   cellA: P => P.cellType === 'custom', cellD: P => P.cellType === 'custom', cellThk: P => P.cellType === 'custom', cellVmp: P => P.cellType === 'custom',
   cellBend: P => P.solarMode !== 'area', cellStrain: P => P.solarMode !== 'area',
-  cellOrient: P => P.solarMode !== 'area', cellGap: P => P.solarMode !== 'area', cellRootGap: P => P.solarMode !== 'area', cellTipGap: P => P.solarMode !== 'area',
+  cellOrient: () => false, modType: P => P.solarMode !== 'area', modCells: P => P.solarMode !== 'area' && P.modType !== 'cell', modMin: P => P.solarMode !== 'area' && P.modType !== 'cell',
+  modRows: P => P.solarMode !== 'area' && P.modType === 'custom', modEdge: P => P.solarMode !== 'area' && P.modType !== 'cell', modGap: P => P.solarMode !== 'area' && P.modType !== 'cell', cellGap: P => P.solarMode !== 'area', cellRootGap: P => P.solarMode !== 'area', cellTipGap: P => P.solarMode !== 'area',
   cellJointGap: P => P.solarMode !== 'area' && (P.splits === 'outer' || P.splits === 'both'), cellsOnCtrl: P => P.solarMode !== 'area',
   genYears: P => P.weather === 'gen', genSeed: P => P.weather === 'gen',
   coneD: P => P.fusType === 'glider', wCone: P => P.fusType === 'glider', boomD: P => P.fusType !== 'glider', boomLin: P => P.fusType !== 'glider',
@@ -264,7 +273,7 @@ function fieldHTML(k, form) {
   const id = `f-${form}-${k}`, help = m.help ? `<span class="help">${esc(m.help)}</span>` : '';
   const lab = `${esc(m.l)}${m.u ? ` <span class="u">${esc(m.u)}</span>` : ''}`;
   const rq = `<button type="button" class="rq-btn" data-rq="${k}" aria-label="Anforderung oder Kommentar: ${esc(m.l)}"></button>`;
-  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'solarMode', 'cellType', 'cellOrient', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'bypass', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
+  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'solarMode', 'cellType', 'modType', 'cellOrient', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'bypass', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
   if (m.sel === 'bool') return `<div class="field chk wide" data-fk="${k}"><input type="checkbox" id="${id}" data-k="${k}"><label for="${id}">${lab}</label>${rq}${help}</div>`;
   if (m.sel === 'date') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="date" id="${id}" data-k="${k}"></div>`;
   if (m.sel === 'time') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="time" id="${id}" data-k="${k}"></div>`;
@@ -299,7 +308,7 @@ document.addEventListener('input', e => {
   S.params[el.dataset.k] = v;
   // gleiche Größe in anderen Formularen nachziehen
   $$(`[data-k="${el.dataset.k}"]`).forEach(o => { if (o !== el) { if (o.type === 'checkbox') o.checked = !!v; else o.value = String(v); } });
-  if (['planform', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'weather', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'battInWing', 'splits', 'propGeom', 'solarMode', 'cellType'].includes(el.dataset.k)) fillForms();
+  if (['planform', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'weather', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'battInWing', 'splits', 'propGeom', 'solarMode', 'cellType', 'modType'].includes(el.dataset.k)) fillForms();
   if (el.dataset.k === 'weather') onWeatherChange();
   markPreset(); schedule();
 });

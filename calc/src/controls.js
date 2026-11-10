@@ -18,7 +18,13 @@
 function flapTau(E) { if (E >= 0.999) return 1; const th = Math.acos(clamp(2 * E - 1, -1, 1)); return 1 - (th - Math.sin(th)) / Math.PI; }
 function flapEta(dDeg, allMoving) { if (allMoving) return 1; const d = Math.abs(dDeg); return d <= 12 ? 0.85 : d >= 30 ? 0.55 : 0.85 - 0.3 * (d - 12) / 18; }
 // Gelenkmomentbeiwerte (je rad, bezogen auf q·c_R² je Meter Spannweite), Auftrieb und Moment um c/4 je rad Ruderausschlag
+// Gelenkmomentbeiwerte hängen nur von E ab: einmal je Rudertiefe rechnen (die Reihe hat 4000 Glieder)
+const hingeCache = new Map();
 function hingeCoef(E) {
+  const kE = Math.round(E * 1e6) / 1e6; let hc = hingeCache.get(kE); if (hc) return hc;
+  hc = hingeCoef0(kE); if (hingeCache.size > 2000) hingeCache.clear(); hingeCache.set(kE, hc); return hc;
+}
+function hingeCoef0(E) {
   if (E >= 0.999) return { Ca: -Math.PI / 2, Cd: -Math.PI / 2, CLd: 2 * Math.PI, Cmd: 0, th: 0 };
   const th = Math.acos(clamp(2 * E - 1, -1, 1)), ch = Math.cos(th), E2 = E * E;
   const F = t => ch * (t + Math.sin(t)) - (Math.sin(t) + t / 2 + Math.sin(2 * t) / 4);   // ∫(1 + cosθ)(cosθh − cosθ)dθ
@@ -81,7 +87,8 @@ function elevatorFor(C, ct, V, n, T, dx, qr) {
   for (let k = 0; k < 4; k++) d = rhsA / (ct.tauE0 * flapEta(d * RAD, ct.allE));
   return { d, CLh, Lt, CL, V, n, T };
 }
-function controlSurfaces(C, fd) {
+// opt.lite: nur, was die Grundbedingung „Ruder reichen“ braucht (ohne Ausschlagskurven und Servomomente), für die Entwurfssuche
+function controlSurfaces(C, fd, opt = {}) {
   const P = C.P, pf = C.pf, tg = C.tail, bal = C.bal, np = C.np, d = fd.d, rho = C.rho, S = pf.S, b = pf.b, cb = pf.mac, m = C.m, W = m * G, mi = bal.mi;
   const Vs = C.vs, Va = Math.max(1.3 * Vs, 4), Vc = P.v, out = {};
   // Querruder
@@ -108,9 +115,9 @@ function controlSurfaces(C, fd) {
   // Höhenruder: Bezug Reiseflug ohne Ausschlag (Einstellwinkel des Höhenleitwerks so gewählt)
   const Ee = clamp(P.elevCf, 0.1, 1), allE = Ee >= 0.999, tauE0 = flapTau(Ee), hE = hingeCoef(Ee), ref = C.lvl, hPiv = clamp((P.elevPivot ?? 23) / 100, 0.1, 0.6);
   const ct = { CLh0: ref.CLh, CL0: ref.CL, Lt0: ref.Lt, tauE0, tauE: tauE0 * flapEta(5, allE), allE };
-  const cg = climbGlide(C), Vmin = 1.1 * Vs, dx = P.cgTol / 100, nL = Math.max(P.nLimit, 2.5), VA = Math.min(P.vmax, Vs * Math.sqrt(nL));
+  const cg = climbGlide(C, opt.lite ? 12 : 30), Vmin = 1.1 * Vs, dx = P.cgTol / 100, nL = Math.max(P.nLimit, 2.5), VA = Math.min(P.vmax, Vs * Math.sqrt(nL));
   const curves = { off: [], on: [], full: [] }, NV = 24;
-  for (let i = 0; i <= NV; i++) {
+  for (let i = 0; i <= (opt.lite ? -1 : NV); i++) {
     const V = Vmin + (P.vmax - Vmin) * i / NV, Tm = propMaxThrust(C, V, rho).T;
     curves.off.push([V, elevatorFor(C, ct, V, 1, 0, 0).d * RAD]); curves.on.push([V, elevatorFor(C, ct, V, 1, aero(C, V, 1, rho, C.nu).Dtot, 0).d * RAD]);
     if (V <= cg.bestC.V * 1.4) curves.full.push([V, elevatorFor(C, ct, V, 1, Tm, 0).d * RAD]);
@@ -146,6 +153,7 @@ function controlSurfaces(C, fd) {
   out.rud = { E: Er, tau0: tauR0, CYDr, CnDr, ClDr, beta, cross: { da: x3[0], dr: x3[1], phi: Math.asin(clamp(x3[2], -1, 1)) }, pwTrim, drAdverse, h: hR,
     maxDeg: Math.max(Math.abs(x3[1]), Math.abs(pwTrim.dr), Math.abs(drAdverse)) * RAD };
   // Gelenk- und Servomomente: Vollausschlag bei V_A, ein Drittel bei V_max; Sicherheitsfaktor 1,5
+  if (opt.lite) { out.servo = []; return out; }
   const qA = 0.5 * rho * VA * VA, qM = 0.5 * rho * P.vmax ** 2, h = b / 2;
   const segSpan = (e1 - e0) * h / out.ail.segs, cA = pf.chordAt((e0 + e1) / 2) * Ea, Sail = segSpan * cA;
   const Hm = (hh, Sf, cf, dMax, aLoc) => Math.max(qA * Sf * cf * Math.abs(hh.Ca * aLoc + hh.Cd * dMax), qM * Sf * cf * Math.abs(hh.Ca * aLoc + hh.Cd * dMax / 3));

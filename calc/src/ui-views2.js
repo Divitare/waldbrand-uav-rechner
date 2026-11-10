@@ -144,6 +144,7 @@ function renderShade(R) {
   $('#tbl-shade').innerHTML = rows.length ? `<thead><tr><th>Schattenwerfer</th><th>auf</th><th class="n">bei 17°</th><th class="n">bei 40°</th></tr></thead><tbody>${rows.join('')}</tbody><caption>Verschattete Zellfläche im Mittel über alle Kurse, ohne den Einfluss der Verschaltung.</caption>` : '';
 }
 $('#cells-msg').addEventListener('click', e => {
+  if (e.target.closest('[data-tofill]')) { S.params.solarMode = 'fill'; markPreset(); fillForms(); schedule(true); return; }
   if (!e.target.closest('[data-newlim]')) return;
   S.params.cellX0 = 0; S.params.cellX1 = 90; markPreset(); fillForms(); schedule(true);
 });
@@ -152,9 +153,10 @@ function renderCells(R) {
   const { C, P } = R, so = C.solar, sp = so.spec, pf = C.pf, area = so.mode === 'area';
   const uFull = Math.max(1, Math.round(P.nCells)) * cellOCV(P, 1);
   const lim = so.lim;
-  $('#cells-sub').textContent = area ? `Fläche frei eingegeben (nur für Vergleiche). Zum Vergleich das Raster mit ${sp.name}.` : `${sp.name}, ${nf(P.cellGap, 1)} mm Abstand. Jede Zelle folgt der gewölbten Oberseite: Stich höchstens ${nf(lim.beta * 100, 1)} % der Zelllänge (Biegeradius ≥ ${nf(sp.s / (8 * lim.beta) * 1000, 0)} mm), Randdehnung höchstens ${nf(lim.eps * 100, 2)} % (${nf(sp.t * 1e6, 0)} µm dick). Daraus das Zellband je Flügeltiefe (gestrichelt)${lim.x0 > 0 || lim.x1 < 1 ? `, dazu die Grenzen ${nf(lim.x0 * 100, 0)}–${nf(lim.x1 * 100, 0)} %` : ''}${P.cellsOnCtrl ? ', auch auf den Rudern' : ', vor den Ruderachsen'}. Spalten in Flugrichtung von der Wurzel nach außen.`;
+  $('#cells-sub').textContent = area ? `Fläche frei eingegeben (nur für Vergleiche). Zum Vergleich das Raster mit ${sp.name}.` : `${sp.name}, ${nf(P.cellGap, 1)} mm Abstand. Jede Zelle folgt der gewölbten Oberseite: Stich höchstens ${nf(lim.beta * 100, 1)} % der Zelllänge (Biegeradius ≥ ${nf(sp.s / (8 * lim.beta) * 1000, 0)} mm), Randdehnung höchstens ${nf(lim.eps * 100, 2)} % (${nf(sp.t * 1e6, 0)} µm dick). Daraus das Zellband je Flügeltiefe (gestrichelt)${lim.x0 > 0 || lim.x1 < 1 ? `, dazu die Grenzen ${nf(lim.x0 * 100, 0)}–${nf(lim.x1 * 100, 0)} %` : ''}${P.cellsOnCtrl ? '; auf den Rudern eigene Module hinter der Achse' : ', vor den Ruderachsen'}. ${so.ms && so.ms.type !== 'cell' ? `Rechteckige Module (${so.ms.rows > 1 ? `${so.ms.rows} Zellen tief, ` : 'eine Zelle tief, '}${so.ms.nMin < so.ms.nMax ? `${so.ms.nMin} bis ${so.ms.nMax}` : so.ms.nMax} Zellen lang, Rand ${nf(so.ms.e * 1000, 1)} mm, Fuge ${nf(so.ms.gm * 1000, 1)} mm): jedes Modul liegt gerade auf ganzer Länge im Zellband, höchstens 10° gedreht, nie über Teilung oder Ruderachse. Belegt von der Wurzel nach außen.` : 'Einzelzellen in Spalten in Flugrichtung von der Wurzel nach außen.'}`;
   $('#kpis-cells').innerHTML = [
     kpi('Zellen Flügel', (area ? '≈ ' : '') + nf(so.n, 0), '', area ? `aus ${nf(so.a, 2)} m² und ${nf(sp.A * 1e4, 1)} cm² je Zelle` : `${nf(so.nHalf, 0)} je Hälfte · ${nf(sp.A * 1e4, 1)} cm² je Zelle`, !so.fits ? 'bad' : ''),
+    ...(!area && so.ms && so.ms.type !== 'cell' ? [kpi('Module Flügel', nf(so.nMods, 0), '', `je Hälfte ${so.modStat.map(q => `${q.k} × ${q.n} Zellen`).join(', ') || 'keine'}`)] : []),
     kpi('Aktive Zellfläche', nf(so.a, 3), 'm²', `${pct(so.a / pf.S)} der Flügelfläche · Modul mit Fugen ${nf(so.aMod, 3)} m²`),
     kpi('Größtmöglich', nf(so.max.n, 0), 'Zellen', `${nf(so.max.a, 3)} m² mit diesem Format und den Freiräumen`),
     kpi('Je Hälfte in Reihe', nf(so.nHalf * sp.vmp, 1), 'V', `im MPP bei 25 °C · Akku voll ${nf(uFull, 1)} V`),
@@ -162,8 +164,9 @@ function renderCells(R) {
   ].join('');
   const msg = [];
   if (so.mode === 'count' && !so.fits) msg.push(pillF('warn', `Es passen nur ${nf(so.n, 0)} von ${nf(so.want, 0)} Zellen`, 'sol-pack'));
-  if (area && !so.fits) msg.push(pillF('crit', 'Die Zellfläche passt nicht zwischen die gewählten Tiefen', 'sol-pack'));
-  else if (area && so.overMax) msg.push(pillF('info', `Mit ganzen Zellen (${sp.name}) passen höchstens ${nf(so.max.a, 2)} m²; die eingegebene Fläche ist zu optimistisch`, 'sol-pack'));
+  if (area && !so.fits) msg.push(pillF('crit', `Die eingegebene Zellfläche passt nicht: als ganze ${so.ms && so.ms.type !== 'cell' ? 'Module' : 'Zellen'} (${sp.name}) höchstens ${nf(so.max.a, 2)} m² auf dem Flügel. Gerechnet wird trotzdem mit ${nf(so.a, 2)} m², die Entwurfssuche lässt das nicht zu.`, 'sol-pack'));
+  if (area) msg.push(`<div class="flags">${pill('info', `„Zellfläche frei eingeben“ ist nur für Vergleichsrechnungen (Modelle aus Versionen vor 8 stehen noch darauf). Mit ganzen Modulen passen hier ${nf(so.max.n, 0)} Zellen (${nf(so.max.a, 2)} m²).`)}<button type="button" class="btn" data-tofill>Auf ganze Module umstellen</button></div>`);
+  if (area && so.ht.want > so.ht.max + 1e-9) msg.push(pillF('crit', `Auf dem Höhenleitwerk passen als ganze Module höchstens ${nf(so.ht.max, 3)} m², eingegeben sind ${nf(so.ht.want, 3)} m²`, 'sol-pack'));
   if (so.ht.want > 0 && !so.ht.fits) msg.push(pillF('info', `Auf dem Höhenleitwerk passen höchstens ${nf(so.ht.max, 3)} m² ganze Zellen; gerechnet wird damit`, 'sol-pack'));
   if (!area && so.nHalf * sp.vmp < uFull * 1.05) msg.push(pillF('info', `Eine Flügelhälfte in Reihe liefert ${nf(so.nHalf * sp.vmp, 1)} V, der volle Akku ${nf(uFull, 1)} V: ein Abwärtswandler-MPPT braucht mehr Spannung, also Aufwärtswandler oder beide Hälften in Reihe`, 'sol-pack'));
   if (sp.old) msg.push(pill('info', 'Halbe und Viertelzellen sowie Rechteckzellen gibt es nicht mehr: gerechnet mit ganzen C60-Zellen.'));
