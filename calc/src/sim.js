@@ -85,6 +85,22 @@ function geomFactors(panels, pitch, roll, dihedral, layout, nPsi = 36) {
   let Fd = 0, Fg = 0;
   for (const H of halves) for (const n of H) { Fd += n.w * (1 + n.z) / 2 * 0.95 / 2; Fg += n.w * (1 - n.z) / 2 * 0.95 / 2; }
   const Fb = new Float64Array(91);
+  if (layout !== 'chord') {
+    // Kursmittel geschlossen: c·IAM(c) = max(0, (1+b₀)·c − b₀) ist linear in c = A·cos(ψ−ψ₀) + B, also
+    // ⟨max(0, α·cos φ + β)⟩ = (β·arccos(−β/α) + √(α² − β²))/π für |β| < α (sonst max(0, β))
+    const k1 = 1 + IAM_B0;
+    const hs = halves.flat().map(n => ({ h: Math.hypot(n.x, n.y), z: n.z, w: n.w }));
+    for (let k = 0; k <= 90; k++) {
+      const e = k * DEG, ce = Math.cos(e), se = Math.sin(e);
+      let acc = 0;
+      for (const n of hs) {
+        const a = k1 * ce * n.h, b = k1 * se * n.z - IAM_B0;
+        acc += n.w * (a <= Math.abs(b) ? Math.max(0, b) : (b * Math.acos(-b / a) + Math.sqrt(a * a - b * b)) / Math.PI);
+      }
+      Fb[k] = acc / 2;
+    }
+    return { Fb, Fd, Fg };
+  }
   for (let k = 0; k <= 90; k++) {
     const e = k * DEG, ce = Math.cos(e), se = Math.sin(e);
     let acc = 0;

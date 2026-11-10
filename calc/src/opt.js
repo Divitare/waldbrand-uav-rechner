@@ -36,7 +36,8 @@ const OPT_CAT = [
   { k: 'centerFrac', g: 'wing', lo: 0, hi: 0.8, st: 0.05, when: P => P.planform === 'rect_taper', dep: 'planform' },
   { k: 'washout', g: 'wing', lo: 0, hi: 4, st: 0.5 },
   { k: 'dihedral', g: 'wing', lo: 2, hi: 8, st: 0.5 },
-  { k: 'airfoil', g: 'wing', opts: () => (AF ? AF.db.foils.filter(f => !f.tail).map(f => f.key) : []) },
+  // Profile nach Wölbung, dann Dicke geordnet: benachbarte Werte auf der Suchachse sind ähnliche Profile
+  { k: 'airfoil', g: 'wing', opts: () => (AF ? AF.db.foils.filter(f => !f.tail).slice().sort((a, b) => (a.f || 0) - (b.f || 0) || (a.t || 0) - (b.t || 0)).map(f => f.key) : []) },
   { k: 'tailArm', g: 'tail', lo: 0.9, hi: 2.2, st: 0.05 },
   { k: 'vH', g: 'tail', lo: 0.35, hi: 0.6, st: 0.01 },
   { k: 'vV', g: 'tail', lo: 0.018, hi: 0.035, st: 0.002 },
@@ -127,9 +128,9 @@ const rNorm = rnd => { let u = 0; while (u < 1e-12) u = rnd(); return Math.sqrt(
 function optCompile(spec) {
   const vars = spec.vars.map(v => ({ ...v, n: v.t === 'd' ? v.opts.length : 0 }));
   const K = KENN_BY[spec.obj.key];
-  const cons = (spec.cons || []).filter(c => KENN_BY[c.key]).map(c => ({ key: c.key, min: c.min ?? null, max: c.max ?? null, st: OPT_COST[KENN_BY[c.key].cost] }));
+  const cons = (spec.cons || []).filter(c => KENN_BY[c.key]).map(c => ({ key: c.key, min: c.min ?? null, max: c.max ?? null, st: OPT_COST[KENN_BY[c.key].cost], sc: KENN_BY[c.key].sc || 0 }));
   const checks = DESIGN_CHECKS.filter(c => (spec.checks || []).includes(c.key)).map(c => ({ key: c.key, viol: c.viol, st: OPT_COST[c.cost] }));
-  return { spec, vars, K, dir: spec.obj.dir || K.dir || -1, objStage: OPT_COST[K.cost], cons, checks, nStage: 3 };
+  return { spec, vars, K, dir: spec.obj.dir || K.dir || -1, objStage: OPT_COST[K.cost], cons, checks, nStage: 3, nc: cons.length + checks.length };
 }
 function optDecodeVal(v, u) {
   u = clamp(u, 0, 1);
@@ -144,9 +145,11 @@ function optEncodeVal(v, x) {
 }
 const optVals = (pb, u) => Object.fromEntries(pb.vars.map((v, j) => [v.k, optDecodeVal(v, u[j])]));
 const optKey = vals => JSON.stringify(vals);
+// Verletzung bezogen auf die Grenze; liegt die Grenze bei null (z. B. Excess Time ≥ 0), auf die typische Größe
+// der Kenngröße (KENN.sc, sonst eine Einheit) – so wächst die Verletzung weiter mit dem Abstand und bleibt nicht bei 1 stehen
 function consViol(v, c) {
   if (!fin(v)) return 1;
-  const sc = b => (Math.abs(b) > 1e-9 ? Math.abs(b) : Math.max(1, Math.abs(v)));
+  const sc = b => { const s = Math.max(Math.abs(b), c.sc || 0); return s > 1e-9 ? s : 1; };
   let d = 0;
   if (c.min !== null && v < c.min) d += (c.min - v) / sc(c.min);
   if (c.max !== null && v > c.max) d += (v - c.max) / sc(c.max);
@@ -160,15 +163,16 @@ function optBetter(a, b) {
   return a.viol <= b.viol;
 }
 // Entwurf in Stufen rechnen; mit Elternteil abbrechen, sobald das Kind sicher verliert
+// r.cv: Verletzung je Anforderung (zuerst Ergebnis-Anforderungen, dann Grundbedingungen), null = nicht gerechnet
 function optEvalVals(pb, vals, parent, upTo) {
-  const P = { ...pb.spec.base, ...vals }, r = { vals, viol: 0, f: Infinity, kv: {}, stage: -1, partial: false };
+  const P = { ...pb.spec.base, ...vals }, nc = pb.cons.length, r = { vals, viol: 0, f: Infinity, kv: {}, cv: new Array(nc + pb.checks.length).fill(null), stage: -1, partial: false };
   let R = null;
   try { R = lazyResult(P, pb.spec.comps); void R.C; } catch (e) { r.viol = 1000; r.err = String((e && e.message) || e); r.stage = 2; return r; }
   const last = upTo ?? 2;
   for (let s = 0; s <= last; s++) {
     try {
-      for (const c of pb.cons) if (c.st === s) { const v = kennValue(R, c.key); r.kv[c.key] = v; r.viol += consViol(v, c); }
-      for (const c of pb.checks) if (c.st === s) { const v = c.viol(R); r.viol += fin(v) ? Math.max(0, v) : 1; }
+      pb.cons.forEach((c, j) => { if (c.st !== s) return; const v = kennValue(R, c.key), d = consViol(kennGraded(R, c.key, v), c); r.kv[c.key] = v; r.cv[j] = d; r.viol += d; });
+      pb.checks.forEach((c, j) => { if (c.st !== s) return; const v = c.viol(R), d = fin(v) ? Math.max(0, v) : 1; r.cv[nc + j] = d; r.viol += d; });
       if (pb.objStage === s) { const v = kennValue(R, pb.spec.obj.key); r.kv[pb.spec.obj.key] = v; if (fin(v)) r.f = -pb.dir * v; else r.viol += 1; }
     } catch (e) { r.viol += 1000; r.err = String((e && e.message) || e); r.stage = last; return r; }
     r.stage = s;
@@ -181,18 +185,52 @@ function optEvalVals(pb, vals, parent, upTo) {
   return r;
 }
 
+/* ---------- Diagnose je Anforderung: was die Suche erreicht hat ----------
+   best: kleinste Verletzung überhaupt (mit Wert), bestO: kleinste Verletzung unter Entwürfen, die alle übrigen
+   Anforderungen erfüllen; lo/hi: Wertebereich (bzw. Verletzungsbereich bei Grundbedingungen) über alle Rechnungen.
+   Bleibt der Bereich null breit, hängt die Anforderung nicht von den freien Größen ab. */
+function optDiagNew(nc) { return Array.from({ length: nc }, () => ({ n: 0, best: Infinity, bestV: NaN, bestO: Infinity, bestOV: NaN, lo: Infinity, hi: -Infinity, dlo: Infinity, dhi: -Infinity })); }
+function optDiagAdd(pb, diag, r) {
+  if (r.partial || r.viol >= 1000 || !r.cv) return;
+  const nc = pb.cons.length;
+  for (let j = 0; j < diag.length; j++) {
+    const d = r.cv[j]; if (d == null) continue;
+    const D = diag[j], v = j < nc ? r.kv[pb.cons[j].key] : NaN;
+    D.n++;
+    if (fin(v)) { if (v < D.lo) D.lo = v; if (v > D.hi) D.hi = v; }
+    if (d < D.dlo) D.dlo = d; if (d > D.dhi) D.dhi = d;
+    if (d < D.best) { D.best = d; D.bestV = v; }
+    if (r.viol - d <= 1e-7 && d < D.bestO) { D.bestO = d; D.bestOV = v; }
+  }
+}
+function optDiagMerge(list) {
+  const ok = list.filter(Boolean); if (!ok.length) return null;
+  return ok[0].map((_, j) => {
+    const all = ok.map(d => d[j]), m = { n: 0, best: Infinity, bestV: NaN, bestO: Infinity, bestOV: NaN, lo: Infinity, hi: -Infinity, dlo: Infinity, dhi: -Infinity };
+    for (const D of all) {
+      m.n += D.n; m.lo = Math.min(m.lo, D.lo); m.hi = Math.max(m.hi, D.hi); m.dlo = Math.min(m.dlo, D.dlo); m.dhi = Math.max(m.dhi, D.dhi);
+      if (D.best < m.best) { m.best = D.best; m.bestV = D.bestV; }
+      if (D.bestO < m.bestO) { m.bestO = D.bestO; m.bestOV = D.bestOV; }
+    }
+    return m;
+  });
+}
+
 /* ---------- Eine Insel: Differential Evolution (JADE), als Generator für Fortschritt und Abbruch ----------
-   spec: { base, comps, vars, obj: {key, dir}, cons: [{key, min, max}], checks: [keys], budget, np, seed }
-   yield: Fortschritt je Generation; next(true) beendet vorzeitig mit dem bisherigen Ergebnis */
+   spec: { base, comps, vars, obj: {key, dir}, cons: [{key, min, max}], checks: [keys], budget, np, seed, init }
+   init: Entwürfe (Werte) aus einem früheren Lauf als Startpunkte (Weiterrechnen)
+   yield: Fortschritt je Generation; next(true) oder next({stop: true}) beendet vorzeitig mit dem bisherigen
+   Ergebnis, next({imm: [Entwurf]}) bringt die besten Entwürfe anderer Inseln ein (Migration) */
 function* optIsland(spec) {
   const pb = optCompile(spec), n = pb.vars.length, rnd = rng32(spec.seed || 1);
   const NP = spec.np || clamp(Math.round(10 + 0.6 * n), 16, 30), budget = Math.max(NP * 2, spec.budget || 1500);
   const t0 = Date.now(), cache = new Map(), arch = [], ARCH = 60, maxGen = Math.ceil(3 * budget / NP);
-  let evals = 0, full = 0, hits = 0, gen = 0;
+  let evals = 0, full = 0, hits = 0, gen = 0, restarts = 0, nImm = 0;
+  const diag = optDiagNew(pb.nc);
   const archAdd = (r, u) => {
     if (r.partial || r.viol >= 1000) return;
     const key = optKey(r.vals); if (arch.some(a => a.key === key)) return;
-    const e = { key, vals: r.vals, u: Array.from(u), f: r.f, viol: r.viol, kv: r.kv };
+    const e = { key, vals: r.vals, u: Array.from(u), f: r.f, viol: r.viol, kv: r.kv, cv: r.cv };
     let i = arch.findIndex(a => !optBetter(a, e)); if (i < 0) i = arch.length;
     if (i < ARCH) { arch.splice(i, 0, e); if (arch.length > ARCH) arch.pop(); }
   };
@@ -202,29 +240,50 @@ function* optIsland(spec) {
     evals++;
     const r = optEvalVals(pb, vals, parent);
     delete r.R;
-    if (!r.partial) { full++; if (cache.size < 6000) cache.set(key, r); archAdd(r, u); }
+    if (!r.partial) { full++; if (cache.size < 6000) cache.set(key, r); archAdd(r, u); optDiagAdd(pb, diag, r); }
     return { ...r, u, key };
   };
-  // Anfangsbevölkerung: der jetzige Entwurf, Nachbarn davon, der Rest als lateinisches Hyperwürfel-Muster
+  const better = (a, b) => optBetter(a, b) && !optBetter(b, a);
+  const rank = list => [...list.keys()].sort((a, b) => (optBetter(list[a], list[b]) ? (optBetter(list[b], list[a]) ? 0 : -1) : 1));
+  const lhs = m => { const perm = pb.vars.map(() => { const p = [...Array(m).keys()]; for (let i = m - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; }); return Array.from({ length: m }, (_, i) => pb.vars.map((v, j) => (perm[j][i] + rnd()) / m)); };
+  // Anfangsbevölkerung: der jetzige Entwurf, Startpunkte aus einem früheren Lauf, Nachbarn, der Rest als lateinischer Hyperwürfel
   const u0 = pb.vars.map(v => optEncodeVal(v, spec.base[v.k]));
   let pop = [evalU(u0.slice())];
-  const nLoc = Math.round(0.3 * NP);
-  for (let i = 1; i < nLoc; i++) pop.push(evalU(u0.map((x, j) => (pb.vars[j].t === 'd' ? (rnd() < 0.75 ? x : rnd()) : clamp(x + 0.08 * rNorm(rnd), 0, 1)))));
-  const nL = NP - pop.length, perm = pb.vars.map(() => { const p = [...Array(nL).keys()]; for (let i = nL - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; });
-  for (let i = 0; i < nL; i++) pop.push(evalU(pb.vars.map((v, j) => (perm[j][i] + rnd()) / nL)));
+  for (const vals of (spec.init || []).slice(0, Math.floor(0.5 * NP))) pop.push(evalU(pb.vars.map(v => optEncodeVal(v, vals[v.k] ?? spec.base[v.k]))));
+  const nLoc = Math.max(0, Math.round(0.3 * NP) - pop.length + 1);
+  for (let i = 0; i < nLoc && pop.length < NP; i++) pop.push(evalU(u0.map((x, j) => (pb.vars[j].t === 'd' ? (rnd() < 0.75 ? x : rnd()) : clamp(x + 0.08 * rNorm(rnd), 0, 1)))));
+  for (const u of lhs(NP - pop.length)) pop.push(evalU(u));
   let muF = 0.5, muCR = 0.7;
   let lsBest = null, phase = 'de';
+  const popBest = () => pop.reduce((a, b) => (optBetter(b, a) ? b : a));
   const state = () => {
-    let best = pop.reduce((a, b) => (optBetter(b, a) ? b : a));
+    let best = popBest();
     if (lsBest && optBetter(lsBest, best)) best = lsBest;
-    return { phase, gen, evals, full, hits, budget, np: NP, n, ms: Date.now() - t0, best: { f: best.f, viol: best.viol, kv: best.kv, vals: best.vals }, nFeas: pop.filter(p => p.viol <= OPT_EPS).length, muF, muCR };
+    return { phase, gen, evals, full, hits, budget, np: NP, n, ms: Date.now() - t0, restarts, nImm, best: { f: best.f, viol: best.viol, kv: best.kv, vals: best.vals, u: Array.from(best.u), cv: best.cv }, nFeas: pop.filter(p => p.viol <= OPT_EPS).length, muF, muCR };
   };
-  let stop = yield state();
+  // Migration: ein besserer Entwurf einer anderen Insel ersetzt ein zufälliges Mitglied der schlechteren Hälfte
+  const immigrate = list => {
+    for (const im of list || []) {
+      if (!im || !im.u || im.u.length !== n) continue;
+      const e = { vals: im.vals, f: im.f, viol: im.viol, kv: im.kv || {}, cv: im.cv || null, u: im.u.slice(), key: optKey(im.vals), stage: 2, partial: false };
+      if (phase === 'de') {
+        const ord = rank(pop), half = ord.slice(Math.floor(NP / 2)), i = half[Math.floor(rnd() * half.length)];
+        if (pop.some(p => p.key === e.key)) continue;
+        if (optBetter(e, pop[i])) { pop[i] = e; nImm++; }
+      } else if (lsBest && better(e, lsBest)) { lsBest = e; nImm++; }
+    }
+  };
+  const cmdOf = c => { if (c && typeof c === 'object' && c.imm) immigrate(c.imm); return c === true || !!(c && c.stop); };
+  let stop = cmdOf(yield state());
   // Grenze auch über die Generationen: im Raster wiederholte Entwürfe kommen aus dem Zwischenspeicher und zählen nicht
-  const deBudget = Math.round((spec.deFrac ?? 0.45) * budget);
+  const deBudget = Math.round((spec.deFrac ?? 0.5) * budget);
+  // Neustart bei Stillstand: ist die Bevölkerung zusammengefallen oder bleibt der beste Entwurf über stallMax
+  // Generationen gleich, bleiben die besten 20 %, der Rest wird neu gewürfelt (halb um die Besten, halb im ganzen Raum)
+  const stallMax = spec.stall || Math.max(20, Math.round(0.4 * deBudget / NP));
+  let stall = 0, lastBest = popBest();
   while (!stop && evals < deBudget && gen < maxGen && (!spec.tMax || Date.now() - t0 < spec.tMax)) {
     gen++;
-    const order = [...pop.keys()].sort((a, b) => (optBetter(pop[a], pop[b]) ? (optBetter(pop[b], pop[a]) ? 0 : -1) : 1));
+    const order = rank(pop);
     const nTop = Math.max(2, Math.round(0.2 * NP)), next = pop.slice(), SF = [], SCR = [];
     for (let i = 0; i < NP; i++) {
       let F; do { F = muF + 0.1 * Math.tan(Math.PI * (rnd() - 0.5)); } while (F <= 0); F = Math.min(1, F);
@@ -246,58 +305,110 @@ function* optIsland(spec) {
     }
     pop = next;
     if (SCR.length) { muCR = 0.9 * muCR + 0.1 * SCR.reduce((s, x) => s + x, 0) / SCR.length; muF = 0.9 * muF + 0.1 * SF.reduce((s, x) => s + x * x, 0) / SF.reduce((s, x) => s + x, 0); }
-    stop = yield state();
+    const gb = popBest();
+    if (better(gb, lastBest) && !(gb.viol <= OPT_EPS && lastBest.viol <= OPT_EPS && Math.abs(gb.f - lastBest.f) <= 1e-6 * Math.max(1, Math.abs(gb.f)))) stall = 0; else stall++;
+    lastBest = gb;
+    let spread = 0; for (let j = 0; j < n; j++) { let m = 0, q = 0; for (const p of pop) { m += p.u[j]; q += p.u[j] * p.u[j]; } m /= NP; spread += Math.sqrt(Math.max(0, q / NP - m * m)); }
+    spread /= Math.max(1, n);
+    if ((stall >= stallMax || spread < 0.02) && evals + 4 * NP < deBudget) {
+      const ord = rank(pop), keep = Math.max(2, Math.round(0.2 * NP)), elite = ord.slice(0, keep).map(i => pop[i]), fresh = [];
+      const nG = Math.round((NP - keep) / 2);
+      for (let i = 0; i < nG; i++) { const e = elite[Math.floor(rnd() * keep)]; fresh.push(evalU(e.u.map((x, j) => (pb.vars[j].t === 'd' ? (rnd() < 0.8 ? x : rnd()) : clamp(x + 0.15 * rNorm(rnd), 0, 1))))); }
+      for (const u of lhs(NP - keep - nG)) fresh.push(evalU(u));
+      pop = elite.concat(fresh); muF = 0.5; muCR = 0.7; stall = 0; restarts++;
+    }
+    stop = cmdOf(yield state());
   }
   // Feinschliff 1: (1+1)-Evolutionsstrategie mit 1/5-Erfolgsregel (Rechenberg 1973) um den besten Entwurf.
   // Schrittweite je Größe aus der Streuung der besten Fünftel der Bevölkerung; alle Zahlengrößen
   // bewegen sich gemeinsam, so kommt die Suche auch an aktiven Grenzen weiter (z. B. Nutzlast und Akku zugleich)
-  let best = pop.reduce((a, b) => (optBetter(b, a) ? b : a)), h = 0.05, sinceYield = 0;
+  let best = popBest(), h = 0.05, sinceYield = 0;
   phase = 'local'; lsBest = best;
   const num = pb.vars.map((v, j) => j).filter(j => pb.vars[j].t !== 'd' && pb.vars[j].hi > pb.vars[j].lo);
   const dis = pb.vars.map((v, j) => j).filter(j => pb.vars[j].t === 'd' && pb.vars[j].n > 1);
   if (spec.es !== false && num.length) {
-    const top = [...pop].sort((a, b) => (optBetter(a, b) ? (optBetter(b, a) ? 0 : -1) : 1)).slice(0, Math.max(3, Math.round(0.2 * NP)));
+    const top = rank(pop).slice(0, Math.max(3, Math.round(0.2 * NP))).map(i => pop[i]);
     const sig = pb.vars.map((v, j) => { const m = top.reduce((s, p) => s + p.u[j], 0) / top.length, sd = Math.sqrt(top.reduce((s, p) => s + (p.u[j] - m) ** 2, 0) / top.length); return clamp(sd, 0.015, 0.12); });
-    const esBudget = evals + Math.round((spec.esFrac ?? 0.8) * (budget - evals));
-    let s = 1, fails = 0;
+    const esBudget = evals + Math.round((spec.esFrac ?? 0.7) * (budget - evals));
+    let s = 1;
     while (!stop && evals < esBudget && (!spec.tMax || Date.now() - t0 < spec.tMax)) {
+      if (lsBest !== best && better(lsBest, best)) { best = lsBest; s = 1; } // Migrant übernommen
       const u = best.u.slice();
       for (const j of num) u[j] = clamp(u[j] + s * sig[j] * rNorm(rnd), 0, 1);
       if (dis.length && rnd() < 0.1) u[dis[Math.floor(rnd() * dis.length)]] = rnd();
       const c = evalU(u, best); sinceYield++;
       if (c.key === best.key) s = Math.min(3, s * 1.15);
-      else if (!c.partial && optBetter(c, best)) { best = lsBest = c; s = Math.min(3, s * Math.exp(1 / 3)); fails = 0; }
-      else { s *= Math.exp(-1 / 12); fails++; }
+      else if (!c.partial && optBetter(c, best)) { best = lsBest = c; s = Math.min(3, s * Math.exp(1 / 3)); }
+      else s *= Math.exp(-1 / 12);
       if (s < 0.05) { s = 0.6; } // neu ansetzen statt einschlafen
-      if (sinceYield >= NP) { sinceYield = 0; gen++; stop = yield state(); }
+      if (sinceYield >= NP) { sinceYield = 0; gen++; stop = cmdOf(yield state()); }
     }
   }
-  // Feinschliff 2: Koordinatensuche, Schritt halbieren bis unter das Raster (nur Zahlengrößen)
+  // Feinschliff 2: Auswahlgrößen (Profil, Grundriss, Werkstoffe …) beim besten Entwurf der Reihe nach durchprobieren;
+  // die Differential Evolution trifft einzelne Optionen sonst nur zufällig
+  if (!stop && dis.length && spec.dsweep !== false) {
+    for (let i = dis.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [dis[i], dis[j]] = [dis[j], dis[i]]; }
+    for (const j of dis) {
+      const v = pb.vars[j], cur = Math.min(v.n - 1, Math.floor(best.u[j] * v.n));
+      for (let k = 0; k < v.n && !stop && evals < budget; k++) {
+        if (k === cur) continue;
+        const u = best.u.slice(); u[j] = (k + 0.5) / v.n;
+        const c = evalU(u, best); sinceYield++;
+        if (!c.partial && better(c, best)) best = lsBest = c;
+        if (sinceYield >= NP) { sinceYield = 0; gen++; stop = cmdOf(yield state()); }
+      }
+    }
+  }
+  // Feinschliff 3: Koordinatensuche, Schritt halbieren bis unter das Raster (nur Zahlengrößen)
   while (!stop && num.length && h > 0.003 && evals < budget && (!spec.tMax || Date.now() - t0 < spec.tMax)) {
     let improved = false;
+    if (lsBest !== best && better(lsBest, best)) { best = lsBest; h = 0.05; }
     for (let i = num.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [num[i], num[j]] = [num[j], num[i]]; }
     for (const j of num) {
       if (evals >= budget) break;
       for (const sg of [1, -1]) {
         const u = best.u.slice(); u[j] = clamp(u[j] + sg * h, 0, 1);
         const c = evalU(u, best); sinceYield++;
-        if (!c.partial && optBetter(c, best) && !optBetter(best, c)) { best = lsBest = c; improved = true; break; }
+        if (!c.partial && better(c, best)) { best = lsBest = c; improved = true; break; }
       }
-      if (sinceYield >= NP) { sinceYield = 0; gen++; stop = yield state(); if (stop) break; }
+      if (sinceYield >= NP) { sinceYield = 0; gen++; stop = cmdOf(yield state()); if (stop) break; }
     }
     if (!improved) h /= 2;
   }
+  if (lsBest && better(lsBest, best)) best = lsBest;
   const worst = pop.reduce((w, p, i) => (optBetter(pop[w], p) ? w : i), 0);
   if (optBetter(best, pop[worst])) pop[worst] = best;
   const st = state();
   for (const p of pop) archAdd(p, p.u);
-  return { ...st, arch, vars: pb.vars, seed: spec.seed };
+  archAdd(best, best.u);
+  return { ...st, arch, vars: pb.vars, seed: spec.seed, diag };
 }
 // Alles in einem Zug (Tests, Rechnen ohne Worker in Scheiben)
 function optRun(spec, onGen) {
   const it = optIsland(spec); let r = it.next();
   while (!r.done) { if (onGen) onGen(r.value); r = it.next(false); }
   return r.value;
+}
+// Bester Entwurf aus den Ständen mehrerer Inseln (für die Migration)
+function optGlobalBest(states) {
+  let gb = null;
+  for (const s of states) if (s && s.best && fin(s.best.viol) && (!gb || (optBetter(s.best, gb) && !optBetter(gb, s.best)))) gb = s.best;
+  return gb;
+}
+// Mehrere Inseln abwechselnd in einem Faden, alle `migrate` Runden wandert der beste Entwurf zu den schlechteren
+// Inseln (Tests und Rechnen ohne Worker; im Browser übernimmt die Seite diese Rolle zwischen den Workern)
+function optRunIslands(spec, nIsl = 2, opt = {}) {
+  const every = opt.migrate ?? 8, its = Array.from({ length: nIsl }, (_, i) => optIsland({ ...spec, seed: (spec.seed || 1) + i })), cur = its.map(it => it.next());
+  for (let round = 1; cur.some(c => !c.done); round++) {
+    const gb = every > 0 && round % every === 0 ? optGlobalBest(cur.map(c => (c.done ? null : c.value))) : null;
+    cur.forEach((c, i) => {
+      if (c.done) return;
+      const own = c.value.best, give = gb && own && optBetter(gb, own) && !optBetter(own, gb);
+      cur[i] = its[i].next(give ? { imm: [gb] } : false);
+    });
+    if (opt.onRound) opt.onRound(cur.map(c => c.value));
+  }
+  return cur.map(c => c.value);
 }
 
 /* ---------- Auswahl verschiedener Vorschläge aus allen Inseln ---------- */
@@ -350,18 +461,20 @@ function optPolish(spec, vals, opt = {}) {
 
 /* ---------- Einstieg im Web Worker: je Auftrag eine Insel oder ein Aufräumen ---------- */
 function optWorkerMain() {
-  let stop = false;
+  let stop = false, imm = null;
   const fail = err => self.postMessage({ type: 'error', msg: String((err && err.message) || err) });
   self.onmessage = e => {
     const m = e.data;
     if (m.type === 'init') setAirfoils(m.airfoils);
     else if (m.type === 'stop') stop = true;
+    else if (m.type === 'migrate') imm = m.imm;
     else if (m.type === 'run') {
-      stop = false;
+      stop = false; imm = null;
       const it = optIsland(m.spec);
       const step = () => {
         let r;
-        try { r = it.next(stop); } catch (err) { fail(err); return; }
+        const cmd = stop ? true : imm ? { imm } : false; imm = null;
+        try { r = it.next(cmd); } catch (err) { fail(err); return; }
         if (r.done) self.postMessage({ type: 'done', res: r.value });
         else { self.postMessage({ type: 'progress', p: r.value }); setTimeout(step, 0); }
       };

@@ -434,7 +434,7 @@
           <p class="note"><a href="#anforderungen">Anforderungen bearbeiten</a> · Eingaben festhalten oder begrenzen: Fähnchen am Feld.</p></div>
         <div class="panel"><h3 class="first">Rechnen</h3>
           <div class="op-effort" role="radiogroup" aria-label="Rechenaufwand" id="op-effort"></div>
-          <div class="op-run"><button type="button" class="btn primary" id="op-run">Entwurf berechnen</button><button type="button" class="btn" id="op-stop" hidden>Jetzt beenden</button></div>
+          <div class="op-run"><button type="button" class="btn primary" id="op-run">Entwurf berechnen</button><button type="button" class="btn" id="op-more" hidden title="Neue Suche, die bei den besten Entwürfen der letzten Suche ansetzt">Weiterrechnen</button><button type="button" class="btn" id="op-stop" hidden>Jetzt beenden</button></div>
           <p class="note" id="op-run-note"></p></div>
       </div>
       <div class="main">
@@ -443,6 +443,7 @@
           <div class="op-stat" id="op-stat" aria-live="polite"></div>
           <div class="chart" id="ch-op"></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Vorschläge</h2><p id="op-res-sub">Ziel wählen, Bedingungen prüfen, dann „Entwurf berechnen“. Der Rechner ändert die freien Größen und zeigt bis zu vier verschiedene Entwürfe mit allen Änderungen; übernehmen lässt sich jeder mit einem Klick.</p></div></div>
+          <div id="op-diag" class="op-diag" hidden></div>
           <div id="op-res" class="op-res"></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Freie Größen</h2><p id="op-vars-sub"></p></div></div>
           <div id="op-groups" class="op-groups"></div>

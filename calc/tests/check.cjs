@@ -107,10 +107,15 @@ const t0 = Date.now();
   const order = [{ viol: 0.2, f: 1 }, { viol: 0, f: 5 }, { viol: 0, f: 3 }, { viol: 0.1, f: 9 }].sort((a, b) => (U.optBetter(a, b) ? (U.optBetter(b, a) ? 0 : -1) : 1)).map(x => x.f).join();
   if (order !== '3,5,9,1') bad++; console.log(`${order === '3,5,9,1' ? 'ok    ' : 'FEHLER'} Vergleich nach Deb: zulässig vor unzulässig, dann Ziel bzw. Verletzung`);
 }
-// Fertige Seiten vorhanden
+// Fertige Seiten vorhanden, alle eingebetteten Skripte syntaktisch in Ordnung (sonst bliebe die Seite leer)
 for (const f of ['dist/uav-budget.html', 'public/index.html']) {
-  const p = path.join(__dirname, '..', '..', f), ok = fs.existsSync(p) && /<title>Waldbrand-UAV/.test(fs.readFileSync(p, 'utf8'));
-  if (!ok) bad++; console.log(`${ok ? 'ok    ' : 'FEHLER'} Seite ${f}`);
+  const p = path.join(__dirname, '..', '..', f), html = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+  let ok = /<title>Waldbrand-UAV/.test(html), err = '';
+  for (const m of html.matchAll(/<script(?![^>]*type="application\/json")[^>]*>([\s\S]*?)<\/script>/g)) {
+    if (!m[1].trim()) continue;
+    try { new (require('vm').Script)(m[1]); } catch (e) { ok = false; err = ` – ${e.message}`; break; }
+  }
+  if (!ok) bad++; console.log(`${ok ? 'ok    ' : 'FEHLER'} Seite ${f}${err}`);
 }
 console.log(`\n${bad ? bad + ' Prüfung(en) fehlgeschlagen' : 'Alle Prüfungen bestanden'} (${Date.now() - t0} ms)`);
 process.exit(bad ? 1 : 0);

@@ -37,6 +37,15 @@ function lazyResult(P, comps) {
 // Teure Zusatzrechnungen je Ergebnis nur einmal
 const extraOf = (R, k, f) => { R.extra = R.extra || {}; if (!(k in R.extra)) R.extra[k] = f(); return R.extra[k]; };
 const sailNum = so => (so && so.sail ? ROMAN[so.sail] : 7);
+// Für die Prüfung „flatterfrei bis 1,2·V_D“ genügt die Suche bis knapp darüber, im selben Fahrtraster wie die
+// volle Rechnung (24 Schritte bis max(3·V_max, 60 m/s)); liegt die volle Rechnung schon vor, gilt sie
+function flutterCheckAe(R) {
+  if (R.extra && R.extra.ae) return R.extra.ae;
+  return extraOf(R, 'aeChk', () => {
+    const vr = 1.2 * R.P.vmax, vFull = Math.max(3 * R.P.vmax, 60), vTop = 1.02 * vr;
+    return vTop >= vFull ? extraOf(R, 'ae', () => aeroelastic(R.C, { nStep: 24 })) : aeroelastic(R.C, { nStep: Math.ceil(24 * vTop / vFull), vMax: vTop });
+  });
+}
 // [Schlüssel, Bezeichnung, Einheit, Nachkommastellen, besser (+1 mehr, −1 weniger, 0 keins), Aufwand, Wert, Erläuterung]
 const KENN = [
   ['mass', 'Abflugmasse', 'kg', 2, -1, 'case', R => R.C.m],
@@ -70,7 +79,21 @@ const KENN = [
   ['roc', 'Steigen bei Reserve, Vollgas', 'm/s', 2, 1, 'mid', R => extraOf(R, 'batt', () => battReport(R.C)).climbRes.roc],
   ['vfMin', 'Flattersicherheit (alle Fälle)', '× 1,2·V_D', 2, 1, 'high', R => { const V = extraOf(R, 'vib', () => vibAnalysis(R.C)); return V.vfMin ? V.vfMin / V.vReq : 3; }, 'kleinste Flatter- oder Divergenzgeschwindigkeit aller Fälle durch 1,2·V_D; 3 heißt nichts gefunden']
 ].map(([key, l, u, d, dir, cost, get, note]) => ({ key, l, u, d, dir, cost, get, note }));
+// Typische Größe je Kenngröße: Bezug der Verletzung, wenn eine Grenze bei oder nahe null liegt (z. B. Excess Time ≥ 0 h)
+const KENN_SC = { mass: 1, mStruct: 0.5, payload: 0.2, pCruise: 10, pProp: 10, ld: 1, wingLoad: 0.5, ar: 1, vs: 1, vRatio: 0.1, sm: 2, ballast: 20, cap: 50, solarA: 0.1, nSol: 4, wire: 0.1, sail: 1, grc: 1, ke: 1, rateIr: 0.5, windHold: 5, eSol: 100, socMin: 10, endur: 1, tExc: 1, margin: 10, vfWing: 5, blur: 0.2, roc: 0.3, vfMin: 0.1 };
+KENN.forEach(k => { k.sc = KENN_SC[k.key] || 0; });
 const KENN_BY = Object.fromEntries(KENN.map(k => [k.key, k]));
+// Für die Entwurfssuche: Kenngröße ohne Plateau. Reicht die Solarleistung nie für den Verbrauch (kein Gleichgewicht),
+// meldet die Excess Time pauschal −24 h; hier zählt dann zusätzlich, wie weit die beste Stunde vom Gleichgewicht
+// entfernt ist (−24 h − 24 h · (1 − max P_Solar/P_Verbrauch)). So findet die Suche aus dem Plateau heraus.
+function kennGraded(R, key, v) {
+  if (key === 'tExc' && R && R.per && R.per.reason === 'nosolar' && R.ser) {
+    const { ps, pc } = R.ser; let q = 0;
+    for (let i = 0; i < ps.length; i++) if (pc[i] > 0) q = Math.max(q, ps[i] / pc[i]);
+    return -24 - 24 * (1 - Math.min(1, q));
+  }
+  return v;
+}
 function kennValue(R, key) {
   const k = KENN_BY[key]; if (!k) return NaN;
   try { const v = k.get(R); return fin(v) ? v : NaN; } catch (e) { return NaN; }
@@ -83,6 +106,6 @@ const DESIGN_CHECKS = [
   { key: 'sm', l: 'Stabilitätsmaß mindestens 3 % MAC', cost: 'case', on: true, viol: R => Math.max(0, (0.03 - R.C.bal.sm) / 0.03) },
   { key: 'cells', l: 'Gewünschte Zellen passen auf den Flügel', cost: 'case', on: true, viol: R => (R.C.solar.fits ? 0 : R.C.solar.mode === 'count' ? Math.max(0.01, (R.C.solar.want - R.C.solar.n) / Math.max(1, R.C.solar.want)) : 0.1) },
   { key: 'mission', l: 'Einsatz am Auslegungstag gelingt', cost: 'day', on: true, viol: R => (R.mis && R.mis.ok ? 0 : R.margin.w != null && R.margin.w < 0 ? Math.min(1, -R.margin.w / Math.max(1, pConsC(R.C))) : 1) },
-  { key: 'flutter', l: 'Flügel flatterfrei bis 1,2 × V_D, keine Divergenz', cost: 'mid', on: true, viol: R => { const A = extraOf(R, 'ae', () => aeroelastic(R.C, { nStep: 24 })), vr = 1.2 * R.P.vmax; let v = 0; if (!A.okF && A.flutter.vf) v += Math.max(0.01, (vr - A.flutter.vf) / vr); if (!A.okD && fin(A.VD)) v += Math.max(0.01, (vr - A.VD) / vr); return v; } },
-  { key: 'exc', l: 'Excess Time mindestens die geforderte', cost: 'day', on: false, viol: R => { const t = kennValue(R, 'tExc'); return fin(t) ? Math.max(0, (R.P.tExcReq - t) / Math.max(1, R.P.tExcReq)) : 1; } }
+  { key: 'flutter', l: 'Flügel flatterfrei bis 1,2 × V_D, keine Divergenz', cost: 'mid', on: true, viol: R => { const A = flutterCheckAe(R), vr = 1.2 * R.P.vmax; let v = 0; if (!A.okF && A.flutter.vf) v += Math.max(0.01, (vr - A.flutter.vf) / vr); if (!A.okD && fin(A.VD)) v += Math.max(0.01, (vr - A.VD) / vr); return v; } },
+  { key: 'exc', l: 'Excess Time mindestens die geforderte', cost: 'day', on: false, viol: R => { const t = kennGraded(R, 'tExc', kennValue(R, 'tExc')); return fin(t) ? Math.max(0, (R.P.tExcReq - t) / Math.max(1, R.P.tExcReq)) : 1; } }
 ];

@@ -23,8 +23,12 @@ Profile, Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Anforderungen,
   Mindest- und Höchstwerte. Was knapp an der Grenze liegt, ist markiert. Kommentare an Feldern, Ergebnissen und am Modell.
 - **Entwurf berechnen:** sucht Entwürfe, die alle Anforderungen erfüllen und ein gewähltes Ziel verbessern
   (z. B. möglichst leicht, möglichst viel Nutzlast). Festgehaltenes bleibt, Bereiche begrenzen die Suche.
-  Mehrere Läufe parallel im Browser (Differential Evolution mit Machbarkeitsregeln, Feinschliff, Aufräumen auf die
-  Änderungen, die zählen); Vorschläge mit Grundriss-Vergleich und Übernehmen/Rückgängig.
+  Ein Lauf je Prozessorkern (bis acht) parallel im Browser, die Läufe tauschen ihre besten Entwürfe aus
+  (Differential Evolution mit Machbarkeitsregeln und Neustart bei Stillstand, Feinschliff mit Evolutionsstrategie,
+  Durchprobieren der Auswahlgrößen und Koordinatensuche, Aufräumen auf die Änderungen, die zählen); vier Stufen
+  bis „sehr gründlich“ und „Weiterrechnen“ ab den besten Entwürfen der letzten Suche. Findet die Suche keinen
+  zulässigen Entwurf, zeigt sie je Anforderung, was erreicht wurde und ob sie überhaupt von den freien Größen abhängt.
+  Vorschläge mit Grundriss-Vergleich und Übernehmen/Rückgängig.
 - **Datei:** Export und Import eines Modells mit allem (Eingaben, Komponenten, Wetter, Anforderungen, Kommentare).
 - **Team:** gemeinsame Modelle mit einem Team-Passwort. Änderungen erscheinen sofort bei allen, die das Modell offen
   haben; verschiedene Stellen gelten beide, an derselben Stelle gilt die spätere. Anzeige, wer wo arbeitet,
@@ -162,7 +166,8 @@ damit Cloudflare immer dieselbe Wrangler-Version verwendet.
 
 Browsertests (`calc/tests/t*.cjs`, `interact.cjs`, `presets.cjs`, `hint.cjs`, `elshot.cjs`) brauchen Playwright
 und öffnen `dist/uav-budget.html`; Bilder landen in `calc/tests/out/`. `t15.cjs` prüft „Entwurf berechnen“ im
-Browser, `t17.cjs` den Optimierer im Rechenkern, `t16.cjs` die Teamarbeit mit zwei Browsern gegen die Nachbildung
+Browser, `t18.cjs` dasselbe bei unerreichbaren Anforderungen (Diagnose, Weiterrechnen), `t17.cjs` den Optimierer im
+Rechenkern (auch mehrere Inseln mit Austausch und eine Grenze bei null), `t16.cjs` die Teamarbeit mit zwei Browsern gegen die Nachbildung
 oder mit `TEAM_BASE=http://127.0.0.1:8787` gegen `npm run dev`.
 
 ## Zugriff

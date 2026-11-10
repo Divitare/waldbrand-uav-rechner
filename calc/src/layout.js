@@ -263,22 +263,26 @@ function massItems(C, g, xBatt, ballast, xBal) {
 function balance(C) {
   const P = C.P, mac = C.pf.mac, smT = P.smTarget / 100, mode = P.trimMode;
   const xbMin = 0.1, xbMax = Math.max(0.15, P.fusL - 0.12), xNose = 0.03;
-  let s = 0, g = geomPositions(C, 0), np = neutralPoint(C, g), xb = clamp(P.xBatt, xbMin, xbMax), bal = 0, xBal = xNose, msg = '';
+  // Startwert aus dem vorigen Durchgang der Massenschleife (gleiche Trimmart): spart Iterationen, gleiches Ergebnis
+  const w0 = C.bal && C.bal.mode === mode ? C.bal : null;
+  let s = mode === 'wing' && w0 ? w0.s : 0, g = geomPositions(C, s), np = neutralPoint(C, g), xb = clamp(mode === 'battery' && w0 ? w0.xBatt : P.xBatt, xbMin, xbMax), bal = 0, xBal = xNose, msg = '';
   let mi = massItems(C, g, xb, 0, xNose);
   const target = () => np.xnp - smT * mac;
   if (mode === 'wing') {
     // Flügel samt Leitwerk verschieben: Neutralpunkt und Flügelmassen wandern mit, Gondel bleibt
     for (let k = 0; k < 5; k++) {
       const mw = mi.items.filter(i => i.grp === 'wing').reduce((a, i) => a + i.m, 0), sm0 = (np.xnp - mi.xcg) / mac;
-      s = clamp(s + (smT - sm0) * mac / Math.max(0.05, 1 - mw / mi.M), -0.45 * P.fusL, 0.6 * P.fusL);
-      g = geomPositions(C, s); np = neutralPoint(C, g); mi = massItems(C, g, xb, 0, xNose);
+      const sn = clamp(s + (smT - sm0) * mac / Math.max(0.05, 1 - mw / mi.M), -0.45 * P.fusL, 0.6 * P.fusL);
+      if (Math.abs(sn - s) < 1e-7) break;
+      s = sn; g = geomPositions(C, s); np = neutralPoint(C, g); mi = massItems(C, g, xb, 0, xNose);
     }
   } else if (mode === 'battery' && !P.battInWing && C.mass.batt > 1e-6) {
     // Akku verschieben (Kabelmasse hängt von der Akkulage ab, daher wenige Iterationen)
     for (let k = 0; k < 5; k++) {
       const mb = C.mass.batt, others = mi.M * mi.xcg - mb * xb;
-      xb = clamp((target() * mi.M - others) / mb, xbMin, xbMax);
-      mi = massItems(C, g, xb, 0, xNose);
+      const xn = clamp((target() * mi.M - others) / mb, xbMin, xbMax);
+      if (Math.abs(xn - xb) < 1e-7) break;
+      xb = xn; mi = massItems(C, g, xb, 0, xNose);
     }
   }
   if (mode !== 'none') {
@@ -294,7 +298,7 @@ function balance(C) {
       mi = massItems(C, g, xb, bal, xBal);
     }
   }
-  return { s, g, np, xBatt: xb, ballast: bal, xBal, mi, xcg: mi.xcg, zcg: mi.zcg, sm: (np.xnp - mi.xcg) / mac, msg, mWire: mi.mWire, xbMin, xbMax, target: target() };
+  return { mode, s, g, np, xBatt: xb, ballast: bal, xBal, mi, xcg: mi.xcg, zcg: mi.zcg, sm: (np.xnp - mi.xcg) / mac, msg, mWire: mi.mWire, xbMin, xbMax, target: target() };
 }
 // Leitwerkslast aus Momentengleichgewicht um den Schwerpunkt (Auftrieb positiv nach oben).
 // Schubmoment (Schublinie über dem Schwerpunkt: kopflastig) kommt aus dem Antriebsmodell, wenn vorhanden.

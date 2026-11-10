@@ -3,16 +3,22 @@
    - Ziel, freie Größen (Gruppen und einzeln), Bedingungen aus den
      Anforderungen und den Grundbedingungen, Rechenaufwand
    - mehrere Läufe parallel in Web Workern (gleicher Rechenkern wie die
-     Seite); ohne Worker rechnet die Seite selbst in kleinen Schritten
-   - Fortschritt mit Verlauf des besten zulässigen Entwurfs je Lauf
+     Seite), ein Lauf je Prozessorkern bis acht; die Seite reicht den
+     besten Entwurf regelmäßig an die schwächeren Läufe weiter (Migration);
+     ohne Worker rechnet die Seite selbst in kleinen Schritten
+   - Weiterrechnen: neue Suche, die bei den besten Entwürfen der letzten ansetzt
+   - Fortschritt mit Verlauf des besten zulässigen Entwurfs je Lauf; ohne
+     zulässigen Entwurf je Anforderung, was die Suche erreicht hat
    - Vorschläge mit Grundriss, Änderungen, Kennwerten und Stand der
      Anforderungen; Übernehmen mit Rückgängig
    =================================================================== */
 const OPT_STORE = 'waldbrand-uav-opt';
-const OPT_EFFORT = { quick: ['schnell', 700], normal: ['normal', 1500], deep: ['gründlich', 3000] };
+// Rechnungen je Lauf; Zeitschätzung aus der zuletzt gemessenen Rechenzeit je Entwurf auf diesem Rechner
+const OPT_EFFORT = { quick: ['schnell', 800], normal: ['normal', 2000], deep: ['gründlich', 5000], max: ['sehr gründlich', 12000] };
+const OPT_MS_EVAL = 9;
 const OPT_GROUP_L = Object.fromEntries(OPT_GROUPS.map(g => [g[0], g[1]]).concat([['payload', 'Nutzlast'], ['extra', 'Weitere mit Bereich']]));
 const OPT_INT = new Set(['sail', 'grc', 'nSol']);
-const OPT = { cfg: null, run: null, res: null, undo: null, url: null, t: 0 };
+const OPT = { cfg: null, run: null, res: null, undo: null, url: null, t: 0, last: null };
 function optCfgLoad() {
   let c = {}; try { c = JSON.parse(localStorage.getItem(OPT_STORE) || '{}') || {}; } catch (e) { c = {}; }
   const objs = optObjectives().map(k => k.key);
@@ -21,11 +27,13 @@ function optCfgLoad() {
     groups: Array.isArray(c.groups) ? c.groups.filter(g => OPT_GROUP_L[g]) : OPT_GROUPS.filter(g => g[2]).map(g => g[0]),
     off: Array.isArray(c.off) ? c.off.filter(k => OPT_CAT_BY[k] || PM[k]) : [],
     checks: [...new Set([...(Array.isArray(c.checks) ? c.checks.filter(k => DESIGN_CHECKS.some(d => d.key === k)) : DESIGN_CHECKS.filter(d => d.on).map(d => d.key)), ...DESIGN_CHECKS.filter(d => d.fixed).map(d => d.key)])],
-    reserve: !!c.reserve, effort: OPT_EFFORT[c.effort] ? c.effort : 'normal'
+    reserve: !!c.reserve, effort: OPT_EFFORT[c.effort] ? c.effort : 'normal',
+    msEval: fin(c.msEval) && c.msEval > 0.5 && c.msEval < 500 ? c.msEval : null
   };
 }
 function optCfgSave() { try { localStorage.setItem(OPT_STORE, JSON.stringify(OPT.cfg)); } catch (e) { /* ignorieren */ } }
-const optRuns = () => clamp((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4, 1, 4);
+// ein Lauf je Kern bis acht, einer bleibt für die Seite frei (mindestens zwei Läufe)
+const optRuns = () => clamp(((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4) - 1, 2, 8);
 const optObjText = key => { const K = KENN_BY[key]; return `${K.l} ${K.dir > 0 ? 'möglichst groß' : 'möglichst klein'}`; };
 
 /* ---------- Aufgabe aus Dokument und Einstellungen ---------- */
@@ -79,9 +87,10 @@ function optRenderSide() {
     : '<p class="note">Keine Anforderungen an Ergebnisse. Ohne sie findet die Suche oft sehr kleine oder sehr große Entwürfe – etwa Grenzen für Excess Time, Spannweite oder SAIL festlegen.</p>';
   $('#op-checks').innerHTML = DESIGN_CHECKS.map(d => `<label><input type="checkbox" data-opchk="${d.key}"${cfg.checks.includes(d.key) || d.fixed ? ' checked' : ''}${d.fixed ? ' disabled' : ''}> <span>${esc(d.l)}${d.key === 'exc' ? ` (${nf(S.params.tExcReq, 1)} h)` : ''}${d.fixed ? ' <span class="muted small">(immer)</span>' : ''}</span></label>`).join('');
   $('#op-reserve').checked = cfg.reserve; $('#op-knapp').textContent = nf(S.meta.knapp || 5, 1) + ' %';
-  const nR = optRuns(), sec = n => { const s = n * 0.014 * 1.15; return s < 60 ? `${nf(Math.max(5, Math.round(s / 5) * 5), 0)} s` : `${nf(s / 60, 1)} min`; };
+  const nR = optRuns(), ms = cfg.msEval || OPT_MS_EVAL, sec = n => { const s = n * ms / 1000 * 1.1; return s < 90 ? `${nf(Math.max(5, Math.round(s / 5) * 5), 0)} s` : `${nf(s / 60, 1)} min`; };
   $('#op-effort').innerHTML = Object.entries(OPT_EFFORT).map(([k, [l, n]]) => `<label><input type="radio" name="op-effort" value="${k}"${cfg.effort === k ? ' checked' : ''}> <span><b>${esc(l)}</b> <span class="muted">etwa ${sec(n)}</span></span></label>`).join('');
-  $('#op-run-note').textContent = `${nR} ${nR > 1 ? 'Läufe parallel' : 'Lauf'} mit je ${nf(OPT_EFFORT[cfg.effort][1], 0)} Rechnungen. Die Zeiten gelten für einen schnellen Rechner; die Seite bleibt bedienbar.`;
+  $('#op-run-note').textContent = `${nR} Läufe parallel mit je ${nf(OPT_EFFORT[cfg.effort][1], 0)} Rechnungen; sie tauschen ihre besten Entwürfe aus. ${cfg.msEval ? 'Zeiten aus der letzten Suche auf diesem Rechner.' : 'Die Zeiten gelten für einen schnellen Rechner.'} Die Seite bleibt bedienbar. Reicht es nicht, setzt „Weiterrechnen“ bei den besten Entwürfen an.`;
+  $('#op-more').hidden = !OPT.last || !!OPT.run;
   optRenderVars(b);
 }
 function optRangeText(v) {
@@ -122,17 +131,18 @@ function optWorkerURL() {
   OPT.url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
   return OPT.url;
 }
-function optStart() {
+function optStart(cont) {
   if (OPT.run) return;
   const b = optBuild();
+  if (cont === true && OPT.last && OPT.last.init.length) { b.spec.init = OPT.last.init; b.cont = (OPT.last.cont || 0) + 1; }
   if (!b.spec.vars.length) { toast('Keine freien Größen: Gruppen einschalten oder Festhalten lösen.'); return; }
   if (b.spec.obj.key === 'payload' && !b.spec.vars.some(v => v.k === 'payloadExtra')) toast('Hinweis: die zusätzliche Nutzlast ist nicht frei – die Nutzlast kann kaum steigen.');
-  const n = optRuns(), run = OPT.run = { t0: Date.now(), b, key: keyOf(), n, prog: [], hist: [], res: [], pol: [], workers: [], fallback: false, phase: 'search', K: KENN_BY[b.spec.obj.key] };
+  const n = optRuns(), run = OPT.run = { t0: Date.now(), b, key: keyOf(), n, prog: [], hist: [], res: [], pol: [], workers: [], fallback: false, phase: 'search', K: KENN_BY[b.spec.obj.key], migT: 0, nMig: 0 };
   OPT.res = null; OPT.undo = null;
   for (let i = 0; i < n; i++) { run.prog.push(null); run.hist.push([]); }
-  $('#op-prog-panel').hidden = false; $('#op-run').disabled = true; $('#op-stop').hidden = false;
-  $('#op-res').innerHTML = ''; $('#op-res-sub').textContent = 'Die Suche läuft …';
-  $('#op-prog-sub').textContent = `${optObjText(b.spec.obj.key)} · ${b.spec.vars.length} freie Größen · ${b.cons.length} Anforderungen, ${b.spec.checks.length} Grundbedingungen · ${n} ${n > 1 ? 'Läufe' : 'Lauf'}`;
+  $('#op-prog-panel').hidden = false; $('#op-run').disabled = true; $('#op-more').hidden = true; $('#op-stop').hidden = false;
+  $('#op-res').innerHTML = ''; $('#op-diag').hidden = true; $('#op-res-sub').textContent = 'Die Suche läuft …';
+  $('#op-prog-sub').textContent = `${optObjText(b.spec.obj.key)} · ${b.spec.vars.length} freie Größen · ${b.cons.length} Anforderungen, ${b.spec.checks.length} Grundbedingungen · ${n} ${n > 1 ? 'Läufe' : 'Lauf'}${b.cont ? ` · weitergerechnet ab ${b.spec.init.length} Entwürfen der letzten Suche` : ''}`;
   let ok = typeof Worker !== 'undefined';
   if (ok) {
     try {
@@ -164,6 +174,7 @@ function optMsg(i, m) {
   if (m.type === 'progress') {
     run.prog[i] = m.p;
     if (m.p.best.viol <= OPT_EPS && fin(m.p.best.f)) run.hist[i].push([m.p.evals, kvOf(run, m.p.best)]);
+    optMigrate(run);
     optProgressSoon();
   } else if (m.type === 'done') {
     run.res[i] = m.res; run.prog[i] = { ...(run.prog[i] || {}), ...m.res, done: true };
@@ -174,12 +185,20 @@ function optMsg(i, m) {
     if (run.pol.filter(Boolean).length === run.picks.length) optFinish();
   } else if (m.type === 'error') optFail(i, m.msg);
 }
+// Migration: höchstens alle 1,5 s den besten Entwurf aller Läufe an die Läufe geben, deren bester schlechter ist
+function optMigrate(run) {
+  if (run.fallback || run.workers.length < 2 || Date.now() - run.migT < 1500) return;
+  run.migT = Date.now();
+  const live = run.prog.map((p, j) => (p && !p.done && run.workers[j] ? p : null)), gb = optGlobalBest(live);
+  if (!gb) return;
+  live.forEach((p, j) => { if (p && p.best && optBetter(gb, p.best) && !optBetter(p.best, gb)) { run.workers[j].postMessage({ type: 'migrate', imm: [gb] }); run.nMig++; } });
+}
 const kvOf = (run, best) => (best && best.kv && fin(best.kv[run.b.spec.obj.key]) ? best.kv[run.b.spec.obj.key] : -run.K.dir * best.f);
 function optFail(i, msg) {
   const run = OPT.run; if (!run) return;
   console.error('Entwurfsrechnung', i, msg);
   run.workers.forEach(w => w.terminate());
-  OPT.run = null; $('#op-run').disabled = false; $('#op-stop').hidden = true;
+  OPT.run = null; $('#op-run').disabled = false; $('#op-stop').hidden = true; $('#op-more').hidden = !OPT.last;
   $('#op-stat').innerHTML = pill('crit', `Rechenfehler: ${msg}`);
 }
 function optPolishAll() {
@@ -201,10 +220,19 @@ function optFinish() {
   sugs.sort((a, b) => (optBetter(a, b) ? (optBetter(b, a) ? 0 : -1) : 1));
   // nach dem Aufräumen können zwei Vorschläge gleich sein
   const seen = new Set(), uniq = sugs.filter(s => { const k = JSON.stringify(s.vals); if (seen.has(k)) return false; seen.add(k); return true; });
-  const stats = { ms: Date.now() - run.t0, evals: run.prog.reduce((s, p) => s + (p ? p.evals : 0), 0), full: run.prog.reduce((s, p) => s + (p ? p.full : 0), 0), n: run.n };
-  OPT.res = { sugs: uniq, b: run.b, key: run.key, stats, K: run.K, at: Date.now(), hist: run.hist };
+  const res = run.res.filter(Boolean), stats = { ms: Date.now() - run.t0, evals: run.prog.reduce((s, p) => s + (p ? p.evals : 0), 0), full: run.prog.reduce((s, p) => s + (p ? p.full : 0), 0), n: run.n, restarts: res.reduce((s, r) => s + (r.restarts || 0), 0), mig: run.nMig, cont: run.b.cont || 0 };
+  OPT.res = { sugs: uniq, b: run.b, key: run.key, stats, K: run.K, at: Date.now(), hist: run.hist, diag: optDiagMerge(res.map(r => r.diag)), arch: res.flatMap(r => r.arch || []).concat(uniq.map(u => ({ vals: u.vals, kv: u.kv, cv: optConsList(run.b).map(c => (c.kenn ? u.cv[c.key] : u.chk[c.key])), viol: u.viol, f: u.f }))) };
+  // Startpunkte fürs Weiterrechnen: die besten verschiedenen Entwürfe aller Läufe (nach dem Aufräumen zuerst)
+  const all = [], seenK = new Set();
+  for (const s of uniq) { const k = optKey(s.vals); if (!seenK.has(k)) { seenK.add(k); all.push({ vals: s.vals, viol: s.viol, f: s.f }); } }
+  const arch = res.flatMap(r => r.arch || []).sort((a, b) => (optBetter(a, b) ? (optBetter(b, a) ? 0 : -1) : 1));
+  for (const a of arch) { if (all.length >= 14) break; if (!seenK.has(a.key)) { seenK.add(a.key); all.push({ vals: a.vals, viol: a.viol, f: a.f }); } }
+  OPT.last = { init: all.map(a => a.vals), cont: run.b.cont || 0 };
+  // gemessene Rechenzeit je Entwurf (je Lauf) für die Zeitschätzung
+  const evMax = Math.max(1, ...run.prog.map(p => (p ? p.evals : 0)));
+  if (!run.stopReq && evMax > 100) { OPT.cfg.msEval = Math.round(10 * (Date.now() - run.t0) / evMax) / 10; optCfgSave(); }
   OPT.run = null; $('#op-run').disabled = false; $('#op-stop').hidden = true;
-  optProgress(true); optRenderRes();
+  optProgress(true); optRenderSide(); optRenderRes();
 }
 function optStop() {
   const run = OPT.run; if (!run) return;
@@ -225,20 +253,68 @@ function optProgress(final) {
     const left = frac > 0.05 && frac < 1 ? Math.max(1, sec / frac - sec) : null;
     el.innerHTML = run.phase === 'polish'
       ? `<span>Vorschläge aufräumen: jede Änderung einzeln prüfen …</span>`
-      : `<span>${nf(ev, 0)} von ${nf(tot, 0)} Rechnungen · ${nf(sec, 0)} s${left ? ` · noch etwa ${nf(left, 0)} s` : ''}</span><span>${best ? (best.viol <= OPT_EPS ? `bester zulässiger Entwurf: <b>${esc(kvText(key, kvOf(run, best)))}</b>` : `noch keiner zulässig · kleinste Verletzung ${nf(best.viol * 100, 1)} %`) : ''}</span>`;
+      : `<span>${nf(ev, 0)} von ${nf(tot, 0)} Rechnungen · ${nf(sec, 0)} s${left ? ` · noch etwa ${nf(left, 0)} s` : ''}${run.nMig ? ` · ${nf(run.nMig, 0)}× Austausch` : ''}</span><span>${best ? (best.viol <= OPT_EPS ? `bester zulässiger Entwurf: <b>${esc(kvText(key, kvOf(run, best)))}</b>` : `noch keiner zulässig · am nächsten dran: ${optViolText(run.b, best)}`) : ''}</span>`;
   } else {
     $('#op-bar').style.width = '100%';
-    el.innerHTML = `<span>Fertig: ${nf(res.stats.evals, 0)} Rechnungen in ${nf(res.stats.ms / 1000, 0)} s (${res.stats.n} ${res.stats.n > 1 ? 'Läufe' : 'Lauf'})</span>`;
+    const st = res.stats, extra = [st.restarts ? `${nf(st.restarts, 0)} Neustarts nach Stillstand` : '', st.mig ? `${nf(st.mig, 0)}× Austausch zwischen den Läufen` : '', st.cont ? `${st.cont}. Fortsetzung` : ''].filter(Boolean).join(', ');
+    el.innerHTML = `<span>Fertig: ${nf(st.evals, 0)} Rechnungen in ${nf(st.ms / 1000, 0)} s (${st.n} ${st.n > 1 ? 'Läufe' : 'Lauf'}${extra ? '; ' + extra : ''})</span>`;
   }
   // Verlauf: bester zulässiger Wert je Lauf über den Rechnungen
   const series = hist.map((h, i) => ({ name: `Lauf ${i + 1}`, c: i + 1, pts: h.slice() })).filter(s => s.pts.length);
   const ch = $('#ch-op');
-  if (!series.length) { ch.innerHTML = '<p class="note">Noch kein zulässiger Entwurf – die Suche verringert zuerst die Verletzung der Bedingungen.</p>'; return; }
+  if (!series.length) { ch.innerHTML = `<p class="note">${run ? 'Noch kein zulässiger Entwurf – die Suche verringert zuerst die Verletzung der Bedingungen.' : 'Kein zulässiger Entwurf gefunden. Woran es liegt, steht unter „Vorschläge“.'}</p>`; return; }
   const all = series.flatMap(s => s.pts.map(p => p[1])), cur = R ? kennValue(R, key) : NaN;
   let lo = Math.min(...all), hi = Math.max(...all); if (fin(cur) && run) { lo = Math.min(lo, cur); hi = Math.max(hi, cur); }
   if (!(hi > lo)) { hi = lo + Math.max(1e-3, Math.abs(lo) * 0.02); lo -= Math.max(1e-3, Math.abs(lo) * 0.02); }
   const pad = (hi - lo) * 0.08, xMax = Math.max(...series.flatMap(s => s.pts.map(p => p[0])), 10);
   lineChart(ch, { h: 200, ml: 56, title: `${K.l} des besten zulässigen Entwurfs`, x: { min: 0, max: xMax, title: 'Rechnungen je Lauf' }, y: { min: lo - pad, max: hi + pad, fmt: v => nf(v, K.d), title: K.u }, series, hlines: fin(cur) ? [{ y: cur, label: 'jetzt' }] : [] });
+}
+
+/* ---------- Was noch fehlt: verletzte Anforderungen des besten Entwurfs, Diagnose nach der Suche ---------- */
+// Anforderungen in der Reihenfolge des Rechenkerns: erst Ergebnis-Anforderungen, dann Grundbedingungen
+function optConsList(b) {
+  return b.cons.map(c => ({ key: c.key, l: c.l, txt: c.txt, min: c.min, max: c.max, kenn: true }))
+    .concat(DESIGN_CHECKS.filter(d => b.spec.checks.includes(d.key)).map(d => ({ key: d.key, l: d.l, kenn: false })));
+}
+function optViolText(b, best) {
+  const list = optConsList(b), cv = best.cv || [], out = [];
+  list.forEach((c, j) => { if (!(cv[j] > OPT_EPS)) return; out.push({ d: cv[j], t: c.kenn ? `${esc(c.l)} <b>${esc(kvText(c.key, best.kv[c.key]))}</b> (gefordert ${esc(c.txt)})` : esc(c.l) }); });
+  if (!out.length) return '–';
+  out.sort((a, b) => b.d - a.d);
+  return out.slice(0, 3).map(o => o.t).join(' · ') + (out.length > 3 ? ` · und ${out.length - 3} weitere` : '');
+}
+function optRenderDiag() {
+  const res = OPT.res, box = $('#op-diag');
+  if (!res || !res.diag || res.sugs.some(s => s.feasible)) { box.hidden = true; box.innerHTML = ''; return; }
+  const list = optConsList(res.b), D = res.diag, arch = (res.arch || []).filter(a => a.cv && a.cv.length === list.length), ok = d => d != null && d <= OPT_EPS;
+  // nie erreichte Anforderungen; die übrigen gelten als „erfüllt“, wenn alle erreichbaren erfüllt sind
+  const never = list.map((c, j) => !!(D[j] && D[j].n && D[j].best > OPT_EPS)), anyNever = never.some(Boolean);
+  const restOk = anyNever && arch.some(a => list.every((c, i) => never[i] || ok(a.cv[i])));
+  const rows = [];
+  list.forEach((c, j) => {
+    const Dj = D[j]; if (!Dj || !Dj.n) return;
+    const alone = !never[j] && !anyNever && !arch.some(a => list.every((cc, i) => ok(a.cv[i])));
+    if (!never[j] && !alone) return;
+    // bester Wert unter Entwürfen, die alle übrigen erreichbaren Anforderungen erfüllen
+    let bo = null; for (const a of arch) if (list.every((cc, i) => i === j || never[i] || ok(a.cv[i])) && (!bo || a.cv[j] < bo.cv[j])) bo = a;
+    const flat = c.kenn ? (fin(Dj.lo) && fin(Dj.hi) && Math.abs(Dj.hi - Dj.lo) <= 1e-9 * Math.max(1, Math.abs(Dj.hi))) : Math.abs(Dj.dhi - Dj.dlo) <= 1e-9;
+    const val = v => (c.kenn && fin(v) ? kvText(c.key, v) : '–');
+    const why = never[j]
+      ? (flat ? 'hängt nicht von den freien Größen ab: die Eingaben dahinter sind festgehalten oder nicht frei' : `nie erreicht; ${c.kenn && fin(Dj.lo) ? `gefundener Bereich ${kvText(c.key, Dj.lo)} bis ${kvText(c.key, Dj.hi)}` : 'in keinem gerechneten Entwurf erfüllt'}`)
+      : 'einzeln erreichbar, aber nicht zusammen mit den übrigen Anforderungen';
+    const c3 = bo ? (c.kenn ? val(bo.kv[c.key]) : ok(bo.cv[j]) ? 'erfüllt' : 'verletzt') : '–';
+    const c4 = c.kenn ? val(Dj.bestV) : Dj.best <= OPT_EPS ? 'erfüllt' : 'nie erfüllt';
+    rows.push({ d: never[j] ? 2 + Dj.best : 1, html: `<tr><td class="c-l">${esc(c.l)}</td><td class="n">${c.kenn ? esc(c.txt) : 'muss gelten'}</td><td class="n"><b>${esc(c3)}</b></td><td class="n">${esc(c4)}</td><td>${esc(why)}</td></tr>` });
+  });
+  if (!rows.length) { box.hidden = true; return; }
+  rows.sort((a, b) => b.d - a.d);
+  const lead = anyNever
+    ? `${restOk ? 'Die übrigen Anforderungen lassen sich zusammen erfüllen; ' : ''}an ${rows.length === 1 ? 'dieser Anforderung' : 'diesen Anforderungen'} scheitert die Suche.`
+    : 'Jede Anforderung ist für sich erreichbar, aber nicht alle zugleich.';
+  box.hidden = false;
+  box.innerHTML = `<h3 class="first">Warum kein zulässiger Entwurf?</h3>
+    <p class="note">${esc(lead)} Ausgewertet sind alle ${nf(res.stats.full, 0)} vollständig gerechneten Entwürfe. Spalte „bester Wert, übrige erfüllt“: bester Entwurf, der alle anderen erreichbaren Anforderungen einhält. Liegt selbst der beste Wert überhaupt nicht im geforderten Bereich, ist die Anforderung mit den freien Größen und ihren Suchbereichen vermutlich nicht erreichbar: Anforderung lockern, mehr Größen freigeben oder Bereiche erweitern. Sonst hilft „Weiterrechnen“ oder eine gründlichere Stufe.</p>
+    <div class="table-wrap"><table class="data op-diag-t"><thead><tr><th>Anforderung</th><th class="n">gefordert</th><th class="n">bester Wert, übrige erfüllt</th><th class="n">bester Wert überhaupt</th><th>Befund</th></tr></thead><tbody>${rows.map(r => r.html).join('')}</tbody></table></div>`;
 }
 
 /* ---------- Vorschläge anzeigen und übernehmen ---------- */
@@ -261,11 +337,12 @@ function optRenderRes() {
   const K = res.K, key = K.key, spec = res.b.spec, stale = keyOf() !== res.key && !(OPT.undo && OPT.undo.key === keyOf());
   const base = res.baseR || (res.baseR = lazyResult(spec.base, spec.comps));
   const cur = kennValue(base, key), curC = base.C;
+  optRenderDiag();
   if (!res.sugs.length) { box.innerHTML = '<p class="note">Kein Vorschlag gefunden.</p>'; return; }
   const feas = res.sugs.filter(s => s.feasible).length;
   $('#op-res-sub').textContent = feas
     ? `${res.sugs.length} ${res.sugs.length > 1 ? 'verschiedene Entwürfe' : 'Entwurf'}, ${feas === res.sugs.length ? 'alle zulässig' : feas + ' zulässig'}. Gezeigt sind nur Änderungen, die zählen: jede andere Größe bleibt beim jetzigen Wert, wenn das kaum Ziel kostet. ${stale ? 'Seit der Rechnung wurde das Modell geändert – die Vorschläge beziehen sich auf den Stand davor.' : ''}`
-    : 'Kein zulässiger Entwurf gefunden. Gezeigt ist der Entwurf mit der kleinsten Verletzung. Bedingungen lockern, mehr Größen freigeben oder gründlicher rechnen.';
+    : 'Kein zulässiger Entwurf gefunden. Gezeigt ist der Entwurf, der den Anforderungen am nächsten kommt; die Tabelle darüber zeigt, woran es liegt.';
   const W = Math.min(300, Math.max(220, (box.clientWidth || 640) - 40));
   box.innerHTML = res.sugs.map((s, i) => {
     const C = s.C || (s.C = buildCase({ ...spec.base, ...s.vals }, spec.comps));
@@ -309,7 +386,8 @@ function optUndo() {
 RENDER.entwurf = () => { optRenderSide(); if (OPT.res && !OPT.run) optRenderRes(); };
 $('#op-obj').addEventListener('change', e => { OPT.cfg.obj = e.target.value; optCfgSave(); optRenderSide(); });
 $('#op-reserve').addEventListener('change', e => { OPT.cfg.reserve = e.target.checked; optCfgSave(); });
-$('#op-run').addEventListener('click', optStart);
+$('#op-run').addEventListener('click', () => optStart(false));
+$('#op-more').addEventListener('click', () => optStart(true));
 $('#op-stop').addEventListener('click', optStop);
 document.addEventListener('change', e => {
   const t = e.target; if (!t.closest || !t.closest('#v-entwurf')) return;

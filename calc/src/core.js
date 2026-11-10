@@ -369,7 +369,10 @@ function buildCase(P, comps, k) {
   C.mass = { batt: Math.max(0, P.mBatt), solar: C.solar.aMod * P.solarAreal, solarHT: C.solar.ht.aMod * P.solarAreal, prop: P.mAntrieb, comps: cs.m, byGroup: cs.byGroup, ballast: 0, wire: 0 };
   const mFix = C.mass.batt + C.mass.solar + C.mass.solarHT + C.mass.prop + C.mass.comps;
   let m = mFix + (P.structMode === 'fix' ? P.mZelle : 2), ms = P.mZelle;
+  // Fixpunkt m = g(m) (Struktur, Ballast und Kabel hängen von der Masse ab); Sekantenschritt
+  // m + (g − m)/(1 − g′) statt einfacher Einsetzung, gleiche Abbruchgrenze 1 mg
   const massLoop = () => {
+    let mp = NaN, gp = NaN;
     for (let it = 0; it < 60; it++) {
       C.m = m;
       C.land = landingGear(C, m);
@@ -379,7 +382,9 @@ function buildCase(P, comps, k) {
       C.bal = balance(C);
       const mn = mFix + ms + C.bal.ballast + C.bal.mWire;
       if (Math.abs(mn - m) < 1e-6) { m = mn; break; }
-      m = mn;
+      const s = (mn - gp) / (m - mp);
+      const next = Number.isFinite(s) && Math.abs(m - mp) > 1e-9 && s > -2 && s < 0.8 ? m + (mn - m) / (1 - s) : mn;
+      mp = m; gp = mn; m = next;
     }
     C.mass.ballast = C.bal.ballast; C.mass.wire = C.bal.mWire; C.m = m; C.harness = C.bal.mi.harness;
     C.np = C.bal.np;
