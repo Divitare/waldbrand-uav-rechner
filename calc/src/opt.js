@@ -44,6 +44,10 @@ const OPT_CAT = [
   { k: 'arH', g: 'tail', lo: 3.5, hi: 7, st: 0.5 },
   { k: 'arV', g: 'tail', lo: 1.2, hi: 2.2, st: 0.1 },
   { k: 'smTarget', g: 'tail', lo: 8, hi: 15, st: 1, when: P => P.trimMode !== 'none' },
+  // Leitwerksfuß (Heck bei der Landung) und Flügellage auf dem Rumpf (bei Trimmung über Akku oder Ballast): ohne sie
+  // kann die Suche die Bauraum-Prüfungen „Heck – Boden“ und „Flügel auf dem Rumpf“ oft nicht erfüllen
+  { k: 'zTail', g: 'tail', lo: 0, hi: 0.4, st: 0.01 },
+  { k: 'xWingLE', g: 'tail', lo: 0.15, hi: 1.2, st: 0.01, when: P => P.trimMode !== 'wing' },
   { k: 'tailAirfoil', g: 'tail', opts: () => (AF ? AF.db.foils.filter(f => f.tail).map(f => f.key) : []) },
   { k: 'propD', g: 'prop', lo: 0.35, hi: 0.8, st: 0.02, when: P => P.propModel === 'bemt' && P.propGeom !== 'apc10x7' },
   { k: 'propPitch', g: 'prop', lo: 0.15, hi: 0.7, st: 0.01, when: P => P.propModel === 'bemt' && P.propGeom !== 'apc10x7' },
@@ -72,12 +76,21 @@ const OPT_CAT = [
   { k: 'payloadExtra', g: 'payload', lo: 0, hi: 10, st: 0.05 }
 ];
 const OPT_CAT_BY = Object.fromEntries(OPT_CAT.map(v => [v.k, v]));
+// Nicht im Suchkatalog, aber für „Woran hängt es?“ probeweise verändert (Bauraum, Landung, Propeller)
+const OPT_PROBE = [
+  { k: 'fusL', lo: 0.6, hi: 2, st: 0.05 }, { k: 'fusD', lo: 0.08, hi: 0.3, st: 0.01 }, { k: 'boomD', lo: 0.015, hi: 0.05, st: 0.001 },
+  { k: 'landPitch', lo: 0, hi: 12, st: 1 }, { k: 'propD', lo: 0.3, hi: 0.9, st: 0.02 }, { k: 'landGear', opts: ['skid', 'belly'] }
+];
 const OPT_COST = { case: 0, day: 1, mid: 2, high: 3 };
 const OPT_EPS = 1e-9;
 // Ziele: Kenngrößen mit Richtung, ohne die sehr aufwendige Schwingungsrechnung
 const optObjectives = () => KENN.filter(k => k.dir !== 0 && k.cost !== 'high');
 const stepDec = st => (st >= 1 ? 0 : Math.min(6, Math.ceil(-Math.log10(st) - 1e-9)));
 const roundTo = (v, st) => +(Math.round(v / st) * st).toFixed(stepDec(st));
+// Raster um den jetzigen Wert a: a + k·st. So ist der jetzige Entwurf genau darstellbar, auch wenn sein Wert nicht auf
+// einem Vielfachen der Schrittweite liegt (z. B. 0,025 bei Schritt 0,002); sonst würde schon der Startentwurf verschoben
+const decOf = x => { const t = String(x).split('.')[1]; return t ? Math.min(6, t.length) : 0; };
+const roundAt = (x, st, a) => (fin(a) ? +(a + Math.round((x - a) / st) * st).toFixed(Math.max(stepDec(st), decOf(a))) : roundTo(x, st));
 
 /* Freie Größen aus Katalog, Gruppen und Anforderungen.
    req: Anforderungen des Dokuments ('p:<key>' mit fix, min/max oder allow); groups: eingeschaltete Gruppen;
@@ -110,7 +123,7 @@ function optVarSet(base, req, groups, off, objKey) {
         if (r.max === null && hi <= lo) hi = lo + 0.25 * (c.hi - c.lo);
         if (r.min === null && lo >= hi) lo = hi - 0.25 * (c.hi - c.lo);
       } else if (fin(cur)) { lo = Math.min(lo, cur); hi = Math.max(hi, cur); }
-      vars.push({ k: c.k, g: c.g, t: c.int ? 'i' : 'c', lo, hi, st: c.st, src });
+      vars.push({ k: c.k, g: c.g, t: c.int ? 'i' : 'c', lo, hi, st: c.st, src, a: fin(cur) && cur >= lo && cur <= hi ? cur : undefined });
     }
     info.push({ k: c.k, g: c.g, why: 'free' });
   }
@@ -137,7 +150,7 @@ function optDecodeVal(v, u) {
   if (v.t === 'd') { const n = v.opts.length; return v.opts[Math.min(n - 1, Math.floor(u * n))]; }
   if (!(v.hi > v.lo)) return v.lo;
   const x = v.lo + u * (v.hi - v.lo);
-  return clamp(v.t === 'i' ? Math.round(x / v.st) * v.st : roundTo(x, v.st), v.lo, v.hi);
+  return clamp(v.t === 'i' ? (fin(v.a) ? v.a + Math.round((x - v.a) / v.st) * v.st : Math.round(x / v.st) * v.st) : roundAt(x, v.st, v.a), v.lo, v.hi);
 }
 function optEncodeVal(v, x) {
   if (v.t === 'd') { const i = v.opts.findIndex(o => String(o) === String(x)); return i < 0 ? 0.5 : (i + 0.5) / v.opts.length; }
@@ -172,7 +185,11 @@ function optEvalVals(pb, vals, parent, upTo) {
   for (let s = 0; s <= last; s++) {
     try {
       pb.cons.forEach((c, j) => { if (c.st !== s) return; const v = kennValue(R, c.key), d = consViol(kennGraded(R, c.key, v), c); r.kv[c.key] = v; r.cv[j] = d; r.viol += d; });
-      pb.checks.forEach((c, j) => { if (c.st !== s) return; const v = c.viol(R), d = fin(v) ? Math.max(0, v) : 1; r.cv[nc + j] = d; r.viol += d; });
+      pb.checks.forEach((c, j) => {
+        if (c.st !== s) return;
+        const v = c.viol(R), d = fin(v) ? Math.max(0, v) : 1; r.cv[nc + j] = d; r.viol += d;
+        if (c.key === 'build' && d > 0 && R.C.bau) r.bau = R.C.bau.crit.map(i => i.l); // welche Bauraum-Prüfung
+      });
       if (pb.objStage === s) { const v = kennValue(R, pb.spec.obj.key); r.kv[pb.spec.obj.key] = v; if (fin(v)) r.f = -pb.dir * v; else r.viol += 1; }
     } catch (e) { r.viol += 1000; r.err = String((e && e.message) || e); r.stage = last; return r; }
     r.stage = s;
@@ -230,7 +247,7 @@ function* optIsland(spec) {
   const archAdd = (r, u) => {
     if (r.partial || r.viol >= 1000) return;
     const key = optKey(r.vals); if (arch.some(a => a.key === key)) return;
-    const e = { key, vals: r.vals, u: Array.from(u), f: r.f, viol: r.viol, kv: r.kv, cv: r.cv };
+    const e = { key, vals: r.vals, u: Array.from(u), f: r.f, viol: r.viol, kv: r.kv, cv: r.cv, bau: r.bau };
     let i = arch.findIndex(a => !optBetter(a, e)); if (i < 0) i = arch.length;
     if (i < ARCH) { arch.splice(i, 0, e); if (arch.length > ARCH) arch.pop(); }
   };
@@ -259,13 +276,13 @@ function* optIsland(spec) {
   const state = () => {
     let best = popBest();
     if (lsBest && optBetter(lsBest, best)) best = lsBest;
-    return { phase, gen, evals, full, hits, budget, np: NP, n, ms: Date.now() - t0, restarts, nImm, best: { f: best.f, viol: best.viol, kv: best.kv, vals: best.vals, u: Array.from(best.u), cv: best.cv }, nFeas: pop.filter(p => p.viol <= OPT_EPS).length, muF, muCR };
+    return { phase, gen, evals, full, hits, budget, np: NP, n, ms: Date.now() - t0, restarts, nImm, best: { f: best.f, viol: best.viol, kv: best.kv, vals: best.vals, u: Array.from(best.u), cv: best.cv, bau: best.bau }, nFeas: pop.filter(p => p.viol <= OPT_EPS).length, muF, muCR };
   };
   // Migration: ein besserer Entwurf einer anderen Insel ersetzt ein zufälliges Mitglied der schlechteren Hälfte
   const immigrate = list => {
     for (const im of list || []) {
       if (!im || !im.u || im.u.length !== n) continue;
-      const e = { vals: im.vals, f: im.f, viol: im.viol, kv: im.kv || {}, cv: im.cv || null, u: im.u.slice(), key: optKey(im.vals), stage: 2, partial: false };
+      const e = { vals: im.vals, f: im.f, viol: im.viol, kv: im.kv || {}, cv: im.cv || null, bau: im.bau, u: im.u.slice(), key: optKey(im.vals), stage: 2, partial: false };
       if (phase === 'de') {
         const ord = rank(pop), half = ord.slice(Math.floor(NP / 2)), i = half[Math.floor(rnd() * half.length)];
         if (pop.some(p => p.key === e.key)) continue;
@@ -485,7 +502,8 @@ function optPolish(spec, vals, opt = {}) {
   for (const c of pb.checks) viol += chk[c.key];
   const f = fin(kv[spec.obj.key]) ? -pb.dir * kv[spec.obj.key] : Infinity;
   const diff = pb.vars.filter(v => String(cur[v.k]) !== String(base[v.k])).map(v => ({ k: v.k, from: base[v.k], to: cur[v.k], edge: v.t !== 'd' && v.hi > v.lo && (Math.abs(cur[v.k] - v.lo) < 0.5 * v.st || Math.abs(cur[v.k] - v.hi) < 0.5 * v.st) ? (Math.abs(cur[v.k] - v.lo) < 0.5 * v.st ? 'lo' : 'hi') : null }));
-  return { vals: cur, diff, kv, cv, chk, viol, f, feasible: viol <= OPT_EPS, nEval, base0: { f: r0.f, viol: r0.viol } };
+  const bau = R.C.bau ? R.C.bau.crit.map(i => ({ k: i.k, l: i.l, txt: i.txt })) : [];
+  return { vals: cur, diff, kv, cv, chk, viol, f, feasible: viol <= OPT_EPS, nEval, base0: { f: r0.f, viol: r0.viol }, bau };
 }
 
 /* ---------- Einfluss der freien Größen auf die Bedingungen (Woran hängt es?) ----------

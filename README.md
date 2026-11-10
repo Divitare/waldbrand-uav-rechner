@@ -169,7 +169,8 @@ damit Cloudflare immer dieselbe Wrangler-Version verwendet.
 
 Browsertests (`calc/tests/t*.cjs`, `interact.cjs`, `presets.cjs`, `hint.cjs`, `elshot.cjs`) brauchen Playwright
 und öffnen `dist/uav-budget.html`; Bilder landen in `calc/tests/out/`. `t15.cjs` prüft „Entwurf berechnen“ im
-Browser, `t18.cjs` dasselbe bei unerreichbaren Anforderungen (Diagnose, Weiterrechnen), `t17.cjs` den Optimierer im
+Browser, `t18.cjs` dasselbe bei unerreichbaren Anforderungen (Diagnose, Weiterrechnen), `t19.cjs` bei nicht baubarem
+Ausgangsentwurf (verletzte Bauraum-Prüfung, „Woran hängt es?“), `t17.cjs` den Optimierer im
 Rechenkern (auch mehrere Inseln mit Austausch und eine Grenze bei null), `t16.cjs` die Teamarbeit mit zwei Browsern gegen die Nachbildung
 oder mit `TEAM_BASE=http://127.0.0.1:8787` gegen `npm run dev`.
 

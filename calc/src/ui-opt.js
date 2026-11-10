@@ -47,7 +47,7 @@ function optBuild() {
     else if (isNumParam(k) && (r.min !== null || r.max !== null)) {
       const w = Math.max(Math.abs(cur) * 0.5, m.step * 10);
       const lo = r.min ?? Math.max(m.min, Math.min(cur, r.max) - w), hi = r.max ?? Math.min(m.max, Math.max(cur, r.min) + w);
-      extra.push({ k, g: 'extra', t: m.step >= 1 && Number.isInteger(cur) ? 'i' : 'c', lo, hi, st: m.step, src: 'req' });
+      extra.push({ k, g: 'extra', t: m.step >= 1 && Number.isInteger(cur) ? 'i' : 'c', lo, hi, st: m.step, src: 'req', a: fin(cur) && cur >= lo && cur <= hi ? cur : undefined });
     }
   }
   const knapp = (S.meta.knapp || 5) / 100;
@@ -140,12 +140,13 @@ function optNowState(b) {
     }
     const D = DESIGN_CHECKS.find(x => x.key === c.key); let d;
     try { d = D.viol(R); } catch (e) { d = 1; }
-    return { c, st: fin(d) && d <= OPT_EPS ? 'ok' : 'bad', d };
+    const detail = c.key === 'build' && R.C.bau && R.C.bau.crit.length ? R.C.bau.crit.map(i => i.txt) : null;
+    return { c, st: fin(d) && d <= OPT_EPS ? 'ok' : 'bad', d, detail };
   });
 }
 function optRenderNow(b) {
   const st = optNowState(b), bad = st.filter(x => x.st === 'bad');
-  const row = x => `<div class="op-nr ${x.st}"><span class="ic" aria-hidden="true">${x.st === 'ok' ? '✓' : x.st === 'bad' ? '✗' : '…'}</span><span>${esc(x.c.l)}${x.c.kenn ? ` <span class="muted">(${esc(x.c.txt)})</span>` : ''}</span><span class="v">${x.c.kenn && fin(x.v) ? esc(kvText(x.c.key, x.v)) : ''}</span></div>`;
+  const row = x => `<div class="op-nr ${x.st}"><span class="ic" aria-hidden="true">${x.st === 'ok' ? '✓' : x.st === 'bad' ? '✗' : '…'}</span><span>${esc(x.c.l)}${x.c.kenn ? ` <span class="muted">(${esc(x.c.txt)})</span>` : ''}${x.detail ? `<span class="op-det">${x.detail.map(esc).join('<br>')}</span>` : ''}</span><span class="v">${x.c.kenn && fin(x.v) ? esc(kvText(x.c.key, x.v)) : ''}</span></div>`;
   $('#op-now').innerHTML = (bad.length
     ? `<p class="note">Der jetzige Entwurf verletzt ${bad.length === 1 ? 'eine Bedingung' : bad.length + ' Bedingungen'}. Die Suche muss ${bad.length === 1 ? 'sie' : 'sie alle'} über die freien Größen erreichen; „Woran hängt es?“ prüft, welche freie Größe überhaupt etwas daran ändert.</p>`
     : '<p class="note">Der jetzige Entwurf erfüllt alle Bedingungen; die Suche verbessert von hier aus das Ziel.</p>') + st.map(row).join('');
@@ -160,7 +161,7 @@ function optHelpText(c, h) {
   const v = OPT_CAT_BY[h.k] || {}, lab = PM[h.k] ? PM[h.k].l : h.k;
   return `${esc(lab)} → ${esc(pvText(h.k, h.x))}${c.kenn && fin(h.v) ? `: ${esc(KENN_BY[c.key].l)} ${esc(kvText(c.key, h.v))}` : h.d <= OPT_EPS ? ': erfüllt' : ''}`;
 }
-const OPT_WHY_L = { fix: 'festgehalten', group: 'Gruppe aus', off: 'abgewählt' };
+const OPT_WHY_L = { fix: 'festgehalten', group: 'Gruppe aus', off: 'abgewählt', probe: 'nicht im Suchkatalog, nur im Feld änderbar' };
 function optWhyHTML(b, inf, title) {
   const list = optConsList(b), parts = [];
   list.forEach((c, j) => {
@@ -179,7 +180,14 @@ function optWhyHTML(b, inf, title) {
 // nicht freie Größen des Katalogs (festgehalten, Gruppe aus, abgewählt) mit Katalogbereich, um zu sehen, ob sie helfen würden
 function optLockedVars(b) {
   const all = optVarSet(b.spec.base, {}, OPT_GROUPS.map(g => g[0]), [], b.spec.obj.key).vars, why = Object.fromEntries((b.info || []).map(i => [i.k, i.why]));
-  return all.filter(v => !b.spec.vars.some(f => f.k === v.k) && OPT_WHY_L[why[v.k]]).map(v => ({ ...v, why: why[v.k] }));
+  const out = all.filter(v => !b.spec.vars.some(f => f.k === v.k) && OPT_WHY_L[why[v.k]]).map(v => ({ ...v, why: why[v.k] }));
+  for (const q of OPT_PROBE) {
+    if (b.spec.vars.some(f => f.k === q.k) || out.some(f => f.k === q.k) || !PM[q.k]) continue;
+    const cur = b.spec.base[q.k];
+    if (q.opts) out.push({ k: q.k, g: 'probe', t: 'd', opts: q.opts.slice(), n: q.opts.length, why: S.req['p:' + q.k] && S.req['p:' + q.k].fix ? 'fix' : 'probe' });
+    else out.push({ k: q.k, g: 'probe', t: 'c', lo: fin(cur) ? Math.min(q.lo, cur) : q.lo, hi: fin(cur) ? Math.max(q.hi, cur) : q.hi, st: q.st, why: S.req['p:' + q.k] && S.req['p:' + q.k].fix ? 'fix' : 'probe' });
+  }
+  return out;
 }
 function optInfluenceAsync(spec, vals, done, extra) {
   const opt = { extra: extra || [] };
@@ -360,7 +368,7 @@ function optConsList(b) {
 }
 function optViolText(b, best) {
   const list = optConsList(b), cv = best.cv || [], out = [];
-  list.forEach((c, j) => { if (!(cv[j] > OPT_EPS)) return; out.push({ d: cv[j], t: c.kenn ? `${esc(c.l)} <b>${esc(kvText(c.key, best.kv[c.key]))}</b> (gefordert ${esc(c.txt)})` : esc(c.l) }); });
+  list.forEach((c, j) => { if (!(cv[j] > OPT_EPS)) return; out.push({ d: cv[j], t: c.kenn ? `${esc(c.l)} <b>${esc(kvText(c.key, best.kv[c.key]))}</b> (gefordert ${esc(c.txt)})` : c.key === 'build' && best.bau && best.bau.length ? `Baubar: <b>${esc(best.bau.join(', '))}</b>` : esc(c.l) }); });
   if (!out.length) return '–';
   out.sort((a, b) => b.d - a.d);
   return out.slice(0, 3).map(o => o.t).join(' · ') + (out.length > 3 ? ` · und ${out.length - 3} weitere` : '');
@@ -381,9 +389,10 @@ function optRenderDiag() {
     let bo = null; for (const a of arch) if (list.every((cc, i) => i === j || never[i] || ok(a.cv[i])) && (!bo || a.cv[j] < bo.cv[j])) bo = a;
     const flat = c.kenn ? (fin(Dj.lo) && fin(Dj.hi) && Math.abs(Dj.hi - Dj.lo) <= 1e-9 * Math.max(1, Math.abs(Dj.hi))) : Math.abs(Dj.dhi - Dj.dlo) <= 1e-9;
     const val = v => (c.kenn && fin(v) ? kvText(c.key, v) : '–');
-    const why = never[j]
-      ? (flat ? 'hängt nicht von den freien Größen ab: die Eingaben dahinter sind festgehalten oder nicht frei' : `nie erreicht; ${c.kenn && fin(Dj.lo) ? `gefundener Bereich ${kvText(c.key, Dj.lo)} bis ${kvText(c.key, Dj.hi)}` : 'in keinem gerechneten Entwurf erfüllt'}`)
-      : 'einzeln erreichbar, aber nicht zusammen mit den übrigen Anforderungen';
+    const bauTxt = c.key === 'build' && res.sugs[0] && res.sugs[0].bau && res.sugs[0].bau.length ? ` Beim nächstbesten Entwurf: ${res.sugs[0].bau.map(i => i.txt).join('; ')}.` : '';
+    const why = (never[j]
+      ? (flat ? 'hängt nicht von den freien Größen ab: die Eingaben dahinter sind festgehalten oder nicht frei' : `nie erreicht; ${c.kenn && fin(Dj.lo) ? `gefundener Bereich ${kvText(c.key, Dj.lo)} bis ${kvText(c.key, Dj.hi)}` : 'in keinem gerechneten Entwurf erfüllt'}.`)
+      : 'einzeln erreichbar, aber nicht zusammen mit den übrigen Anforderungen.') + bauTxt;
     const c3 = bo ? (c.kenn ? val(bo.kv[c.key]) : ok(bo.cv[j]) ? 'erfüllt' : 'verletzt') : '–';
     const c4 = c.kenn ? val(Dj.bestV) : Dj.best <= OPT_EPS ? 'erfüllt' : 'nie erfüllt';
     rows.push({ d: never[j] ? 2 + Dj.best : 1, html: `<tr><td class="c-l">${esc(c.l)}</td><td class="n">${c.kenn ? esc(c.txt) : 'muss gelten'}</td><td class="n"><b>${esc(c3)}</b></td><td class="n">${esc(c4)}</td><td>${esc(why)}</td></tr>` });
@@ -436,7 +445,7 @@ function optRenderRes() {
     const diff = s.diff.map(x => `<tr><td class="c-l"><button type="button" class="linkbtn" data-jump="${esc(x.k)}">${esc(PM[x.k] ? PM[x.k].l : x.k)}</button>${x.edge ? ` <span class="op-edge" title="Am Rand des Suchbereichs: ein weiterer Bereich könnte mehr bringen">${x.edge === 'lo' ? 'untere Grenze' : 'obere Grenze'}</span>` : ''}</td><td class="c-f">${cell(x.k, x.from)}</td><td class="c-t"><b>${cell(x.k, x.to)}</b></td></tr>`).join('');
     const showK = [...new Set([key, ...OPT_SHOW, ...spec.cons.map(c => c.key)])].filter(k => KENN_BY[k] && k in s.kv);
     const kv = showK.map(k => { const c = spec.cons.find(c => c.key === k), v = s.kv[k], b0 = kennValue(base, k), st = c ? rangeState(v, c.min, c.max, S.meta.knapp || 5, OPT_INT.has(k)).st : null; return `<div class="op-kv${st ? ' ' + st : ''}"><span class="k">${esc(KENN_BY[k].l)}</span><span class="v">${esc(kvText(k, v))}</span>${fin(b0) && Math.abs(b0 - v) > 1e-9 ? `<span class="s">jetzt ${esc(kvText(k, b0))}</span>` : ''}</div>`; }).join('');
-    const failed = DESIGN_CHECKS.filter(c => spec.checks.includes(c.key) && s.chk[c.key] > OPT_EPS).map(c => pill('crit', c.l));
+    const failed = DESIGN_CHECKS.filter(c => spec.checks.includes(c.key) && s.chk[c.key] > OPT_EPS).map(c => pill('crit', c.key === 'build' && s.bau && s.bau.length ? `Nicht baubar: ${s.bau.map(i => i.l).join(', ')}` : c.l));
     const consBad = spec.cons.filter(c => s.cv[c.key] > OPT_EPS).map(c => pill('crit', `${KENN_BY[c.key].l}: ${kvText(c.key, s.kv[c.key])}`));
     return `<article class="op-card${s.feasible ? '' : ' bad'}${applied ? ' applied' : ''}">
       <header><div><h3>${i === 0 ? 'Bester Vorschlag' : `Alternative ${i}`}</h3>${s.feasible ? pill('good', 'erfüllt alle Bedingungen') : pill('crit', 'Bedingungen verletzt')}</div>

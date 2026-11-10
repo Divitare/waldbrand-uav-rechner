@@ -84,5 +84,13 @@ const t0 = Date.now();
   const inf = U.optInfluence(spec, {}, { extra: locked }), ex = inf.cons[0], sl = inf.cons[1];
   check(ex.d0 > 0 && ex.help.some(h => h.locked && h.k === 'area') && sl.d0 > 0 && !sl.any, `Excess Time: Flügelfläche würde helfen (nicht frei); SAIL: keine Größe ändert etwas (${inf.nEval} Rechnungen)`);
 }
+// 9) „Baubar“ war für die Suche oft unerreichbar: Heck setzt bei der Landung auf (Leitwerksfuß) bzw. Flügel nicht auf dem
+//    Rumpf (Flügellage). Beides ist jetzt frei; die Suche findet aus solchen Startentwürfen baubare Entwürfe.
+for (const [label, extra] of [['Heck setzt auf (Leitwerksfuß −5 cm, 10° Landewinkel)', { zTail: -0.05, landPitch: 10 }], ['Flügel hinter der Gondel (Vorderkante 1,2 m)', { xWingLE: 1.2 }]]) {
+  const b0 = { ...base, ...extra }, R0 = U.lazyResult(b0, comps), { vars } = U.optVarSet(b0, {}, null, null, 'mass');
+  const spec = { base: b0, comps, vars, obj: { key: 'mass', dir: -1 }, cons: [], checks, budget: 300, seed: 5 };
+  const res = U.optRun(spec), pol = U.optPolish(spec, U.optPick([res], 1)[0].vals);
+  check(!R0.C.bau.ok && pol.feasible && pol.bau.length === 0, `${label}: am Start nicht baubar (${R0.C.bau.crit.map(i => i.k).join(', ')}), Vorschlag baubar (${pol.diff.map(d => d.k).join(', ')})`);
+}
 console.log(`\n${fails ? fails + ' Prüfung(en) fehlgeschlagen' : 'Alle Prüfungen bestanden'} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 process.exit(fails ? 1 : 0);
