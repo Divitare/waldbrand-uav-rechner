@@ -51,6 +51,7 @@ const SEL = {
   solarGeom: [['profil', 'aus Profilkontur (Wölbung, Einfallswinkel)'], ['flach', 'waagerecht mit Pauschalfaktor (ETH)']],
   stringLayout: [['span', 'Strings in Spannweitenrichtung'], ['chord', 'Strings in Tiefenrichtung']],
   bypass: [['cell', 'Bypassdiode je Zelle'], ['none', 'ohne Bypassdioden (Grenzfall)']],
+  cellMount: [['bent', 'gebogen, folgen der Profiloberseite'], ['flat', 'eben (Facetten): jedes Modul gerade, Oberseite mit Knicken']],
   solarMode: [['fill', 'Ganze Zellen, so viele wie passen'], ['count', 'Ganze Zellen, feste Anzahl'], ['area', 'Zellfläche frei eingeben (nur für Vergleichsrechnungen)']],
   cellType: Object.entries(CELL_TYPES).map(([k, t]) => [k, t.name]),
   modType: Object.entries(MOD_TYPES).map(([k, t]) => [k, t]),
@@ -162,6 +163,8 @@ const PM = {};
   ['modEdge', 'Modulrand je Seite', 'mm', 0.5, 0, 30, null, 'Laminat über die Zellen hinaus (Folie, Kante, Klebefläche).'],
   ['modGap', 'Abstand zwischen Modulen', 'mm', 0.5, 0, 50, null, 'Fuge zwischen zwei Modulen (Stecker, Kabel, Wärmedehnung).'],
   ['cellA', 'Kantenlänge der Zelle', 'mm', 0.5, 20, 300], ['cellD', 'Ingot-Durchmesser', 'mm', 1, 0, 425, null, 'Pseudoquadratische Zellen: Durchmesser des Kreises, der die Ecken abschneidet. 0 heißt volles Quadrat.'], ['cellThk', 'Zelldicke', 'µm', 5, 30, 1000], ['cellVmp', 'Zellspannung im MPP', 'V', 0.01, 0.1, 5],
+  ['cellMount', 'Einbau der Module', '', 0, 0, 0, 'cellMount', 'Gebogen: jede Zelle folgt der gewölbten Oberseite, die Kontur bleibt glatt; Grenzen sind Stich und Randdehnung der Zelle. Eben: jedes Modul liegt als gerade Sehne auf der Oberseite (Vorder- und Hinterkante auf der Kontur), das Profil bekommt ebene Abschnitte mit Knicken an den Modulkanten. Die Polaren dieses Facettenprofils rechnet NeuralFoil im Browser nach; angenommen wird Umschlag an der Vorderkante des ersten Moduls. Der Vergleich in der Ansicht Solar zeigt beide Einbauarten nebeneinander.'],
+  ['facetDev', 'Ebenes Modul: größte Abweichung von der Kontur', '% der Tiefe', 0.1, 0.1, 5, null, 'Stich zwischen ebenem Modul und Profiloberseite. Je größer, desto weiter vorn und hinten passen Module, desto stärker ändert sich aber das Profil (dünner, weniger gewölbt, größere Knicke). 1,5 % sind bei 30 cm Tiefe 4,5 mm. Bei einem Modul der Länge l folgt der Knick an seinen Kanten etwa zu 4·δ/l.'],
   ['cellBend', 'Biegung je Zelle höchstens', '% Stich/Länge', 0.5, 0.5, 50, null, 'Stich der gebogenen Zelle (größter Abstand von der Sehne) bezogen auf ihre Länge in Flugrichtung. 10 % entspricht einem Biegeradius von 1,25 Zelllängen (156 mm bei 125 mm). Bestimmt mit der Dehnung, wie weit vorn und hinten auf jedem Profil Zellen liegen können.'],
   ['cellStrain', 'Zulässige Randdehnung der Zelle', '%', 0.01, 0.01, 2, null, 'Örtliche Biegung: ε = κ·t/2 mit der Krümmung κ über ein Zwölftel der Zelllänge (rund 1 cm). 0,10 % entspricht 136 MPa bei E = 130 GPa, der Spannung, die 95 % der Siliziumzellen aushalten (Rion u. a. 2009); bei 165 µm Dicke ein Biegeradius von 83 mm. Begrenzt die Zellen vor allem an der Profilnase.'],
   ['cellOrient', 'Ausrichtung der Zellen', '', 0, 0, 0, 'cellOrient'],
@@ -170,12 +173,12 @@ const PM = {};
   ['cellRootGap', 'Freiraum an der Wurzel', 'm ab Rumpfmitte', 0.01, 0, 1, null, 'Rumpf, Flügelauflage und Steckung. Gondel mit 16 cm Durchmesser: etwa 0,1 m.'],
   ['cellTipGap', 'Freiraum an der Spitze', 'm', 0.01, 0, 1], ['cellJointGap', 'Freiraum an der Außenteilung', 'm', 0.005, 0, 0.3, null, 'Breite der zellfreien Zone um die äußere Flügelteilung (Endrippen, Steckung, Stecker).'],
   ['cellsOnCtrl', 'Zellen auch auf Quer- und Höhenruder', '', 0, 0, 0, 'bool'],
-  ['solarArea', 'Zellfläche Flügel', 'm²', 0.01, 0, 6], ['cellEff', 'Zellwirkungsgrad', '%', 0.1, 5, 35], ['solarAreal', 'Flächengewicht Modul', 'kg/m²', 0.01, 0.1, 3, null, 'Zellen mit Einbettung. AtlantikSolar: 0,62 kg/m².'],
+  ['solarArea', 'Zellfläche Flügel', 'm²', 0.01, 0, 6], ['cellEff', 'Zellwirkungsgrad', '%', 0.1, 5, 35, null, 'Bei 25 °C und 1000 W/m², bezogen auf die Zellfläche. AtlantikSolar maß an seinen eingekapselten E60-Modulen 23,7 % (dann Laminatverlust 0, er ist enthalten).'], ['solarAreal', 'Flächengewicht Modul', 'kg/m²', 0.01, 0.1, 3, null, 'Laminiertes Modul je Modulfläche (Zellen, Verbinder, Folie, Träger). AtlantikSolar (E60, Folienfront, Kevlarträger) gemessen 590 g/m² (Oettershagen 2018, Tab. 4.1). Die Module ersetzen dort die Bespannung: unter ihnen rechnet die Struktur keine Haut.'],
   ['solarGeom', 'Einstrahlungsmodell', '', 0, 0, 0, 'solarGeom'], ['camberEta', 'Pauschaler Wölbungsfaktor', '%', 0.5, 50, 100],
   ['cellX0', 'Zellen frühestens ab Tiefe', '%', 1, 0, 60, null, 'Zusätzliche Grenze vorn, z. B. für einen Nasenkasten. 0 heißt: nur die Biegung begrenzt.'], ['cellX1', 'Zellen spätestens bis Tiefe', '%', 1, 30, 100, null, 'Hinterste Zellkante, z. B. vor der Endleiste. Ohne Freigabe enden die Zellen außerdem vor der Querruderachse.'], ['stringLayout', 'Verschaltung', '', 0, 0, 0, 'stringLayout', 'In Tiefenrichtung verschaltete Strings begrenzt die schlechtest beschienene Zelle.'],
   ['bypass', 'Verschattete Zellen', '', 0, 0, 0, 'bypass', 'Mit Bypassdiode je Zelle verliert ein Strang etwa die verschattete Fläche. Ohne Bypassdioden bestimmt die am stärksten verschattete Zelle den Strom des ganzen Strangs (je Flügelhälfte bzw. Höhenleitwerk ein Strang); das ist der ungünstigste Fall.'],
-  ['mpptEff', 'MPPT-Wirkungsgrad', '%', 0.5, 80, 100], ['laminateLoss', 'Verlust Laminat/Folie', '%', 0.5, 0, 20], ['wiringLoss', 'Verlust Leitungen, Fehlanpassung', '%', 0.5, 0, 20], ['soiling', 'Verschmutzung', '%', 0.5, 0, 20],
-  ['tempCoef', 'Temperaturkoeffizient', '%/K', 0.01, 0, 1], ['cellHeat', 'Zellerwärmung', 'K/(W/m²)', 0.005, 0, 0.06, null, '0,02 heißt 20 K über Luft bei 1000 W/m². Fahrtwind kühlt die Zellen.'], ['albedo', 'Bodenreflexion (Albedo)', '', 0.01, 0, 0.9],
+  ['mpptEff', 'MPPT-Wirkungsgrad', '%', 0.5, 80, 100], ['laminateLoss', 'Verlust Laminat/Folie', '%', 0.5, 0, 20, null, '0, wenn der Wirkungsgrad schon am fertigen Modul gemessen ist (AtlantikSolar 23,7 %).'], ['wiringLoss', 'Verlust Leitungen, Fehlanpassung', '%', 0.5, 0, 20], ['soiling', 'Verschmutzung', '%', 0.5, 0, 20],
+  ['tempCoef', 'Temperaturkoeffizient', '%/K', 0.01, 0, 1, null, 'Leistungsverlust je Kelvin über 25 °C. SunPower E60: 0,3 %/K (Datenblatt, Oettershagen 2018).'], ['cellHeat', 'Zellerwärmung', 'K/(W/m²)', 0.001, 0, 0.06, null, '0,02 heißt 20 K über Luft bei 1000 W/m². Fahrtwind kühlt die Zellen: AtlantikSolar maß im Flug höchstens rund 12 K (0,012).'], ['albedo', 'Bodenreflexion (Albedo)', '', 0.01, 0, 0.9],
   // Umgebung
   ['date', 'Auslegungstag', '', 0, 0, 0, 'date'], ['lat', 'Breite', '°', 0.1, -66, 66], ['lon', 'Länge', '°', 0.1, -180, 180], ['tz', 'Zeitzone', '', 0, 0, 0, 'tz'],
   ['tMax', 'Lufttemperatur Maximum (Boden)', '°C', 1, -30, 50], ['tMin', 'Lufttemperatur Minimum (Boden)', '°C', 1, -40, 40], ['sky', 'Einstrahlung relativ zu klarem Himmel', '%', 5, 10, 120],
@@ -201,7 +204,7 @@ const PM = {};
 
 const FORMS = {
   quick: ['span', 'area', 'airfoil', 'v', 'mBatt', 'cellType', 'solarArea', 'date', 'lat', 'tStart', 'tEnd', 'tMax', 'tMin'],
-  wing: ['span', 'area', 'planform', 'taper', 'centerFrac', 'washout', 'dihedral', 'sweep', 'airfoil', 'transition', 'reTipMin'],
+  wing: ['span', 'area', 'planform', 'taper', 'centerFrac', 'washout', 'dihedral', 'sweep', 'airfoil', 'transition', 'cellMount', 'reTipMin'],
   tail: ['tailAirfoil', 'tailArm', 'vH', 'vV', 'arH', 'arV', 'zTail', 'etaTail', 'fusL', 'fusD', 'boomD', 'fusFlow', 'kInt', 'kDrag'],
   config: ['fusType', 'motorPos', 'tailType', 'zTail', 'fusL', 'fusD', 'coneD', 'boomD', 'tailArm', 'clrRad', 'clrAx'],
   layout: ['trimMode', 'smTarget', 'xWingLE', 'xBatt', 'zBatt', 'battInWing', 'mAntrieb', 'payloadExtra'],
@@ -221,7 +224,7 @@ const FORMS = {
   vib: ['wCtrl', 'ctrlXcg', 'ctrlBal', 'kServo', 'gvtAil', 'gvtElev', 'gvtRud', 'gvtB1', 'gvtT1', 'gvtFin', 'gvtHT'],
   env: ['date', 'tz', 'lat', 'lon', 'alt', 'hAGL', 'tMax', 'tMin', 'sky'],
   batt: ['mBatt', 'battSpec', 'reserve', 'battHealth', 'etaCharge', 'etaDischarge', 'battTempCoef', 'battHeat', 'chargeC', 'noColdCharge', 'nCells', 'cellV', 'battRAh', 'hStore'],
-  solar: ['solarMode', 'cellType', 'cellA', 'cellD', 'cellThk', 'cellVmp', 'modType', 'modCells', 'modMin', 'modRows', 'modEdge', 'modGap', 'nCellsWing', 'solarArea', 'cellBend', 'cellStrain', 'cellX0', 'cellX1', 'cellGap', 'cellRootGap', 'cellTipGap', 'cellJointGap', 'cellsOnCtrl', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'stringLayout', 'bypass'],
+  solar: ['solarMode', 'cellType', 'cellA', 'cellD', 'cellThk', 'cellVmp', 'modType', 'modCells', 'modMin', 'modRows', 'modEdge', 'modGap', 'nCellsWing', 'solarArea', 'cellMount', 'facetDev', 'cellBend', 'cellStrain', 'cellX0', 'cellX1', 'cellGap', 'cellRootGap', 'cellTipGap', 'cellJointGap', 'cellsOnCtrl', 'cellEff', 'solarAreal', 'solarGeom', 'camberEta', 'stringLayout', 'bypass'],
   solar2: ['mpptEff', 'laminateLoss', 'wiringLoss', 'soiling', 'tempCoef', 'cellHeat', 'albedo'],
   wx: ['weather', 'genYears', 'genSeed'],
   wind: ['wind10', 'hellmann', 'weibullK'],
@@ -242,7 +245,8 @@ const SHOW_IF = {
   cellX0: P => P.solarGeom !== 'flach' || P.solarMode !== 'area', cellX1: P => P.solarGeom !== 'flach' || P.solarMode !== 'area',
   solarArea: P => P.solarMode === 'area', nCellsWing: P => P.solarMode === 'count',
   cellA: P => P.cellType === 'custom', cellD: P => P.cellType === 'custom', cellThk: P => P.cellType === 'custom', cellVmp: P => P.cellType === 'custom',
-  cellBend: P => P.solarMode !== 'area', cellStrain: P => P.solarMode !== 'area',
+  cellBend: P => P.solarMode !== 'area' && P.cellMount !== 'flat', cellStrain: P => P.solarMode !== 'area' && P.cellMount !== 'flat',
+  cellMount: P => P.solarMode !== 'area', facetDev: P => P.solarMode !== 'area' && P.cellMount === 'flat', transition: P => P.solarMode === 'area' || P.cellMount !== 'flat',
   cellOrient: () => false, modType: P => P.solarMode !== 'area', modCells: P => P.solarMode !== 'area' && P.modType !== 'cell', modMin: P => P.solarMode !== 'area' && P.modType !== 'cell',
   modRows: P => P.solarMode !== 'area' && P.modType === 'custom', modEdge: P => P.solarMode !== 'area' && P.modType !== 'cell', modGap: P => P.solarMode !== 'area' && P.modType !== 'cell', cellGap: P => P.solarMode !== 'area', cellRootGap: P => P.solarMode !== 'area', cellTipGap: P => P.solarMode !== 'area',
   cellJointGap: P => P.solarMode !== 'area' && (P.splits === 'outer' || P.splits === 'both'), cellsOnCtrl: P => P.solarMode !== 'area',
@@ -273,7 +277,7 @@ function fieldHTML(k, form) {
   const id = `f-${form}-${k}`, help = m.help ? `<span class="help">${esc(m.help)}</span>` : '';
   const lab = `${esc(m.l)}${m.u ? ` <span class="u">${esc(m.u)}</span>` : ''}`;
   const rq = `<button type="button" class="rq-btn" data-rq="${k}" aria-label="Anforderung oder Kommentar: ${esc(m.l)}"></button>`;
-  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'solarMode', 'cellType', 'modType', 'cellOrient', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'bypass', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
+  const wide = ['airfoil', 'tailAirfoil', 'planform', 'transition', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'stringLayout', 'solarMode', 'cellType', 'modType', 'cellMount', 'cellOrient', 'weather', 'density', 'aec', 'arcStrat', 'm1a', 'm1b', 'm1c', 'm2', 'bypass', 'sparType', 'fusFlow', 'tz', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'splits', 'matCap', 'matWeb', 'matSkin', 'matBoom', 'propGeom', 'propFoil'].includes(k) || m.help ? ' wide' : '';
   if (m.sel === 'bool') return `<div class="field chk wide" data-fk="${k}"><input type="checkbox" id="${id}" data-k="${k}"><label for="${id}">${lab}</label>${rq}${help}</div>`;
   if (m.sel === 'date') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="date" id="${id}" data-k="${k}"></div>`;
   if (m.sel === 'time') return `<div class="field" data-fk="${k}"><label for="${id}">${lab}</label>${rq}<input type="time" id="${id}" data-k="${k}"></div>`;
@@ -308,7 +312,7 @@ document.addEventListener('input', e => {
   S.params[el.dataset.k] = v;
   // gleiche Größe in anderen Formularen nachziehen
   $$(`[data-k="${el.dataset.k}"]`).forEach(o => { if (o !== el) { if (o.type === 'checkbox') o.checked = !!v; else o.value = String(v); } });
-  if (['planform', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'weather', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'battInWing', 'splits', 'propGeom', 'solarMode', 'cellType', 'modType'].includes(el.dataset.k)) fillForms();
+  if (['planform', 'powerModel', 'propModel', 'structMode', 'solarGeom', 'weather', 'motorPos', 'fusType', 'tailType', 'landGear', 'launch', 'wireModel', 'trimMode', 'battInWing', 'splits', 'propGeom', 'solarMode', 'cellType', 'modType', 'cellMount'].includes(el.dataset.k)) fillForms();
   if (el.dataset.k === 'weather') onWeatherChange();
   markPreset(); schedule();
 });

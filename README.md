@@ -15,10 +15,16 @@ Profile, Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Anforderungen,
 - **Solarzellen:** nur ganze quadratische Zellen (SunPower E60 wie AtlantikSolar, C60, 125 mm, oder eigene) in
   rechteckigen, geraden Modulen: Vorgabe Streifen eine Zelle tief und bis 6 Zellen lang wie bei AtlantikSolar (ETH),
   einstellbar bis zu eigenen Rechteckmodulen oder Einzelzellen. Ein Modul liegt auf ganzer Länge im Zellband, ist
-  höchstens 10° gedreht und überquert weder Teilung noch Ruderachse. Jede Zelle folgt der
-  gewölbten Oberseite; aus dem zulässigen Stich (10 % je Zelle) und der Randdehnung folgt je Profil und
-  Flügeltiefe, wie weit vorn und hinten Zellen liegen können. Schatten von Seitenleitwerk, Motorgondel, Pylon
-  und Propellerkreis auf Flügel- und Leitwerkszellen, mit und ohne Bypassdioden.
+  höchstens 10° gedreht und überquert weder Teilung noch Ruderachse. Moduldaten wie AtlantikSolar (Oettershagen
+  2018): 23,7 % am fertigen Modul, 590 g/m², 0,3 %/K, im Flug höchstens rund 12 K über der Luft; ein Knopf übernimmt
+  sie in ein bestehendes Modell. Schatten von Seitenleitwerk, Motorgondel, Pylon und Propellerkreis auf Flügel- und
+  Leitwerkszellen, mit und ohne Bypassdioden.
+- **Module gebogen oder eben:** gebogen folgt jede Zelle der gewölbten Oberseite (Grenzen: Stich 10 % je Zelle und
+  Randdehnung), die Kontur bleibt glatt. Eben liegt jedes Modul als gerade Sehne auf der Kontur (Grenze: Abweichung,
+  Vorgabe 1,5 % der Tiefe); das Profil bekommt ebene Abschnitte mit Knicken. Dessen Polaren rechnet NeuralFoil (Netz
+  „xlarge“, MIT) direkt im Browser nach, als Differenz zum Originalprofil; die Knicke lösen den Umschlag aus. Die
+  Ansicht Energie vergleicht gebogen glatt, gebogen mit Umschlag an der Modulkante und eben nebeneinander (Zellen,
+  Profilwiderstand, Leistung, Solarertrag, Excess Time, Ausdauer) und zeigt den Profilschnitt.
 - **Motor auf dem Seitenleitwerk:** Abschätzung des Propeller-Wirbelflatterns (Whirl Flutter) aus den
   Eigenformen von Seitenleitwerk und Träger, Blattelement-Luftkräften und Kreiselkopplung.
 - **Ruder als Bedingung:** Grundbedingung „Ruder reichen“ der Entwurfssuche (Höhenruder höchstens 80 % des
@@ -39,6 +45,10 @@ Profile, Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Anforderungen,
   Größen abhängt.
   Vorschläge mit Grundriss-Vergleich und Übernehmen/Rückgängig.
 - **Datei:** Export und Import eines Modells mit allem (Eingaben, Komponenten, Wetter, Anforderungen, Kommentare).
+- **CAD-Export:** Geometrie des Entwurfs als JSON für CATIA V5 (Generative Shape Design, Python-Skripte): Flügelschnitte
+  mit Profilkoordinaten, Einstellwinkel und Verwindung, Holm, Querruderachse und Teilungen, Leitwerke mit Ruderachsen,
+  Rumpf als Drehkörper, Träger, Antrieb, Solarmodule (Ecken auf der Oberseite, gebogen oder eben) und alle Massen mit
+  Schwerpunkt und Trägheitsmomenten; mm, x nach hinten ab der Rumpfnase, y nach rechts, z nach oben, rechte Hälfte.
 - **Team:** gemeinsame Modelle mit einem Team-Passwort. Änderungen erscheinen sofort bei allen, die das Modell offen
   haben; verschiedene Stellen gelten beide, an derselben Stelle gilt die spätere. Anzeige, wer wo arbeitet,
   Verlauf mit Rückgängig, gespeicherte Stände, Papierkorb. Ohne Netz geht die Arbeit weiter und wird nachgereicht.
@@ -77,9 +87,9 @@ das Passwort `test` gilt nur in diesem Lauf. Von Hand: Reiter *Actions* → *Tea
 | `calc/src/` | Rechenkern und Oberfläche, Reihenfolge in `calc/tools/modules.json` (siehe unten) |
 | `calc/src/formulas.js` | Formelkatalog mit Quellen; daraus entstehen Ansicht *Formeln* und `docs/BERECHNUNGEN.md` |
 | `docs/BERECHNUNGEN.md` | erzeugt mit `npm run docs`, nicht von Hand ändern |
-| `calc/data/` | Profilpolaren, Wetterdaten, Komponententexte (eingebettet in die Seite) |
+| `calc/data/` | Profilpolaren, Profilkoordinaten, NeuralFoil-Netz (MIT-Lizenz, `LICENSE-NeuralFoil.txt`), Wetterdaten, Komponententexte (eingebettet in die Seite) |
 | `calc/tools/build.mjs` | baut `dist/uav-budget.html` (Einzelseite) und `public/index.html` (Worker-Seite) |
-| `calc/tools/*.py` | erzeugen `calc/data/` neu (nur bei Bedarf, brauchen externe Quellen unter `ext/`) |
+| `calc/tools/*.py` | erzeugen `calc/data/` neu (nur bei Bedarf, brauchen externe Quellen unter `ext/`); `make_polars.py --nn-only` erneuert nur Netz, Profilkoordinaten und Beschreibungen |
 | `calc/tests/` | `check.cjs` (Prüfung vor dem Deploy), weitere Rechen- und Browsertests, `cfsim.mjs` (Cloudflare-Nachbildung) |
 | `worker/index.js` | Worker: Seite, `/api/team` (Modelle; je Modell ein Durable Object `ModelRoom` mit WebSocket), `/api/pvgis` |
 | `worker/schema.sql` | Tabelle `models` der D1-Datenbank (legt der Worker auch selbst an) |
@@ -103,7 +113,9 @@ Rechenkern in `calc/src/`:
 | `dyn.js`, `controls.js` | Flugdynamik (MIL-F-8785C); Quer-, Höhen- und Seitenruder |
 | `batt.js`, `turb.js` | Akkuspannung über dem Ladezustand; Dryden-Turbulenz und Bildruhe an der Kamera |
 | `sim.js`, `ext.js` | Sonne, Wetter, Tages- und Dauerflug, Energie in der Höhe; Einsatzleistung, SORA, Unsicherheit |
-| `solar.js` | ganze quadratische Zellen in rechteckigen Modulen auf Flügel und Höhenleitwerk packen; Zellband je Profil und Tiefe aus Stich und Dehnung der gebogenen Zelle |
+| `solar.js` | ganze quadratische Zellen in rechteckigen Modulen auf Flügel und Höhenleitwerk packen; Zellband je Profil und Tiefe aus Stich und Dehnung der gebogenen Zelle bzw. aus der Abweichung des ebenen Moduls |
+| `facet.js` | NeuralFoil (Netz xlarge) im Browser: Kulfan-Anpassung, Polaren des Profils mit ebenen Modulen als Differenz zum Originalprofil |
+| `cad.js` | CAD-Export der Geometrie (JSON für CATIA) |
 | `kenn.js`, `opt.js` | Kenngrößen mit Richtung und Rechenaufwand, Grundbedingungen; Entwurfsvorschläge (Optimierer, auch im Web Worker) |
 
 Oberfläche: `ui-*.js` (Ansichten, `ui-doc.js` Datei, `ui-req.js` Anforderungen und Kommentare, `ui-opt.js` Entwurf),
@@ -176,7 +188,8 @@ damit Cloudflare immer dieselbe Wrangler-Version verwendet.
 Browsertests (`calc/tests/t*.cjs`, `interact.cjs`, `presets.cjs`, `hint.cjs`, `elshot.cjs`) brauchen Playwright
 und öffnen `dist/uav-budget.html`; Bilder landen in `calc/tests/out/`. `t15.cjs` prüft „Entwurf berechnen“ im
 Browser, `t18.cjs` dasselbe bei unerreichbaren Anforderungen (Diagnose, Weiterrechnen), `t19.cjs` bei nicht baubarem
-Ausgangsentwurf (verletzte Bauraum-Prüfung, „Woran hängt es?“), `t20.cjs` Solarmodule und Ruderbedingungen, `t17.cjs` den Optimierer im
+Ausgangsentwurf (verletzte Bauraum-Prüfung, „Woran hängt es?“), `t20.cjs` Solarmodule und Ruderbedingungen, `t21.cjs` Module
+gebogen oder eben, Moduldaten wie AtlantikSolar und den CAD-Export, `t17.cjs` den Optimierer im
 Rechenkern (auch mehrere Inseln mit Austausch und eine Grenze bei null), `t16.cjs` die Teamarbeit mit zwei Browsern gegen die Nachbildung
 oder mit `TEAM_BASE=http://127.0.0.1:8787` gegen `npm run dev`.
 

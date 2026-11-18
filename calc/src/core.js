@@ -350,6 +350,10 @@ function buildCase(P, comps, k) {
   C.tfoil = foilByKey(P.tailAirfoil);
   C.cfg = configOf(P);
   C.tail = tailGeom(P, C.pf, C.cfg);
+  // Solarzellen als ganze Rechteckzellen auf Flügel und Höhenleitwerk (solar.js). Ebene Module machen die Oberseite zum
+  // Vieleck: dann gelten die Polaren des Facettenprofils (facet.js), Umschlag an der Vorderkante des ersten Moduls
+  C.solar = solarLayout(P, C);
+  if (C.solar.facet) { C.foil0 = C.foil; C.foil = facetFoil(C.foil, C.solar.facet); if (C.foil !== C.foil0) C.mode = 'facet'; }
   // Flugzustand Reiseflug: Dichte bei mittlerer Tagestemperatur in Flughöhe
   const hFly = P.alt + P.hAGL, tFly = (P.tMax + P.tMin) / 2 - 0.0065 * P.hAGL;
   C.hFly = hFly; C.tFly = tFly; C.rho = rhoAt(hFly, tFly); C.nu = nuAt(hFly, tFly);
@@ -362,8 +366,6 @@ function buildCase(P, comps, k) {
   C.compCdA = cs.cda;
   C.motor = MOTOR_POS[C.cfg.mot];
   C.g0 = geomPositions(C, 0);
-  // Solarzellen als ganze Rechteckzellen auf Flügel und Höhenleitwerk (solar.js)
-  C.solar = solarLayout(P, C);
   C.solarEta = C.solar.eta; C.solarSpan = Math.max(0.05, C.solarEta * C.pf.b); C.solarFits = C.solar.fits;
   C.htSolarArea = C.solar.ht.a;
   C.mass = { batt: Math.max(0, P.mBatt), solar: C.solar.aMod * P.solarAreal, solarHT: C.solar.ht.aMod * P.solarAreal, prop: P.mAntrieb, comps: cs.m, byGroup: cs.byGroup, ballast: 0, wire: 0 };

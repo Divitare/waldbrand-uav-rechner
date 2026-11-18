@@ -11,7 +11,13 @@ Für jedes Profil:
   * Geometrie: Dicke, Wölbung, Oberseiten-/Unterseitenkontur für Vorschau und
     Solarzellen-Neigung.
 Zusätzlich das MH 139F mit den originalen XFoil-Polaren der ETH (init.m) als eigener Eintrag.
+
+Dazu das NeuralFoil-Netz „xlarge“ (nur die Ausgänge c_l, c_d, c_m; Gewichte je Zeile auf 16 bit gerundet), mit dem der
+Rechner im Browser Profile mit ebenen Solarzellen (Facetten) nachrechnet (facet.js).
+Aufruf:  python make_polars.py            alles neu (Polaren mit xxxlarge, dauert)
+         python make_polars.py --nn-only  nur Netz und Beschreibungen in der vorhandenen Datei erneuern
 """
+import base64
 import json
 import os
 import re
@@ -26,7 +32,7 @@ from nf_port import Foil, read_dat  # noqa: E402
 # Externe Quellen (nur zum Neuerzeugen der Polaren nötig): AeroSandbox-Profildatenbank und ETH-Werkzeug
 EXT = Path(os.environ.get('UAV_EXT', Path(__file__).resolve().parents[2] / 'ext'))
 DB = EXT / 'asb/aerosandbox/geometry/airfoil/airfoil_database'
-ETH = EXT / 'fw_conceptual_design'
+ETH = Path(os.environ.get('UAV_ETH', EXT / 'fw_conceptual_design'))
 OUT = Path(__file__).resolve().parents[1] / 'data' / 'airfoils.json'
 
 RE = [40e3, 60e3, 80e3, 100e3, 130e3, 170e3, 220e3, 300e3, 400e3, 550e3, 750e3, 1000e3]
@@ -35,7 +41,7 @@ ALPHA = np.arange(-8, 20.001, 0.25)
 
 # (Schlüssel, Datei, Anzeigename, Kategorie, Kurzbeschreibung)
 WING = [
-    ('mh139f', 'ETH:MH139F', 'MH 139F', 'Solar/Segler', 'Profil von AtlantikSolar (ETH Zürich), 11,6 % dick, flache Oberseite für Solarzellen.'),
+    ('mh139f', 'ETH:MH139F', 'MH 139F', 'Solar/Segler', 'Eigens für AtlantikSolar (ETH Zürich) entworfenes Profil, 11,6 % dick; dort mit zwei Reihen SunPower-E60-Zellen auf der Oberseite.'),
     ('sd7037', 'sd7037', 'SD7037', 'Segler', 'Klassisches Seglerprofil für Re 100.000 bis 500.000, beim Solar-UAV Sun Falcon eingesetzt.'),
     ('sd7032', 'sd7032', 'SD7032', 'Segler', 'Etwas dicker und stärker gewölbt als das SD7037, gutmütiges Abreißverhalten.'),
     ('sd7062', 'sd7062', 'SD7062', 'Segler', '14 % dick, hoher Auftrieb, gut für schwere, langsame Flugzeuge.'),
@@ -147,7 +153,7 @@ def build(entry, tail=False):
     rms = float(np.sqrt(np.mean((np.interp(x, g['xs'], g['yu']) - yu) ** 2 + (np.interp(x, g['xs'], g['yl']) - yl) ** 2)))
     d = dict(key=key, name=name, cat=cat, desc=desc, tail=tail, src='NeuralFoil' if True else '',
              t=round(g['t'], 4), xt=round(g['xt'], 3), f=round(g['f'], 4), xf=round(g['xf'], 3),
-             fit_rms=round(rms, 5), shape=sh)
+             fit_rms=round(rms, 5), shape=sh, dat=dat_block(entry))
     cdn, an, metan = polar_tables(foil, 1.0)
     d['free'] = dict(cd=cdn, al=an, meta=metan)
     if not tail:
@@ -210,7 +216,61 @@ def eth_xfoil_entry(base):
     return d
 
 
+def nn_block(size='xlarge'):
+    """NeuralFoil-Netz für den Browser: alle Schichten, die letzte nur mit den Zeilen für c_l, c_d, c_m (1, 2, 3).
+    Gewichte je Zeile auf int16 gerundet (Skala = größter Betrag / 32767), Base64, Zeilen nacheinander."""
+    from nf_port import _nn
+    p = _nn(size)
+    idx = sorted({int(k.split('.')[1]) for k in p})
+    layers = []
+    for j, i in enumerate(idx):
+        W = p[f'net.{i}.weight'].astype(np.float64)
+        b = p[f'net.{i}.bias'].astype(np.float64)
+        if j == len(idx) - 1:
+            W, b = W[[1, 2, 3]], b[[1, 2, 3]]
+        sw = np.abs(W).max(axis=1) / 32767
+        sw[sw == 0] = 1e-12
+        wq = np.round(W / sw[:, None]).astype('<i2')
+        sb = float(np.abs(b).max() / 32767) or 1e-12
+        bq = np.round(b / sb).astype('<i2')
+        layers.append(dict(r=int(W.shape[0]), c=int(W.shape[1]), w=base64.b64encode(wq.tobytes()).decode(),
+                           sw=[float('%.6e' % s) for s in sw], b=base64.b64encode(bq.tobytes()).decode(), sb=float('%.6e' % sb)))
+    lic = (EXT / 'nf' / 'LICENSE.txt').read_text().strip()
+    return dict(size=size, src='NeuralFoil (Sharpe & Hansman, MIT), Netz ' + size + ', Ausgänge c_l, c_d, c_m', license=lic, layers=layers)
+
+
+def dat_block(entry):
+    """Koordinaten für den CAD-Export: normiert wie für NeuralFoil (Nase im Ursprung, Hinterkante bei (1, 0)),
+    Selig-Reihenfolge, auf 1e-5 gerundet; doppelte Punkte entfernt."""
+    foil = Foil(load(entry[1]), entry[2])
+    c = foil.norm
+    pts = []
+    for x, y in c:
+        p = [round(float(x), 5), round(float(y), 5)]
+        if not pts or p != pts[-1]:
+            pts.append(p)
+    return dict(x=[p[0] for p in pts], y=[p[1] for p in pts])
+
+
+def refresh_nn():
+    """Vorhandene Datei: Netz, Profilbeschreibungen und Koordinaten erneuern, Polaren unverändert."""
+    out = json.loads(OUT.read_text())
+    ent = {e[0]: e for e in WING + TAIL}
+    for f in out['foils']:
+        e = ent.get(f['key']) or ent.get(f['key'].replace('_xf', ''))
+        if f['key'] in ent:
+            f['desc'] = ent[f['key']][4]
+        if e:
+            f['dat'] = dat_block(e)
+    out['nn'] = nn_block()
+    OUT.write_text(json.dumps(out, separators=(',', ':')))
+    print('written', OUT, OUT.stat().st_size // 1024, 'KB (Netz und Beschreibungen erneuert)')
+
+
 def main():
+    if '--nn-only' in sys.argv:
+        refresh_nn()
+        return
     foils = []
     for e in WING:
         d = build(e)
@@ -225,7 +285,7 @@ def main():
         foils.append(d)
         print(f"{d['key']:10s} tail t={d['t']:.3f} fit={d['fit_rms']:.5f}")
     out = dict(re=RE, cl=CL, ncrit=9, trip_xc=0.10, source='NeuralFoil xxxlarge (Sharpe & Hansman, MIT), Koordinaten UIUC/AeroSandbox; MH 139F aus fw_conceptual_design (ETH)',
-               foils=foils)
+               foils=foils, nn=nn_block())
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(out, separators=(',', ':')))
     print('written', OUT, OUT.stat().st_size // 1024, 'KB', len(foils), 'Profile')

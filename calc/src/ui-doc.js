@@ -98,6 +98,15 @@ $('#exp-copy').addEventListener('click', () => {
   const fall = () => { box.value = t; box.focus(); box.select(); msg.textContent = 'Text unten markiert – mit Strg+C kopieren.'; };
   try { navigator.clipboard.writeText(t).then(() => { msg.textContent = `Kopiert (${nf(t.length / 1024, 0)} KB).`; }, fall); } catch (e) { fall(); }
 });
+// CAD-Geometrie (cad.js) des aktuellen Entwurfs
+const cadName = () => $('#exp-name').value.trim() || S.meta.name || 'Entwurf';
+const cadObj = () => cadExport(R.C, { name: cadName(), date: new Date().toISOString().slice(0, 10) });
+$('#cad-file').addEventListener('click', () => { const fn = fileName(cadName()).replace(/\.uav\.json$/, '.cad.json'); downloadJSON(cadObj(), fn); $('#share-msg').textContent = `CAD-Geometrie gespeichert als ${fn}.`; });
+$('#cad-copy').addEventListener('click', () => {
+  const t = JSON.stringify(cadObj(), null, 1), msg = $('#share-msg'), box = $('#imp-text');
+  const fall = () => { box.value = t; box.focus(); box.select(); msg.textContent = 'CAD-Text unten markiert – mit Strg+C kopieren (nicht übernehmen, das ist kein Modell).'; };
+  try { navigator.clipboard.writeText(t).then(() => { msg.textContent = `CAD-Geometrie kopiert (${nf(t.length / 1024, 0)} KB).`; }, fall); } catch (e) { fall(); }
+});
 $('#imp-file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (!f) return; f.text().then(t => impLoadText(t, f.name)); e.target.value = ''; });
 $('#imp-text').addEventListener('input', e => { const t = e.target.value.trim(); if (t.length > 20) impLoadText(t, ''); else { IMP.cur = null; impPreview(); } });
 {

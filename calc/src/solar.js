@@ -150,25 +150,75 @@ function bendScan(U, lam, beta, q, xa, xb) {
   bendCache.set(key, r);
   return r;
 }
-// Grenzen der Biegung aus den Parametern
+/* Ebene Module (Facetten): ein Modul der bezogenen Tiefe λ_D = D/c liegt als gerade Sehne auf der Oberseite, Vorder- und
+   Hinterkante auf der Kontur. Zulässig, wo der Stich (größter Abstand der Kontur von dieser Sehne) höchstens δ_zul/c ist.
+   Ergebnis wie bendScan: größter zusammenhängender Bereich, in dem jede Modullage zulässig ist ('dev' Abweichung). */
+const flatCache = new Map();
+function flatScan(U, lamD, dRel, xa, xb) {
+  const key = `${U.key}|${lamD.toFixed(3)}|${dRel.toFixed(5)}|${xa.toFixed(3)}|${xb.toFixed(3)}`;
+  if (flatCache.has(key)) return flatCache.get(key);
+  const sA = upS(U, xa), sB = upS(U, xb), ds = lamD / 25;
+  let r = null;
+  if (sB - sA >= lamD) {
+    const n = Math.floor((sB - sA - lamD) / ds + 1e-9) + 1, sag = new Float64Array(n);
+    for (let i = 0; i < n; i++) { const s = sA + i * ds; sag[i] = upSag(U, s, s + lamD); }
+    let best = null;
+    for (let i = 0; i < n;) { if (!(sag[i] <= dRel)) { i++; continue; } let j = i; while (j + 1 < n && sag[j + 1] <= dRel) j++; if (!best || j - i > best[1] - best[0]) best = [i, j]; i = j + 1; }
+    if (best) {
+      const [i0, i1] = best; let fMax = 0; for (let i = i0; i <= i1; i++) fMax = Math.max(fMax, sag[i]);
+      const s0 = sA + i0 * ds, s1 = sA + i1 * ds + lamD;
+      r = { s0, s1, x0: upX(U, s0), x1: upX(U, s1), why0: i0 > 0 ? 'dev' : 'limit', why1: i1 < n - 1 ? 'dev' : 'limit', fMax };
+    }
+  }
+  if (flatCache.size > 6000) flatCache.clear();
+  flatCache.set(key, r);
+  return r;
+}
+// Grenzen der Biegung (gebogen) bzw. der Abweichung (eben) aus den Parametern
 function bendLimits(P, spec) {
   const beta = clamp((P.cellBend ?? 10) / 100, 0.005, 0.5), eps = clamp((P.cellStrain ?? 0.1) / 100, 1e-5, 0.02);
   const x0 = clamp((P.cellX0 ?? 0) / 100, 0, 0.9), x1 = clamp((P.cellX1 ?? 90) / 100, x0 + 0.05, 1);
-  return { beta, eps, q: eps * spec.s / spec.t, x0, x1 };
+  const flat = P.cellMount === 'flat' && P.solarMode !== 'area';
+  return { beta, eps, q: eps * spec.s / spec.t, x0, x1, mount: flat ? 'flat' : 'bent', dev: clamp((P.facetDev ?? 1.5) / 100, 0.001, 0.05), D: spec.s, gm: 0, rows: 1 };
 }
 /* Zellband auf einem Profil der Tiefe c (m): Tiefenanteile vorn/hinten, Bogenlänge (m), Zellen in Flugrichtung.
-   xEnd: zusätzliche hintere Grenze (Ruderachse) als Tiefenanteil. λ wird auf 0,01 aufgerundet (etwas vorsichtiger). */
+   xEnd: zusätzliche hintere Grenze (Ruderachse) als Tiefenanteil. λ wird auf 0,01 aufgerundet (etwas vorsichtiger).
+   Gebogen: Stich und Dehnung je Zelle. Eben: Abweichung je Modul (Tiefe lim.D, Fuge lim.gm, lim.rows Zellreihen). */
 function cellBand(foil, c, spec, lim, g, xEnd, xStart) {
-  if (!(c > spec.s * 1.0001)) return null;
-  const U = foilUpper(foil), lam = Math.ceil(spec.s / c * 100 - 1e-9) / 100;
+  const flat = lim.mount === 'flat', D = flat ? lim.D : spec.s;
+  if (!(c > D * 1.0001)) return null;
+  const U = foilUpper(foil), lam = Math.ceil(D / c * 100 - 1e-9) / 100;
   const xa = xStart != null ? Math.max(lim.x0, Math.round(xStart * 1000) / 1000) : lim.x0;
   if (xa >= lim.x1 - lam) return null;
-  const b = bendScan(U, lam, lim.beta, lim.q, xa, lim.x1); if (!b) return null;
+  const b = flat ? flatScan(U, lam, lim.dev, xa, lim.x1) : bendScan(U, lam, lim.beta, lim.q, xa, lim.x1); if (!b) return null;
   let s1 = b.s1, why1 = b.why1;
   if (xEnd != null && xEnd < b.x1) { s1 = Math.min(s1, upS(U, xEnd)); why1 = 'ctrl'; }
   if (s1 - b.s0 < lam - 1e-9) return null;
-  const L = (s1 - b.s0) * c, n = Math.max(0, Math.floor((L + g + 1e-9) / (spec.s + g)));
+  const L = (s1 - b.s0) * c;
+  if (flat) {
+    const n = Math.max(0, Math.floor((L + lim.gm + 1e-9) / (D + lim.gm))) * lim.rows;
+    return { x0: b.x0, x1: upX(U, s1), s0: b.s0, s1, L, n, why0: b.why0, why1, fMax: b.fMax, dev: b.fMax * c, eps: 0, lam, flat: true };
+  }
+  const n = Math.max(0, Math.floor((L + g + 1e-9) / (spec.s + g)));
   return { x0: b.x0, x1: upX(U, s1), s0: b.s0, s1, L, n, why0: b.why0, why1, fMax: b.fMax, eps: b.kMax / c * spec.t / 2, lam };
+}
+/* Facetten ebener Module an einer Station (Tiefe c, Profil U): Lage der Modulreihen als Tiefenanteile, Neigung jeder
+   Facette gegen die Sehne, Knicke (Grad: vorn Kontur → erste Facette, zwischen den Facetten, hinten letzte → Kontur;
+   positiv = Oberseite knickt nach unten ab), größte Abweichung von der Kontur (m). sFront: Bogenlänge der Vorderkante
+   des ersten Moduls (Einheitstiefe), m Modulreihen, lamD und lamG Modultiefe und Fuge bezogen auf c. */
+function facetGeom(U, c, sFront, m, lamD, lamG) {
+  const xs = [], ang = [], devs = [];
+  const slopeAt = x => { const h = 0.004, a = clamp(x - h, 0, 1), b = clamp(x + h, 0, 1); return Math.atan((foilYu(U, b) - foilYu(U, a)) / (b - a)) * RAD; };
+  for (let r = 0; r < m; r++) {
+    const sa = sFront + r * (lamD + lamG), sb = sa + lamD; if (sb > U.L - 1e-6) break;
+    const xa = upX(U, sa), xb = upX(U, sb); xs.push([xa, xb]);
+    ang.push(Math.atan((foilYu(U, xb) - foilYu(U, xa)) / (xb - xa)) * RAD); devs.push(upSag(U, sa, sb) * c);
+  }
+  if (!xs.length) return null;
+  const kinks = [slopeAt(xs[0][0]) - ang[0]];
+  for (let r = 0; r + 1 < xs.length; r++) kinks.push(ang[r] - ang[r + 1]);
+  kinks.push(ang[ang.length - 1] - slopeAt(xs[xs.length - 1][1]));
+  return { c, xs, ang, kinks, dev: Math.max(...devs), devs, slopes: ang.map(a => Math.tan(a * DEG)) };
 }
 
 /* Module auf einer Flügelhälfte. geo: { h, yR, yT, bans [[y0, y1]], breaks (Stellen, an denen sich das Band
@@ -250,6 +300,7 @@ function colsSummary(cols, spec, g, h, limitHalf, ms) {
 }
 function solarLayout(P, C) {
   const pf = C.pf, tg = C.tail, h = pf.b / 2, spec = cellSpec(P), g = clamp((P.cellGap ?? 2) / 1000, 0, 0.03), lim = bendLimits(P, spec), ms = modSpec(P, spec, g);
+  lim.D = ms.D; lim.gm = ms.gm; lim.rows = ms.rows;
   const U = foilUpper(C.foil);
   // Flügel: Zellband je Station aus der Biegung; auf der Querruderspannweite endet es vor der Drehachse (kein Modul
   // überquert sie). Mit Freigabe tragen die Querruder eigene Module hinter der Achse.
@@ -263,7 +314,7 @@ function solarLayout(P, C) {
   const arcW = (y, xa, xb) => { const e = clamp(y / h, 0, 1), c = pf.chordAt(e), xl = pf.xLE(e); return c * (upS(U, (xb - xl) / c) - upS(U, (xa - xl) / c)); };
   const yR = clamp(P.cellRootGap ?? 0.1, 0, h), yT = h - clamp(P.cellTipGap ?? 0.03, 0, h);
   const breaks = [aE0 * h, aE1 * h, (pf.type === 'rect_taper' ? pf.e : 0) * h].filter(y => y > 0 && y < h);
-  const merge = (A, B) => ({ mods: A.mods.concat(B.mods), cols: A.cols.concat(B.cols.map(c => ({ ...c, mod: c.mod + A.mods.length }))).sort((x, y) => x.y0 - y.y0 || x.x0 - y.x0) });
+  const merge = (A, B) => ({ mods: A.mods.concat(B.mods.map(md => ({ ...md, ctrl: true }))), cols: A.cols.concat(B.cols.map(c => ({ ...c, mod: c.mod + A.mods.length }))).sort((x, y) => x.y0 - y.y0 || x.x0 - y.x0) });
   let packW = packModules({ h, yR, yT, bans, breaks, band: absBand(bandAt), arcLen: arcW }, spec, ms, g);
   if (onCtrl && aE1 > aE0) packW = merge(packW, packModules({ h, yR: Math.max(yR, aE0 * h), yT: Math.min(yT, aE1 * h), bans, breaks: [], band: absBand(bandAil), arcLen: arcW }, spec, ms, g));
   const msW = { ...ms, mods: packW.mods };
@@ -323,8 +374,28 @@ function solarLayout(P, C) {
   const htCols = mode === 'area' ? maxH.cols : colsSummary(packH.cols, spec, g, 1, htA > 0 && spec.A > 0 ? Math.round(htA / spec.A / 2) : 0, { ...ms, mods: packH.mods }).cols;
   // Modulstatistik je Hälfte: Anzahl je Länge (Zellen) und Modulreihen
   const modStat = mods => { const by = {}; for (const md of mods) by[md.n] = (by[md.n] || 0) + md.m; return Object.entries(by).map(([n, k]) => ({ n: Number(n), k })).sort((a, b) => b.n - a.n); };
+  // Ebene Module: Facetten bei der häufigsten Zahl von Modulreihen, Lage und Tiefe nach Zellen gemittelt, für Polaren
+  // (facet.js) und Einstrahlung;
+  // φ = Anteil der Flügelfläche, über dem Module liegen (Spannweitenbereiche der Module vor den Ruderachsen)
+  let facet = null;
+  if (lim.mount === 'flat' && modsHalf.length) {
+    const grp = new Map();
+    for (const md of modsHalf) {
+      if (md.ctrl) continue;
+      const ym = (md.y0 + md.y1) / 2, e = clamp(ym / h, 0, 1), c = pf.chordAt(e), xr = (md.x0 + md.t * (ym - md.y0) - pf.xLE(e)) / c, k = md.m;
+      const q = grp.get(k) || { m: md.m, w: 0, xr: 0, c: 0 }; q.w += md.used; q.xr += md.used * xr; q.c += md.used * c; grp.set(k, q);
+    }
+    const best = [...grp.values()].sort((a, b) => b.w - a.w)[0];
+    if (best && best.w > 0) {
+      const c = best.c / best.w, fg = facetGeom(U, c, upS(U, best.xr / best.w), best.m, ms.D / c, ms.gm / c);
+      const iv = modsHalf.filter(md => !md.ctrl).map(md => [md.y0, md.y1]).sort((a, b) => a[0] - b[0]), un = [];
+      for (const [a, b] of iv) { if (un.length && a <= un[un.length - 1][1] + 1e-9) un[un.length - 1][1] = Math.max(un[un.length - 1][1], b); else un.push([a, b]); }
+      let ac = 0; for (const [a, b] of un) { const K = Math.max(2, Math.ceil((b - a) / 0.01)); for (let i = 0; i < K; i++) ac += pf.chordAt(clamp((a + (i + 0.5) * (b - a) / K) / h, 0, 1)) * (b - a) / K; }
+      if (fg) facet = { ...fg, xtr: fg.xs[0][0], phi: clamp(ac / (pf.S / 2), 0, 1), m: fg.xs.length, rows: ms.rows };
+    }
+  }
   return {
-    mode, spec, g, lim, ms: { type: ms.type, nMax: ms.nMax, nMin: ms.nMin, rows: ms.rows, e: ms.e, gm: ms.gm, D: ms.D }, x0: mb[0], x1: mb[1], bands, edge, bandH, wing, colsHalf: mode === 'area' ? [] : wing.cols,
+    mode, mount: lim.mount, facet, spec, g, lim, ms: { type: ms.type, nMax: ms.nMax, nMin: ms.nMin, rows: ms.rows, e: ms.e, gm: ms.gm, D: ms.D }, x0: mb[0], x1: mb[1], bands, edge, bandH, wing, colsHalf: mode === 'area' ? [] : wing.cols,
     modsHalf, modStat: modStat(modsHalf), nMods: 2 * modsHalf.reduce((q, md) => q + md.m, 0),
     ht: { a: htA, want: htWant, max: htMax, aMod: mode === 'area' ? htA : htA * (maxH.a > 0 ? maxH.aMod / maxH.a : 1), cols: htCols, mods: usedMods(packH, htCols), fits: htWant <= htMax + 1e-9 },
     max: { n: 2 * maxW.n, a: 2 * maxW.a, cols: maxW.cols }, want, fits, overMax: wing.a > 2 * maxW.a * 1.0001 + 1e-9,

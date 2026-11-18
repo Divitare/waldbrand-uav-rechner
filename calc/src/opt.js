@@ -58,6 +58,8 @@ const OPT_CAT = [
   { k: 'htSolar', g: 'energy', lo: 0, hi: 90, st: 5 },
   { k: 'nCellsWing', g: 'energy', lo: 20, hi: 800, st: 2, int: true, when: P => P.solarMode === 'count' },
   { k: 'solarArea', g: 'energy', lo: 0.3, hi: 2.5, st: 0.01, when: P => P.solarMode === 'area' },
+  // Einbau der Module: gebogen oder eben (Facettenprofil mit eigenen Polaren, facet.js)
+  { k: 'cellMount', g: 'energy', opts: () => ['bent', 'flat'], when: P => P.solarMode !== 'area' },
   { k: 'sparType', g: 'struct', opts: () => ['caps', 'tube'], when: P => P.structMode !== 'fix' },
   { k: 'xSpar', g: 'struct', lo: 20, hi: 40, st: 1, when: P => P.structMode !== 'fix' },
   { k: 'matCap', g: 'struct', opts: () => MAT_SEL.matCap, when: P => P.structMode !== 'fix' },

@@ -32,10 +32,12 @@ const DEFAULT_PARAMS = {
   // Akku
   mBatt: 3.0, battSpec: 230, reserve: 20, etaCharge: 95, etaDischarge: 97, battHealth: 100, battTempCoef: 0.6, battHeat: 8, chargeC: 0.5, noColdCharge: true, battRAh: 0.15, hStore: 0,
   // Solar
+  // Module wie AtlantikSolar (Oettershagen 2018, Tab. 4.1 und Kap. 5.3): SunPower E60, eingekapselt mit Folienfront, gemessen
+  // 23,7 % auf Modulebene (Laminatverlust darin enthalten) und 590 g/m²; 0,3 %/K; im Flug höchstens rund 12 K über Luft
   solarMode: 'fill', cellType: 'e60', modType: 'strip', modCells: 6, modMin: 1, modRows: 1, modEdge: 2, modGap: 3, cellA: 125, cellD: 160, cellThk: 165, cellVmp: 0.58, cellOrient: 'auto', nCellsWing: 100, cellGap: 2, cellBend: 10, cellStrain: 0.1, bypass: 'cell',
-  cellRootGap: 0.1, cellTipGap: 0.03, cellJointGap: 0.04, cellsOnCtrl: false,
-  solarArea: 1.0, cellEff: 23, solarAreal: 0.7, solarGeom: 'profil', cellX0: 0, cellX1: 90, stringLayout: 'span', camberEta: 95,
-  mpptEff: 97, laminateLoss: 3, wiringLoss: 2, soiling: 1, tempCoef: 0.32, cellHeat: 0.02, albedo: 0.15,
+  cellMount: 'bent', facetDev: 1.5, cellRootGap: 0.1, cellTipGap: 0.03, cellJointGap: 0.04, cellsOnCtrl: false,
+  solarArea: 1.0, cellEff: 23.7, solarAreal: 0.59, solarGeom: 'profil', cellX0: 0, cellX1: 90, stringLayout: 'span', camberEta: 95,
+  mpptEff: 97, laminateLoss: 0, wiringLoss: 2, soiling: 1, tempCoef: 0.3, cellHeat: 0.012, albedo: 0.15,
   // Umgebung
   date: '2026-06-21', lat: 47.5, lon: 14.5, tz: 'auto', tMax: 25, tMin: 12, sky: 100, weather: 'clear', genYears: 20, genSeed: 7,
   wind10: 3, hellmann: 0.2, weibullK: 2, turbLevel: 'light', apBand: 1.5, irTau: 10, rgbExp: 1,
@@ -78,6 +80,9 @@ const DEFAULT_COMPS = [
   { id: 'pol', name: 'Polarisationskamera', group: 'mar', m: 100, p: 3, d: 100, on: false, sched: 'day', cda: 5, x: 0.2, y: 0, z: -0.05 },
   { id: 'sdr', name: 'SDR-Spektrummonitor', group: 'mar', m: 120, p: 4, d: 100, on: false, sched: 'mission', cda: 2, x: 0.8, y: 0, z: 0 }
 ];
+
+// Solarmodule wie AtlantikSolar: Werte für den Knopf „Moduldaten wie AtlantikSolar“ (gleiche Quelle wie oben)
+const ATLANTIK_MODULES = { cellType: 'e60', modType: 'strip', modCells: 6, modMin: 1, modEdge: 2, modGap: 3, cellGap: 2, cellEff: 23.7, laminateLoss: 0, solarAreal: 0.59, tempCoef: 0.3, cellHeat: 0.012, mpptEff: 97, solarGeom: 'profil' };
 
 /* ---------- Referenzflugzeuge (Validierung) ----------
    ref: veröffentlichte Werte, gegen die das Modell geprüft wird. */

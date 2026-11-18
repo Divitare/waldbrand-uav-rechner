@@ -73,6 +73,45 @@ const t0 = Date.now();
   chk('Dehnung knapp unter der Grenze, ganzes Band', bendOk(1, 0.125 * 1.05), 1, 0.04);
   const Ca = U.buildCase({ ...P, solarMode: 'area', solarArea: 0.9 }, comps);
   chk('Freie Zellfläche bleibt wie eingegeben (m²)', Ca.solar.a, 0.9, 1e-9);
+  // Ebene Module auf dem Kreisbogen: Sehne der Länge λ hat den Stich δ = ρ(1 − cos(λ/2ρ)) (Einheitstiefe)
+  const dRef = rho * (1 - Math.cos(0.5 / (2 * rho))), flatOk = d => { const b = U.flatScan(U0, 0.5, d, 0.1, 0.9); return b ? (b.s1 - b.s0) / sIn : 0; };
+  chk('Eben: Abweichung knapp über der Grenze, kein Modul', flatOk(dRef * 0.97) === 0 ? 1 : 0, 1, 0);
+  chk('Eben: Abweichung knapp unter der Grenze, ganzes Band', flatOk(dRef * 1.03), 1, 0.04);
+  // Facetten auf dem Kreisbogen: Knick an jeder Kante = halber Sehnenwinkel λ/(2ρ)
+  const fg = U.facetGeom(U0, 1, U.upS(U0, 0.25), 1, 0.5, 0);
+  chk('Eben: Knick an der Modulkante auf dem Kreisbogen (°)', fg.kinks[0], 0.5 / (2 * rho) * 180 / Math.PI, 0.03);
+}
+// NeuralFoil im Browser (facet.js) gegen NeuralFoil in Python (nf_port.py, Netz xlarge): MH 139F aus den 33 Punkten
+// der Datenbank, Kulfan-Anpassung und Beiwerte bei Re 200 000, α = 0, 4, 8°, Umschlag frei und bei x/c 0,3
+{
+  const f = U.foilByKey('mh139f'), s = f.shape, kp = U.kulfanFit([...s.x].reverse().concat(s.x.slice(1)), [...s.yu].reverse().concat(s.yl.slice(1)));
+  chk('Kulfan-Anpassung MH 139F: Nasengewicht', kp.le, 0.463347, 1e-4);
+  chk('Kulfan-Anpassung MH 139F: 3. Gewicht oben', kp.u[2], 0.358608, 1e-4);
+  const r1 = U.nfAero(kp, 2e5, 1, [0, 4, 8]), r3 = U.nfAero(kp, 2e5, 0.3, [0, 4, 8]);
+  chk('NeuralFoil xlarge: c_l bei α = 4°', r1.CL[1], 0.91427, 2e-4);
+  chk('NeuralFoil xlarge: c_d bei α = 4°', r1.CD[1], 0.011785, 1e-3);
+  chk('NeuralFoil xlarge: c_m bei α = 8°', r1.CM[2], -0.08652, 1e-3);
+  chk('NeuralFoil xlarge: c_d bei α = 4°, Umschlag 30 %', r3.CD[1], 0.01341, 1e-3);
+  // Facettenprofil: ohne belegte Fläche das Originalprofil; mit Modul ab 15 % mehr Widerstand bei Re 300 000 (Umschlag)
+  chk('Facettenprofil ohne Fläche ist das Profil selbst', U.facetFoil(f, { xs: [[0.15, 0.57]], xtr: 0.15, phi: 0 }) === f ? 1 : 0, 1, 0);
+  const F = U.facetFoil(f, { xs: [[0.15, 0.57]], xtr: 0.15, phi: 1 });
+  chk('Facettenprofil: mehr Widerstand bei c_l 0,8, Re 300 000', U.profileCd(F, 'facet', 3e5, 0.8) > U.profileCd(f, 'free', 3e5, 0.8) * 1.1 ? 1 : 0, 1, 0);
+  chk('Facettenprofil: c_l,max nicht höher', U.foilMeta(F, 'facet', 3e5).clmax <= U.foilMeta(f, 'free', 3e5).clmax + 1e-9 ? 1 : 0, 1, 0);
+}
+// Einbau der Module und CAD-Export am Standardentwurf
+{
+  const P = { ...U.DEFAULT_PARAMS }, comps = U.DEFAULT_COMPS.map(c => ({ ...c }));
+  const ms = U.mountStudy(P, comps), by = Object.fromEntries(ms.map(r => [r.k, r]));
+  chk('Einbau: eben mit Facetten und mehr Profilwiderstand', by.flat.C.solar.facet && by.flat.C.lvl.cdp > by.bent.C.lvl.cdp ? 1 : 0, 1, 0);
+  chk('Einbau: Umschlag an der Kante kostet Leistung', by.trip.C.pProp > by.bent.C.pProp ? 1 : 0, 1, 0);
+  for (const mount of ['bent', 'flat']) {
+    const C = U.buildCase({ ...P, cellMount: mount }, comps), o = U.cadExport(C, { name: 'Prüfung' }), S = o.wing.sections;
+    let A = 0; for (let i = 0; i + 1 < S.length; i++) A += (S[i].chord + S[i + 1].chord) / 2 * (S[i + 1].y - S[i].y);
+    chk(`CAD ${mount}: Flügelfläche aus den Schnitten (mm²)`, 2 * A, o.wing.area_mm2, 0.002);
+    const md = o.solar.wing_modules[0], sec = S.find(s => s.y >= md.y0) || S[0];
+    chk(`CAD ${mount}: Module und Massen exportiert`, o.solar.wing_modules.length > 0 && md.corners.length === 4 && o.mass.items.length > 10 && Math.abs(o.mass.total - C.m * 1000) < 1 ? 1 : 0, 1, 0);
+    chk(`CAD ${mount}: Schnitt Vorder- bis Hinterkante = Tiefe`, Math.hypot(sec.te[0] - sec.le[0], sec.te[2] - sec.le[2]), sec.chord, 0.002);
+  }
 }
 // Schatten: Schnitt Vieleck mit Zellrechteck; senkrechtes Rechteck (0,3 m tief, 0,4 m hoch) bei 45° Sonne von der Seite
 // wirft einen Schatten von 0,3 × 0,4 m auf die Ebene seines Fußes

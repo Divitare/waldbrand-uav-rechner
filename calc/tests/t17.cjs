@@ -69,7 +69,7 @@ const t0 = Date.now();
 // 7) Wenige freie Größen: früher kreiste der Feinschliff endlos über schon gerechnete Entwürfe und die Suche wurde nie
 //    fertig. Kleiner Suchraum wird jetzt vollständig durchgerechnet, sonst bricht die Schleife ohne neue Entwürfe ab.
 {
-  const one = U.optVarSet(base, {}, ['energy'], ['mBatt'], 'mass').vars, two = U.optVarSet(base, {}, ['energy'], [], 'mass').vars;
+  const one = U.optVarSet(base, {}, ['energy'], ['mBatt', 'cellMount'], 'mass').vars, two = U.optVarSet(base, {}, ['energy'], ['cellMount'], 'mass').vars;
   const mk = vars => ({ base, comps, vars, obj: { key: 'mass', dir: -1 }, cons: [{ key: 'mass', min: null, max: 14 }], checks, budget: 800, seed: 1 });
   let t = Date.now(); const r1 = U.optRun(mk(one)), s1 = (Date.now() - t) / 1000;
   const brute = Math.min(...[...Array(19).keys()].map(i => U.kennValue(U.lazyResult({ ...base, htSolar: 5 * i }, comps), 'mass')));

@@ -306,15 +306,64 @@ function shapesSVG(el, keys, P) {
     s += `<path class="line s${sCls(i + 1)}" d="M${pts.map(([x, y]) => `${(10 + x * sc).toFixed(1)} ${(y0 - y * sc).toFixed(1)}`).join('L')}Z" style="stroke-width:1.6"/>`;
     // Zellen an der Flügelwurzel: Band aus der Biegung, jede Zelle als Bogen auf der Oberseite (versetzt je Profil)
     if (P.solarMode !== 'area') {
-      const spec = cellSpec(P), lim = bendLimits(P, spec), cr = planform(P).cr, g = clamp((P.cellGap ?? 2) / 1000, 0, 0.03), bd = cellBand(f, cr, spec, lim, g, null);
+      const spec = cellSpec(P), g = clamp((P.cellGap ?? 2) / 1000, 0, 0.03), ms = modSpec(P, spec, g), lim = { ...bendLimits(P, spec), D: ms.D, gm: ms.gm, rows: ms.rows }, cr = planform(P).cr, bd = cellBand(f, cr, spec, lim, g, null);
       if (bd) {
         const U = foilUpper(f), off = 3 + 3 * i, seg = (sa, sb) => { const pts = []; for (let q = 0; q <= 16; q++) { const p = upPt(U, sa + (sb - sa) * q / 16); pts.push(`${(10 + p[0] * sc).toFixed(1)} ${(y0 - p[1] * sc - off).toFixed(1)}`); } return 'M' + pts.join('L'); };
-        for (let k = 0; k < bd.n; k++) { const sa = bd.s0 + k * (spec.s + g) / cr; s += `<path d="${seg(sa, sa + spec.s / cr)}" fill="none" class="s${sCls(i + 1)}" stroke-width="3.5" stroke-linecap="butt"/>`; }
+        // eben: jedes Modul als gerade Sehne; gebogen: jede Zelle als Bogen
+        const line = (sa, sb) => { const a = upPt(U, sa), b2 = upPt(U, sb); return `M${(10 + a[0] * sc).toFixed(1)} ${(y0 - a[1] * sc - off).toFixed(1)}L${(10 + b2[0] * sc).toFixed(1)} ${(y0 - b2[1] * sc - off).toFixed(1)}`; };
+        if (bd.flat) { const m = Math.floor((bd.L + ms.gm + 1e-9) / (ms.D + ms.gm)); for (let k = 0; k < m; k++) { const sa = bd.s0 + k * (ms.D + ms.gm) / cr; s += `<path d="${line(sa, sa + ms.D / cr)}" fill="none" class="s${sCls(i + 1)}" stroke-width="3.5" stroke-linecap="butt"/>`; } }
+        else for (let k = 0; k < bd.n; k++) { const sa = bd.s0 + k * (spec.s + g) / cr; s += `<path d="${seg(sa, sa + spec.s / cr)}" fill="none" class="s${sCls(i + 1)}" stroke-width="3.5" stroke-linecap="butt"/>`; }
       }
     }
   });
   s += '</svg>';
   el.innerHTML = `<div class="chart-title">${legendHTML(keys.map((k, i) => ({ name: (foilByKey(k) || {}).name, c: i + 1 })))}</div>` + s;
+}
+
+/* ---------- Einbau der Module im Profilschnitt: gebogen (oben) und eben (unten), maßstäblich ----------
+   Schnitt an der Flügeltiefe, für die die ebenen Module gerechnet werden (sonst mittlere Tiefe). */
+function mountSVG(el, list) {
+  el._cfg = list; el._fn = mountSVG;
+  const W = cw(el), b = list[0].C, flR = list.find(r => r.k === 'flat') || list[0], fc = flR.C.solar.facet, P = b.P, f = b.foil0 || b.foil;
+  const U = foilUpper(f), spec = cellSpec(P), g = clamp((P.cellGap ?? 2) / 1000, 0, 0.03), ms = modSpec(P, spec, g), c = fc ? fc.c : b.pf.mac;
+  // je Feld: Titelzeile, Platz für die Abweichung über der Oberseite, Profil (Oberseite bis etwa 0,12, Unterseite bis 0,06 der Tiefe)
+  const sc = Math.max(200, W - 40), up = Math.round(sc * 0.12), lo = Math.round(sc * 0.06), hp = 34 + up + lo + 8, H = 2 * hp + 18, f1 = v => v.toFixed(1), X = x => 20 + x * sc;
+  const yl = x => foilYl(f, x);
+  const outline = (y0, yu) => { const pts = []; for (let i = 0; i <= 120; i++) { const x = 0.5 * (1 - Math.cos(Math.PI * i / 120)); pts.push([x, yu(x)]); } for (let i = 119; i >= 1; i--) { const x = 0.5 * (1 - Math.cos(Math.PI * i / 120)); pts.push([x, yl(x)]); } return 'M' + pts.map(([x, y]) => `${f1(X(x))} ${f1(y0 - y * sc)}`).join('L') + 'Z'; };
+  const arc = (y0, sa, sb, off) => { const pts = []; for (let q = 0; q <= 20; q++) { const p = upPt(U, sa + (sb - sa) * q / 20); pts.push(`${f1(X(p[0]))} ${f1(y0 - p[1] * sc - off)}`); } return 'M' + pts.join('L'); };
+  const lab = (x, y, t, a = 'middle', cls = 'tick') => `<text class="${cls}" x="${f1(x)}" y="${f1(y)}" text-anchor="${a}">${esc(t)}</text>`;
+  let s = `<svg class="viz" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Profilschnitt mit gebogenen und ebenen Solarmodulen">`;
+  // oben: gebogen, jede Zelle als Bogen auf der Kontur
+  const yA = 34 + up;
+  s += lab(20, 13, 'gebogen', 'start', 'tick mt');
+  s += `<path d="${outline(yA, x => foilYu(U, x))}" fill="var(--panel)" stroke="var(--ink-2)" stroke-width="1.2"/>`;
+  const limB = { ...bendLimits({ ...P, cellMount: 'bent' }, spec), D: ms.D, gm: ms.gm, rows: ms.rows }, bd = cellBand(f, c, spec, limB, g, null);
+  if (bd) {
+    const m = Math.max(0, Math.floor((bd.L + ms.gm + 1e-9) / (ms.D + ms.gm)));
+    for (let r = 0; r < m; r++) for (let j = 0; j < ms.rows; j++) { const sa = bd.s0 + (r * (ms.D + ms.gm) + ms.e + j * (spec.s + g)) / c; s += `<path d="${arc(yA, sa, sa + spec.s / c, 2.5)}" fill="none" stroke="var(--c2)" stroke-width="4" stroke-linecap="butt"/>`; }
+  } else s += lab(W - 20, 13, 'keine Zelle passt', 'end');
+  // unten: eben, Facettenprofil mit ursprünglicher Kontur gestrichelt; Abweichung über der Facette, Knickwinkel unter den
+  // Knickpunkten, Dreieck am Umschlag
+  const yB = yA + hp, xs = fc ? fc.xs : [];
+  s += lab(20, 13 + hp, 'eben', 'start', 'tick mt');
+  s += `<path d="${outline(yB, x => facetYu(U, xs, x))}" fill="var(--panel)" stroke="var(--ink-2)" stroke-width="1.2"/>`;
+  if (fc) {
+    for (let r = 0; r < xs.length; r++) {
+      const [xa, xb] = xs[r], ya = foilYu(U, xa), yb = foilYu(U, xb), pts = [];
+      for (let q = 0; q <= 30; q++) { const x = xa + (xb - xa) * q / 30; pts.push(`${f1(X(x))} ${f1(yB - foilYu(U, x) * sc)}`); }
+      s += `<path d="M${pts.join('L')}" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>`;
+      const ea = ms.e / c / Math.max(1e-6, upS(U, xb) - upS(U, xa)) * (xb - xa), u0 = xa + ea, u1 = xb - ea;
+      const yy = x => ya + (yb - ya) * (x - xa) / (xb - xa);
+      s += `<line x1="${f1(X(u0))}" y1="${f1(yB - yy(u0) * sc - 2.5)}" x2="${f1(X(u1))}" y2="${f1(yB - yy(u1) * sc - 2.5)}" stroke="var(--c4)" stroke-width="4"/>`;
+      const xm = (xa + xb) / 2; s += lab(X(xm), yB - Math.max(ya, yb, foilYu(U, xm)) * sc - 8, `${nf(fc.devs[r] * 1000, 1)} mm`);
+    }
+    const kx = [xs[0][0], ...xs.slice(0, -1).map((q, i) => (q[1] + xs[i + 1][0]) / 2), xs[xs.length - 1][1]];
+    fc.kinks.forEach((k, i) => { const x = kx[i], yk = yB - facetYu(U, xs, x) * sc; s += `<circle cx="${f1(X(x))}" cy="${f1(yk)}" r="2.5" fill="var(--c5)"/>` + lab(X(x), yk + 14, `${nf(k, 1)}°`, i === 0 ? 'start' : i === fc.kinks.length - 1 ? 'end' : 'middle'); });
+    const xt = fc.xtr, yt = yB - facetYu(U, xs, xt) * sc; s += `<path d="M${f1(X(xt))} ${f1(yt - 5)}l-4.5 -8h9z" fill="var(--c5)"/>`;
+  } else s += lab(W - 20, 13 + hp, 'kein Modul passt', 'end');
+  s += lab(W - 20, H - 4, `${f.name}, ${nf(c * 100, 1)} cm tief, maßstäblich`, 'end');
+  s += '</svg>';
+  el.innerHTML = s + `<p class="small muted" style="margin:4px 0 0">Gestrichelt die ursprüngliche Kontur, darüber die Abweichung der ebenen Fläche; an den Punkten der Knick der Oberseite, Dreieck: angenommener Umschlag.</p>`;
 }
 
 /* ---------- Neuzeichnen bei Größenänderung ---------- */

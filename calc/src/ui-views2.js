@@ -110,7 +110,7 @@ RENDER.energie = (R) => {
   if (sg.flat) ser.push({ name: 'Pauschal (ETH)', c: 1, pts: ex.map(k => [k, Math.sin(k * DEG) * P.camberEta / 100]), fmt: v => nf(v, 3) });
   else { ser.push({ name: 'Gewölbt, Geradeausflug', c: 1, pts: ex.map(k => [k, sg.lvl.Fb[k]]), fmt: v => nf(v, 3) }); if (P.turnFrac > 0) ser.push({ name: `Gewölbt, Kurve ${nf(P.bank, 0)}°`, c: 2, pts: ex.map(k => [k, sg.turn.Fb[k]]), fmt: v => nf(v, 3) }); }
   lineChart($('#ch-solgeo'), { h: 200, title: 'Direktstrahlung auf die Zellen je W/m² senkrechter Einstrahlung', x: { min: 0, max: 90, fmt: v => nf(v, 0) + '°', title: 'Sonnenhöhe' }, y: { min: 0, max: 1, fmt: v => nf(v, 1) }, series: ser });
-  $('#sol-sub').textContent = sg.flat ? 'Pauschaler Wölbungsfaktor wie im ETH-Werkzeug.' : `Mittel über alle Kurse zur Sonne. Anstellwinkel ${nf(sg.pitch, 1)}°, Zellen im Mittel ${nf(C.solar.x0 * 100, 0)}–${nf(C.solar.x1 * 100, 0)} % der Tiefe auf ${C.foil.name}. Diffus ${nf(sg.Fd * 100, 1)} %, Bodenreflexion ${nf(sg.Fg * 100, 1)} % der jeweiligen Strahlung.`;
+  $('#sol-sub').textContent = sg.flat ? 'Pauschaler Wölbungsfaktor wie im ETH-Werkzeug.' : `Mittel über alle Kurse zur Sonne. Anstellwinkel ${nf(sg.pitch, 1)}°, ${C.solar.facet ? `ebene Module: ${C.solar.facet.xs.length} ${C.solar.facet.xs.length === 1 ? 'Facette' : 'Facetten'} mit ${C.solar.facet.ang.map(a => nfs(a, 1) + '°').join(' / ')} gegen die Profilsehne, ${nf(C.solar.facet.xs[0][0] * 100, 0)}–${nf(C.solar.facet.xs[C.solar.facet.xs.length - 1][1] * 100, 0)} % der Tiefe auf ${(C.foil0 || C.foil).name}` : `Zellen im Mittel ${nf(C.solar.x0 * 100, 0)}–${nf(C.solar.x1 * 100, 0)} % der Tiefe auf ${C.foil.name}`}. Diffus ${nf(sg.Fd * 100, 1)} %, Bodenreflexion ${nf(sg.Fg * 100, 1)} % der jeweiligen Strahlung.`;
 };
 // Schatten auf Flügel- und Leitwerkszellen (shade.js): Verlust der Direktstrahlung über der Sonnenhöhe und am Auslegungstag
 function renderShade(R) {
@@ -153,7 +153,9 @@ function renderCells(R) {
   const { C, P } = R, so = C.solar, sp = so.spec, pf = C.pf, area = so.mode === 'area';
   const uFull = Math.max(1, Math.round(P.nCells)) * cellOCV(P, 1);
   const lim = so.lim;
-  $('#cells-sub').textContent = area ? `Fläche frei eingegeben (nur für Vergleiche). Zum Vergleich das Raster mit ${sp.name}.` : `${sp.name}, ${nf(P.cellGap, 1)} mm Abstand. Jede Zelle folgt der gewölbten Oberseite: Stich höchstens ${nf(lim.beta * 100, 1)} % der Zelllänge (Biegeradius ≥ ${nf(sp.s / (8 * lim.beta) * 1000, 0)} mm), Randdehnung höchstens ${nf(lim.eps * 100, 2)} % (${nf(sp.t * 1e6, 0)} µm dick). Daraus das Zellband je Flügeltiefe (gestrichelt)${lim.x0 > 0 || lim.x1 < 1 ? `, dazu die Grenzen ${nf(lim.x0 * 100, 0)}–${nf(lim.x1 * 100, 0)} %` : ''}${P.cellsOnCtrl ? '; auf den Rudern eigene Module hinter der Achse' : ', vor den Ruderachsen'}. ${so.ms && so.ms.type !== 'cell' ? `Rechteckige Module (${so.ms.rows > 1 ? `${so.ms.rows} Zellen tief, ` : 'eine Zelle tief, '}${so.ms.nMin < so.ms.nMax ? `${so.ms.nMin} bis ${so.ms.nMax}` : so.ms.nMax} Zellen lang, Rand ${nf(so.ms.e * 1000, 1)} mm, Fuge ${nf(so.ms.gm * 1000, 1)} mm): jedes Modul liegt gerade auf ganzer Länge im Zellband, höchstens 10° gedreht, nie über Teilung oder Ruderachse. Belegt von der Wurzel nach außen.` : 'Einzelzellen in Spalten in Flugrichtung von der Wurzel nach außen.'}`;
+  const flat = so.mount === 'flat', fc = so.facet;
+  const mountTxt = flat ? `Eben eingebaut: jedes Modul liegt als gerade Sehne auf der Oberseite, höchstens ${nf(lim.dev * 100, 1)} % der Tiefe unter der Kontur${fc ? ` (hier bis ${nf(fc.dev * 1000, 1)} mm bei ${nf(fc.c * 100, 0)} cm Tiefe, Knicke ${fc.kinks.map(k => nf(k, 1) + '°').join(' / ')})` : ''}; gerechnet mit den Polaren des Facettenprofils` : `Jede Zelle folgt der gewölbten Oberseite: Stich höchstens ${nf(lim.beta * 100, 1)} % der Zelllänge (Biegeradius ≥ ${nf(sp.s / (8 * lim.beta) * 1000, 0)} mm), Randdehnung höchstens ${nf(lim.eps * 100, 2)} % (${nf(sp.t * 1e6, 0)} µm dick)`;
+  $('#cells-sub').textContent = area ? `Fläche frei eingegeben (nur für Vergleiche). Zum Vergleich das Raster mit ${sp.name}.` : `${sp.name}, ${nf(P.cellGap, 1)} mm Abstand. ${mountTxt}. Daraus das Zellband je Flügeltiefe (gestrichelt)${lim.x0 > 0 || lim.x1 < 1 ? `, dazu die Grenzen ${nf(lim.x0 * 100, 0)}–${nf(lim.x1 * 100, 0)} %` : ''}${P.cellsOnCtrl ? '; auf den Rudern eigene Module hinter der Achse' : ', vor den Ruderachsen'}. ${so.ms && so.ms.type !== 'cell' ? `Rechteckige Module (${so.ms.rows > 1 ? `${so.ms.rows} Zellen tief, ` : 'eine Zelle tief, '}${so.ms.nMin < so.ms.nMax ? `${so.ms.nMin} bis ${so.ms.nMax}` : so.ms.nMax} Zellen lang, Rand ${nf(so.ms.e * 1000, 1)} mm, Fuge ${nf(so.ms.gm * 1000, 1)} mm): jedes Modul liegt gerade auf ganzer Länge im Zellband, höchstens 10° gedreht, nie über Teilung oder Ruderachse. Belegt von der Wurzel nach außen.` : 'Einzelzellen in Spalten in Flugrichtung von der Wurzel nach außen.'}`;
   $('#kpis-cells').innerHTML = [
     kpi('Zellen Flügel', (area ? '≈ ' : '') + nf(so.n, 0), '', area ? `aus ${nf(so.a, 2)} m² und ${nf(sp.A * 1e4, 1)} cm² je Zelle` : `${nf(so.nHalf, 0)} je Hälfte · ${nf(sp.A * 1e4, 1)} cm² je Zelle`, !so.fits ? 'bad' : ''),
     ...(!area && so.ms && so.ms.type !== 'cell' ? [kpi('Module Flügel', nf(so.nMods, 0), '', `je Hälfte ${so.modStat.map(q => `${q.k} × ${q.n} Zellen`).join(', ') || 'keine'}`)] : []),
@@ -172,17 +174,62 @@ function renderCells(R) {
   if (sp.old) msg.push(pill('info', 'Halbe und Viertelzellen sowie Rechteckzellen gibt es nicht mehr: gerechnet mit ganzen C60-Zellen.'));
   // Grenzen aus der Vorgabe bis Version 8: damals legten sie das Zellband fest, jetzt schränken sie es nur zusätzlich ein
   if (!area && P.cellX0 === 8 && P.cellX1 === 85) msg.push(`<div class="flags">${pill('info', 'Zellgrenzen 8–85 % stammen aus der Vorgabe bis Version 8. Jetzt bestimmt die Biegung, wie weit vorn und hinten Zellen liegen; die Grenzen schränken nur noch zusätzlich ein.')}<button type="button" class="btn" data-newlim>Grenzen auf 0–90 % setzen</button></div>`);
-  if (!area && so.bands.some(b => !b.b)) msg.push(pillF('info', `Ohne Zellen: ${so.bands.filter(b => !b.b).map(b => `${b.l} (${nf(b.c * 100, 0)} cm tief)`).join(', ')} – dort ist das Profil für eine ${nf(sp.s * 1000, 0)}-mm-Zelle zu stark gewölbt oder zu kurz`, 'sol-bend'));
+  if (!area && so.bands.some(b => !b.b)) msg.push(pillF('info', `Ohne Zellen: ${so.bands.filter(b => !b.b).map(b => `${b.l} (${nf(b.c * 100, 0)} cm tief)`).join(', ')} – dort ist das Profil ${flat ? `für ein ebenes ${nf(so.ms.D * 1000, 0)}-mm-Modul mit höchstens ${nf(lim.dev * 100, 1)} % Abweichung zu stark gewölbt oder zu kurz` : `für eine ${nf(sp.s * 1000, 0)}-mm-Zelle zu stark gewölbt oder zu kurz`}`, flat ? 'sol-flat' : 'sol-bend'));
+  if (flat && fc) msg.push(pillF('info', `Ebene Module: Facettenprofil auf ${nf(fc.phi * 100, 0)} % der Flügelfläche, Umschlag oben ab ${nf(fc.xtr * 100, 0)} % der Tiefe. Vergleich mit gebogenen Modulen weiter unten.`, 'aero-facet'));
   $('#cells-msg').innerHTML = msg.join('');
   cellsSVG($('#svg-cells'), C);
   renderShade(R);
+  later(() => renderMount(R));
   // Zellband an ausgewählten Stellen der Spannweite
-  const why = { bend: 'Stich', strain: 'Dehnung', limit: 'Eingabe', ctrl: 'Ruderachse' };
-  $('#tbl-band').innerHTML = area ? '' : `<thead><tr><th>Stelle</th><th class="n">Tiefe</th><th class="n">vorn</th><th class="n">hinten</th><th class="n">Zellen in Flugrichtung</th><th>begrenzt durch</th><th class="n">Stich max.</th><th class="n">Dehnung max.</th></tr></thead><tbody>` +
-    so.bands.map(r => { const b = r.b; return `<tr><td>${esc(r.l)} <span class="muted small">η ${nf(r.eta, 2)}</span></td><td class="n">${nf(r.c * 100, 1)} cm</td>` + (b ? `<td class="n">${nf(b.x0 * 100, 1)} %</td><td class="n">${nf(b.x1 * 100, 1)} %</td><td class="n">${b.n}</td><td>${why[b.why0]} / ${why[b.why1]}</td><td class="n">${nf(b.fMax * 100, 1)} %</td><td class="n">${nf(b.eps * 100, 3)} %</td>` : `<td class="n crit" colspan="3">keine Zelle</td><td colspan="3" class="muted">Profil zu stark gewölbt oder Tiefe zu klein</td>`) + '</tr>'; }).join('') +
-    (so.bandH ? `<tr><td>Höhenleitwerk</td><td class="n">${nf(C.tail.ch * 100, 1)} cm</td><td class="n">${nf(so.bandH.x0 * 100, 1)} %</td><td class="n">${nf(so.bandH.x1 * 100, 1)} %</td><td class="n">${so.bandH.n}</td><td>${why[so.bandH.why0]} / ${why[so.bandH.why1]}</td><td class="n">${nf(so.bandH.fMax * 100, 1)} %</td><td class="n">${nf(so.bandH.eps * 100, 3)} %</td></tr>` : '') +
-    `</tbody><caption>Vorn und hinten: erste und letzte Zellkante in % der örtlichen Tiefe. Stich: größter Abstand der Kontur von der Sehne einer Zelle, bezogen auf ihre Länge. Dehnung: ε = κ·t/2 mit der Krümmung über rund 1 cm. Profil ${esc(C.foil.name)}.</caption>`;
+  const why = { bend: 'Stich', strain: 'Dehnung', limit: 'Eingabe', ctrl: 'Ruderachse', dev: 'Abweichung' };
+  const bandCells = (b, c) => flat ? `<td class="n">${nf(b.dev * 1000, 1)} mm</td><td class="n">${nf(b.fMax * 100, 2)} %</td>` : `<td class="n">${nf(b.fMax * 100, 1)} %</td><td class="n">${nf(b.eps * 100, 3)} %</td>`;
+  $('#tbl-band').innerHTML = area ? '' : `<thead><tr><th>Stelle</th><th class="n">Tiefe</th><th class="n">vorn</th><th class="n">hinten</th><th class="n">Zellen in Flugrichtung</th><th>begrenzt durch</th>${flat ? '<th class="n">Abweichung max.</th><th class="n">je Tiefe</th>' : '<th class="n">Stich max.</th><th class="n">Dehnung max.</th>'}</tr></thead><tbody>` +
+    so.bands.map(r => { const b = r.b; return `<tr><td>${esc(r.l)} <span class="muted small">η ${nf(r.eta, 2)}</span></td><td class="n">${nf(r.c * 100, 1)} cm</td>` + (b ? `<td class="n">${nf(b.x0 * 100, 1)} %</td><td class="n">${nf(b.x1 * 100, 1)} %</td><td class="n">${b.n}</td><td>${why[b.why0]} / ${why[b.why1]}</td>${bandCells(b, r.c)}` : `<td class="n crit" colspan="3">keine Zelle</td><td colspan="3" class="muted">${flat ? 'kein ebenes Modul mit der zulässigen Abweichung' : 'Profil zu stark gewölbt oder Tiefe zu klein'}</td>`) + '</tr>'; }).join('') +
+    (so.bandH ? `<tr><td>Höhenleitwerk</td><td class="n">${nf(C.tail.ch * 100, 1)} cm</td><td class="n">${nf(so.bandH.x0 * 100, 1)} %</td><td class="n">${nf(so.bandH.x1 * 100, 1)} %</td><td class="n">${so.bandH.n}</td><td>${why[so.bandH.why0]} / ${why[so.bandH.why1]}</td>${bandCells(so.bandH, C.tail.ch)}</tr>` : '') +
+    `</tbody><caption>Vorn und hinten: erste und letzte Zellkante in % der örtlichen Tiefe. ${flat ? 'Abweichung: größter Abstand der Profilkontur von der ebenen Modulfläche (Sehne zwischen Vorder- und Hinterkante des Moduls), in mm und bezogen auf die Tiefe.' : 'Stich: größter Abstand der Kontur von der Sehne einer Zelle, bezogen auf ihre Länge. Dehnung: ε = κ·t/2 mit der Krümmung über rund 1 cm.'} Profil ${esc((C.foil0 || C.foil).name)}.</caption>`;
 }
+// Einbau der Module: gebogen (glatt oder mit Umschlag an der Kante) oder eben (Facetten), nebeneinander gerechnet (ext.js)
+function renderMount(R) {
+  const P = S.params, el = $('#tbl-mount'); if (!el || VIEW !== 'energie') return;
+  if (P.solarMode === 'area') {
+    $('#mount-sub').textContent = 'Nur mit ganzen Zellen (Zellbelegung „so viele wie passen“ oder „feste Anzahl“): Bei frei eingegebener Fläche gibt es keine Module, deren Einbau man vergleichen könnte.';
+    el.innerHTML = ''; $('#svg-mount').innerHTML = ''; return;
+  }
+  const list = cached('mount', () => mountStudy(P, S.comps)), cur = P.cellMount === 'flat' ? 'flat' : P.transition === 'trip' ? 'trip' : 'bent', b0 = list[0];
+  const fl = list.find(r => r.k === 'flat'), fc = fl.C.solar.facet, so0 = b0.C.solar;
+  $('#mount-sub').textContent = `Gleiche Auslegung, nur der Einbau der Module verschieden, Auslegungstag ${fmtDoy(R.n, R.y)}. Gebogen folgt jede Zelle der Oberseite, die Kontur bleibt glatt (Grenze: Biegung der Zelle). Eben liegt jedes Modul als gerade Sehne auf der Kontur, höchstens ${nf(clamp(P.facetDev ?? 1.5, 0.1, 5), 1)} % der Tiefe darunter: Das Profil wird dünner und flacher und knickt an den Modulkanten. Seine Polaren rechnet NeuralFoil nach; die Knicke lösen den Umschlag aus, angenommen an der Vorderkante des ersten Moduls. Zeile anklicken zum Übernehmen.`;
+  mountSVG($('#svg-mount'), list);
+  const d = (v, v0, dig, good) => (Math.abs(v - v0) < 0.5 * Math.pow(10, -dig) ? '' : ` <span class="${(v > v0) === good ? 'good' : 'crit'}">${nfs(v - v0, dig)}</span>`);
+  const tx = r => (fin(r.tExc) ? r.tExc : null), en = r => (r.endur == null ? null : r.endur);
+  el.innerHTML = `<thead><tr><th>Einbau</th><th class="n">Zellen Flügel</th><th class="n">Umschlag oben</th><th class="n">c_w Profil Reise</th><th class="n">Leistung Reise</th><th class="n">Solarertrag</th><th class="n">Abflugmasse</th><th class="n">Excess Time</th><th class="n">Ausdauer</th><th class="n">Einsatz min. SoC</th></tr></thead><tbody>` +
+    list.map(r => {
+      const C = r.C, so = C.solar, f = so.facet, sel = r.k === cur;
+      const note = r.k === 'flat' ? (f ? `${f.m} ${f.m === 1 ? 'Modulreihe' : 'Modulreihen'} eben, Abweichung bis ${nf(f.dev * 1000, 1)} mm, Knicke ${f.kinks.map(k => nf(k, 0) + '°').join(' / ')}` : 'kein ebenes Modul passt') : r.k === 'trip' ? 'Stufe am Modulrand: Umschlag bei 10 % der Tiefe' : `Biegeradius ≥ ${nf(so.spec.s / (8 * so.lim.beta) * 1000, 0)} mm, Kontur glatt`;
+      const xtr = r.k === 'flat' ? (f ? nf(f.xtr * 100, 0) + ' %' : '–') : r.k === 'trip' ? '10 %' : 'frei';
+      const t = tx(r), t0 = tx(b0), e = en(r), e0 = en(b0);
+      return `<tr class="${sel ? 'sel' : ''} pick" data-mount="${r.k}" tabindex="0"><td class="wide-cell"><b>${esc(r.lab)}</b><div class="small muted">${esc(note)}</div></td>` +
+        `<td class="n">${nf(so.n, 0)}${r.k !== 'bent' ? d(so.n, so0.n, 0, true) : ''}</td><td class="n">${xtr}</td>` +
+        `<td class="n">${nf(C.lvl.cdp * 1e4, 0)}${r.k !== 'bent' ? d(C.lvl.cdp * 1e4, b0.C.lvl.cdp * 1e4, 0, false) : ''}</td>` +
+        `<td class="n">${nf(C.pProp, 1)} W${r.k !== 'bent' ? d(C.pProp, b0.C.pProp, 1, false) : ''}</td>` +
+        `<td class="n">${nf(r.eS, 0)} Wh${r.k !== 'bent' ? d(r.eS, b0.eS, 0, true) : ''}</td><td class="n">${nf(C.m, 2)} kg</td>` +
+        `<td class="n">${t != null ? nfs(t, 1) + ' h' : '<span class="muted">kein Überschuss</span>'}${r.k !== 'bent' && t != null && t0 != null ? d(t, t0, 1, true) : ''}</td>` +
+        `<td class="n">${e == null ? '–' : e >= 48 ? '≥ 48 h' : nf(e, 1) + ' h'}${r.k !== 'bent' && e != null && e0 != null && e < 48 ? d(e, e0, 1, true) : ''}</td>` +
+        `<td class="n ${r.mis && !r.mis.ok ? 'crit' : ''}">${fin(r.soc) ? nf(r.soc * 100, 0) + ' %' : '–'}</td></tr>`;
+    }).join('') +
+    `</tbody><caption>c_w Profil: Profilwiderstand des Flügels im Reiseflug in 10⁻⁴ (über die Spannweite gemittelt). Ebene Module wirken nur auf dem Flächenanteil, auf dem sie liegen${fc ? ` (${nf(fc.phi * 100, 0)} %)` : ''}; Einstrahlung je Facette mit ihrer eigenen Neigung. Ausdauer: ab ${esc(P.tStart)} mit vollem Akku. Umschlag „frei“: natürlicher Umschlag (N_krit 9) auf glatter Oberfläche.</caption>`;
+}
+$('#tbl-mount').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-mount]'); if (!tr) return;
+  const k = tr.dataset.mount; S.params.cellMount = k === 'flat' ? 'flat' : 'bent'; if (k !== 'flat') S.params.transition = k === 'trip' ? 'trip' : 'free';
+  markPreset(); fillForms(); schedule(true);
+});
+$('#tbl-mount').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { const tr = e.target.closest('tr[data-mount]'); if (tr) { e.preventDefault(); tr.click(); } } });
+// Moduldaten wie AtlantikSolar (defaults.js · ATLANTIK_MODULES)
+$('#btn-atl-mod').addEventListener('click', () => {
+  Object.assign(S.params, ATLANTIK_MODULES); if (S.params.solarMode === 'area') S.params.solarMode = 'fill';
+  $('#atl-mod-note').textContent = ' Übernommen: SunPower E60, 23,7 % auf Modulebene, 590 g/m², 0,3 %/K, Streifenmodule eine Zelle tief.';
+  markPreset(); fillForms(); schedule(true);
+});
 function renderStudy(R) {
   const P = S.params, tabs = $('#study-tabs');
   if (!tabs.children.length) tabs.innerHTML = Object.entries(SWEEPS).map(([k, s]) => `<button class="tab" role="tab" type="button" data-st="${k}">${esc(s.label.replace(/ \(.*\)/, k === 'spanAR' ? ' (Streckung fest)' : ''))}</button>`).join('');

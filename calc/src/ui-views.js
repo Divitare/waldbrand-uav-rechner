@@ -179,7 +179,7 @@ RENDER.flugzeug = (R) => {
   // Widerstand
   const D = C.lvl.D, Dt = C.lvl.Dtot, names = { profile: 'Profilwiderstand Flügel', induced: 'Induzierter Widerstand', tail: 'Leitwerk', fus: C.cfg.fus === 'glider' ? 'Rumpf (Schale)' : 'Rumpfgondel', boom: C.cfg.nBoom > 1 ? 'Leitwerksträger (2)' : 'Leitwerksträger', comps: 'Anbauten, Motorgondel, Pylon', gear: 'Landekufe', reserve: 'Reserve' };
   $('#bars-drag').innerHTML = barsHTML([...Object.entries(D).filter(([, v]) => v > 1e-6).map(([k, v]) => ({ l: names[k] || k, v, t: `${nf(v, 2)} N · ${nf(v / Dt * 100, 0)} %` })), { l: 'Gesamt', v: Dt, t: nf(Dt, 2) + ' N', total: true }]);
-  $('#drag-sub').textContent = `Geradeausflug ${nf(P.v, 1)} m/s, Staudruck ${nf(C.lvl.q, 0)} Pa. Profil ${C.foil.name}${C.mode === 'trip' ? ' mit Umschlag an der Zellkante' : ''}.`;
+  $('#drag-sub').textContent = `Geradeausflug ${nf(P.v, 1)} m/s, Staudruck ${nf(C.lvl.q, 0)} Pa. Profil ${C.foil.name}${C.mode === 'trip' ? ' mit Umschlag an der Zellkante' : C.mode === 'facet' ? ` (Facettenprofil auf ${nf(C.foil.facet.phi * 100, 0)} % der Fläche, Umschlag ab ${nf(C.foil.facet.xtr * 100, 0)} % der Tiefe)` : ''}.`;
   const tr = (k, v) => `<tr><th>${k}</th><td class="n">${v}</td></tr>`;
   $('#tbl-aero').innerHTML = '<tbody>' + [
     tr('Auftriebsbeiwert c_A', nf(C.lvl.CL, 3)), tr('Profilwiderstand c_W,p (Flügel)', nf(C.lvl.cdp, 4)), tr('Induzierter Widerstand c_W,i', nf(C.lvl.CDi, 4)),
@@ -245,16 +245,22 @@ function renderPolars(list) {
     for (let cl = -0.2; cl <= 1.8; cl += 0.02) { const o = { flag: 0 }, cd = profileCd(f, mode, Re, cl, o); if (o.flag) continue; pts.push([cd * 1e4, cl]); pts2.push([cl, cl / cd]); }
     ser.push({ name: f.name, c: i + 1, pts: pts.map(p => p), fmt: v => 'c_A ' + nf(v, 2), noTip: true }); ser2.push({ name: f.name, c: i + 1, pts: pts2, fmt: v => nf(v, 1) });
   });
+  // ebene Module: Polare des Facettenprofils (gewichtet mit dem belegten Flächenanteil) zum Vergleich
+  if (C.mode === 'facet' && ser.length < 5) {
+    const pts = [], pts2 = [], ci = Math.min(5, ser.length + 1);
+    for (let cl = -0.2; cl <= 1.8; cl += 0.02) { const o = { flag: 0 }, cd = profileCd(C.foil, 'facet', Re, cl, o); if (o.flag) continue; pts.push([cd * 1e4, cl]); pts2.push([cl, cl / cd]); }
+    ser.push({ name: C.foil.name, c: ci, pts, fmt: v => 'c_A ' + nf(v, 2), noTip: true }); ser2.push({ name: C.foil.name, c: ci, pts: pts2, fmt: v => nf(v, 1) });
+  }
   const allcd = ser.flatMap(s => s.pts.map(p => p[0]));
   const clW = C.lvl.CL, f0 = foilByKey(keys[0]);
   lineChart($('#ch-polar'), { h: 240, title: 'Widerstandspolare', x: { min: 0, max: Math.min(400, niceRange(allcd, 0.02)[1]), fmt: v => nf(v, 0), title: 'Profilwiderstand c_w in 10⁻⁴' }, y: { min: -0.2, max: 1.8, fmt: v => nf(v, 1) }, series: ser.map(s => ({ ...s, pts: s.pts.filter(p => p[0] < 400) })), marks: f0 ? [{ x: profileCd(f0, mode, Re, clW) * 1e4, y: clW, c: 1, label: 'Reise' }] : [], legend: true });
   lineChart($('#ch-polar2'), { h: 200, title: 'Gleitzahl des Profils', x: { min: -0.2, max: 1.8, fmt: v => nf(v, 1), title: 'Auftriebsbeiwert c_a' }, y: { min: 0, max: niceRange(ser2.flatMap(s => s.pts.map(p => p[1])), 0.05, true)[1], fmt: v => nf(v, 0) }, series: ser2, vlines: [{ x: clW, label: 'Reise' }] });
   shapesSVG($('#svg-shapes'), keys, P);
   // Zellband je Profil an Wurzel und Spitze: so weit vorn und hinten, wie Stich und Dehnung der Zellen es erlauben
-  const spec = cellSpec(P), lim = bendLimits(P, spec), g = clamp((P.cellGap ?? 2) / 1000, 0, 0.03), pf = C.pf, area = P.solarMode === 'area';
-  const why = { bend: 'Stich', strain: 'Dehnung', limit: 'Grenze', ctrl: 'Ruder' };
+  const spec = cellSpec(P), g = clamp((P.cellGap ?? 2) / 1000, 0, 0.03), ms = modSpec(P, spec, g), lim = { ...bendLimits(P, spec), D: ms.D, gm: ms.gm, rows: ms.rows }, pf = C.pf, area = P.solarMode === 'area';
+  const why = { bend: 'Stich', strain: 'Dehnung', limit: 'Grenze', ctrl: 'Ruder', dev: 'Abweichung' };
   const bandTxt = (f, c) => { if (area) return '–'; const b = cellBand(f, c, spec, lim, g, null); return b ? `<span title="vorn begrenzt durch ${why[b.why0]}, hinten durch ${why[b.why1]}; ${b.n} Zelle(n) in Flugrichtung">${nf(b.x0 * 100, 0)}–${nf(b.x1 * 100, 0)} % (${b.n})</span>` : '<span class="crit">keine</span>'; };
-  $('#shapes-sub').textContent = `Bis zu vier Profile aus der Tabelle markieren. Über jeder Kontur in ihrer Farbe die Zellen (${spec.name}) an der Flügelwurzel (Tiefe ${nf(pf.cr * 100, 0)} cm): so weit vorn und hinten, wie es Stich (höchstens ${nf(lim.beta * 100, 1)} % je Zelle) und Dehnung (${nf(lim.eps * 100, 2)} %) erlauben.`;
+  $('#shapes-sub').textContent = `Bis zu vier Profile aus der Tabelle markieren. Über jeder Kontur in ihrer Farbe die Zellen (${spec.name}) an der Flügelwurzel (Tiefe ${nf(pf.cr * 100, 0)} cm): so weit vorn und hinten, wie es ${lim.mount === 'flat' ? `die Abweichung der ebenen Module (höchstens ${nf(lim.dev * 100, 1)} % der Tiefe) erlaubt; eben eingebaut als gerade Striche` : `Stich (höchstens ${nf(lim.beta * 100, 1)} % je Zelle) und Dehnung (${nf(lim.eps * 100, 2)} %) erlauben`}.`;
   $('#tbl-afsel').innerHTML = `<thead><tr><th>Profil</th><th class="n">Dicke</th><th class="n">bei</th><th class="n">Wölbung</th><th class="n">bei</th><th class="n">c_a,max</th><th class="n">c_m</th><th class="n">α₀</th><th class="n">Zellen Wurzel</th><th class="n">Spitze</th></tr></thead><tbody>` + keys.map(k => { const f = foilByKey(k), m = foilMeta(f, mode, Re); return `<tr><td>${esc(f.name)}</td><td class="n">${nf(f.t * 100, 1)} %</td><td class="n">${nf(f.xt * 100, 0)} %</td><td class="n">${nf(f.f * 100, 1)} %</td><td class="n">${nf(f.xf * 100, 0)} %</td><td class="n">${nf(m.clmax, 2)}</td><td class="n">${nf(m.cm, 3)}</td><td class="n">${nf(m.a0, 1)}°</td><td class="n">${bandTxt(f, pf.cr)}</td><td class="n">${bandTxt(f, pf.ct)}</td></tr>`; }).join('') + `</tbody><caption>Zellen: vordere und hintere Zellkante in % der Tiefe (begrenzt durch Stich, Dehnung oder die eingegebene Grenze), in Klammern Zellen in Flugrichtung; ohne Ruderachsen. Wurzel ${nf(pf.cr * 100, 0)} cm, Spitze ${nf(pf.ct * 100, 0)} cm tief. ${keys.map(k => { const f = foilByKey(k); return `${f.name}: ${f.desc || ''}`; }).map(esc).join(' · ')}</caption>`;
 }
 $('#v-profile').addEventListener('click', e => {

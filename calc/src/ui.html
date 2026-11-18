@@ -37,6 +37,11 @@
         <div class="table-actions" id="imp-actions"><button class="btn primary" type="button" id="imp-apply" disabled>Übernehmen</button><button class="btn" type="button" id="imp-undo" hidden>Stand vor dem Import wiederherstellen</button></div>
       </div>
     </div>
+    <div class="cad-box">
+      <h3 class="first">CAD-Geometrie für CATIA</h3>
+      <p class="note">Flügelschnitte mit Profilkoordinaten, Einstellwinkel und Verwindung, Holm, Querruderachse und Teilungen, Höhen- und Seitenleitwerk mit Ruderachsen, Rumpf als Drehkörper, Träger, Antrieb, Solarmodule (Ecken auf der Oberseite, gebogen oder eben) und alle Massen mit Lage, Schwerpunkt und Trägheitsmomenten. Millimeter; x nach hinten ab der Rumpfnase, y nach rechts, z nach oben; nur die rechte Hälfte.</p>
+      <div class="table-actions"><button class="btn" type="button" id="cad-file">Geometrie herunterladen (.json)</button><button class="btn" type="button" id="cad-copy">Als Text kopieren</button></div>
+    </div>
     <p class="status-msg" id="share-msg" role="status"></p>
   </dialog>
 
@@ -301,13 +306,16 @@
         <div class="panel"><h3 class="first">Ort und Tag</h3><div class="pgrid" data-form="env"></div></div>
         <div class="panel"><h3 class="first">Akku</h3><div class="pgrid" data-form="batt"></div></div>
         <div class="panel"><h3 class="first">Solargenerator</h3><div class="pgrid" data-form="solar"></div>
-          <details class="more"><summary>Verluste und Temperatur</summary><div class="pgrid" data-form="solar2"></div></details></div>
+          <details class="more"><summary>Verluste und Temperatur</summary><div class="pgrid" data-form="solar2"></div></details>
+          <div class="flags" style="margin-top:10px"><button type="button" class="btn" id="btn-atl-mod">Moduldaten wie AtlantikSolar</button><span class="muted small" id="atl-mod-note"></span></div></div>
       </div>
       <div class="main">
         <div class="panel"><div class="panel-head"><div><h2>Energiebilanz des Tages</h2><p id="eb-sub"></p></div></div><div class="kpis" id="kpis-energy"></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Zellbelegung</h2><p id="cells-sub"></p></div></div>
           <div class="kpis" id="kpis-cells"></div><div id="cells-msg" style="margin-top:10px"></div><div class="chart" id="svg-cells"></div>
           <div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-band"></table></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Module gebogen oder eben?</h2><p id="mount-sub"></p></div></div>
+          <div class="chart" id="svg-mount"></div><div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-mount"></table></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Schatten auf den Zellen</h2><p id="shade-sub"></p></div></div>
           <div class="kpis" id="kpis-shade"></div><div class="chart" id="ch-shade" style="margin-top:10px"></div><div class="table-wrap" style="margin-top:10px"><table class="data" id="tbl-shade"></table></div></div>
         <div class="panel"><div class="panel-head"><div><h2>Akkuspannung über dem Ladezustand</h2><p id="bv-sub"></p></div></div>

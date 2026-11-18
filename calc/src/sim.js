@@ -123,11 +123,12 @@ function solarGeometry(P, C) {
   }
   const pitchDeg = Math.round(clamp(C.lvl ? C.lvl.alpha : 4, -5, 15) * 4) / 4, pitch = pitchDeg * DEG, dih = (P.dihedral || 0) * DEG;
   const f = clamp(P.turnFrac / 100, 0, 1);
-  const bx0 = C.solar ? C.solar.x0 : 0.1, bx1 = C.solar ? C.solar.x1 : 0.85;
-  const key = [P.airfoil, bx0.toFixed(3), bx1.toFixed(3), pitchDeg, P.dihedral, P.stringLayout, f > 0 ? P.bank : 0].join('|');
+  const bx0 = C.solar ? C.solar.x0 : 0.1, bx1 = C.solar ? C.solar.x1 : 0.85, fc = C.solar && C.solar.facet;
+  // ebene Module: je Facette eine Normale (Neigung der Modulsehne gegen die Profilsehne), sonst die gewölbte Kontur
+  const key = [P.airfoil, fc ? 'F' + fc.slopes.map(s => s.toFixed(3)).join(',') : bx0.toFixed(3) + '-' + bx1.toFixed(3), pitchDeg, P.dihedral, P.stringLayout, f > 0 ? P.bank : 0].join('|');
   let g = geoCache.get(key);
   if (!g) {
-    const cp = cellPanels(C.foil, bx0, bx1);
+    const cp = fc ? { panels: fc.slopes.map(slope => ({ slope, w: 1 / fc.slopes.length })), arc: 1, x0: fc.xs[0][0], x1: fc.xs[fc.xs.length - 1][1] } : cellPanels(C.foil, bx0, bx1);
     const lvl = geomFactors(cp.panels, pitch, 0, dih, P.stringLayout);
     const turn = f > 0 ? geomFactors(cp.panels, pitch, clamp(P.bank, 0, 60) * DEG, dih, P.stringLayout) : lvl;
     g = { cp, lvl, turn }; if (geoCache.size > 400) geoCache.clear(); geoCache.set(key, g);

@@ -201,6 +201,21 @@ const SWEEPS = {
   solarArea: { label: 'Zellfläche', unit: 'm²', vals: P => range(0.2, Math.max(1.6, P.area * 0.95), 20), map: (P, x) => ({ ...P, solarMode: 'area', solarArea: x }) },
   hAGL: { label: 'Flughöhe über Grund', unit: 'm', vals: () => range(50, 1500, 20), map: (P, x) => ({ ...P, hAGL: x }) }
 };
+/* Einbau der Solarmodule im Vergleich, alles andere gleich: gebogen und glatt eingebettet (Umschlag frei), gebogen mit
+   Umschlag an der Modulkante (Stufe, x/c 10 %), eben (Facettenprofil, Umschlag an der Vorderkante des ersten Moduls) */
+const MOUNT_VARS = [
+  ['bent', 'gebogen, glatt eingebettet', { cellMount: 'bent', transition: 'free' }],
+  ['trip', 'gebogen, Umschlag an der Modulkante', { cellMount: 'bent', transition: 'trip' }],
+  ['flat', 'eben (Facetten)', { cellMount: 'flat' }]
+];
+function mountStudy(P, comps) {
+  const n = dayOfYear(P.date), y = yearOf(P.date);
+  return MOUNT_VARS.map(([k, lab, ch]) => {
+    const Q = { ...P, ...ch }, C = buildCase(Q, comps), ser = daySeries(C, envClear(Q, n, y)), per = periodic(C, ser), mis = mission(C, ser, ser, false);
+    let eS = 0; for (let i = 0; i < NSTEP; i++) eS += ser.ps[i] * DT;
+    return { k, lab, Q, C, per, mis, eS, tExc: per.tExc, endur: mis ? mis.endur : null, soc: mis ? mis.minE / mis.cap : NaN };
+  });
+}
 function compareAirfoils(P, comps) {
   const n = dayOfYear(P.date), y = yearOf(P.date), out = [];
   for (const f of AF.db.foils) {
