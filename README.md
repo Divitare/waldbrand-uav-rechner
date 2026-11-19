@@ -49,6 +49,8 @@ Profile, Komponenten, Energie, Wetter, Einsatz, Robustheit, SORA, Anforderungen,
   mit Profilkoordinaten, Einstellwinkel und Verwindung, Holm, Querruderachse und Teilungen, Leitwerke mit Ruderachsen,
   Rumpf als Drehkörper, Träger, Antrieb, Solarmodule (Ecken auf der Oberseite, gebogen oder eben) und alle Massen mit
   Schwerpunkt und Trägheitsmomenten; mm, x nach hinten ab der Rumpfnase, y nach rechts, z nach oben, rechte Hälfte.
+  Ohne Browser: `node calc/tools/cad_export.cjs modell.uav.json ausgabe.cad.json`. Übergabe für den Aufbau in CATIA:
+  [`docs/catia/UEBERGABE.md`](docs/catia/UEBERGABE.md).
 - **Team:** gemeinsame Modelle mit einem Team-Passwort. Änderungen erscheinen sofort bei allen, die das Modell offen
   haben; verschiedene Stellen gelten beide, an derselben Stelle gilt die spätere. Anzeige, wer wo arbeitet,
   Verlauf mit Rückgängig, gespeicherte Stände, Papierkorb. Ohne Netz geht die Arbeit weiter und wird nachgereicht.
